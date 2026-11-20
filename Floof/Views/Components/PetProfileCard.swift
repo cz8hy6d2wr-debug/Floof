@@ -6,25 +6,21 @@ struct PetProfileCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-                PetAvatar(pet: pet, size: 64)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(pet.name).font(Theme.title(24))
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    Text("\(pet.breed) · \(pet.ageDescription)")
-                        .font(.subheadline).foregroundStyle(Theme.inkSoft)
-                        .lineLimit(2)
+            // Breit: Status-Kapsel rechts daneben. Schmal: darunter, damit Name und Rasse Platz haben.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 14) {
+                    PetAvatar(pet: pet, size: 64)
+                    identity
+                    Spacer(minLength: 8)
+                    statusBadge
                 }
-                .layoutPriority(1)
-                Spacer()
-                if let check = pet.dailyChecks.max(by: { $0.id < $1.id }) {
-                    Label(check.need.label, systemImage: "circle.fill")
-                        .labelStyle(DotLabelStyle())
-                        .font(.caption.bold())
-                        .foregroundStyle(check.need.color)
-                        .padding(.horizontal, 10).padding(.vertical, 6)
-                        .background(check.need.color.opacity(0.15), in: Capsule())
-                        .fixedSize()
+                HStack(alignment: .top, spacing: 14) {
+                    PetAvatar(pet: pet, size: 56)
+                    VStack(alignment: .leading, spacing: 8) {
+                        identity
+                        statusBadge
+                    }
+                    Spacer(minLength: 0)
                 }
             }
 
@@ -42,6 +38,33 @@ struct PetProfileCard: View {
             }
         }
         .card()
+    }
+
+    private var identity: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(pet.name).font(Theme.title(24))
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(pet.breed.isEmpty ? pet.animalType : pet.breed)
+                .font(.subheadline).foregroundStyle(Theme.inkSoft)
+                .lineLimit(1).minimumScaleFactor(0.85)
+            Text(pet.ageDescription)
+                .font(.subheadline).foregroundStyle(Theme.inkSoft)
+                .lineLimit(1)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var statusBadge: some View {
+        if let check = pet.dailyChecks.max(by: { $0.id < $1.id }) {
+            Label(check.need.label, systemImage: "circle.fill")
+                .labelStyle(DotLabelStyle())
+                .font(.caption.bold())
+                .foregroundStyle(check.need.color)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(check.need.color.opacity(0.15), in: Capsule())
+                .fixedSize()
+        }
     }
 
     private var infoRows: [(String, String)] {
