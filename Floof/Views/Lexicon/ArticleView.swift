@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ArticleView: View {
     @Environment(PetStore.self) private var store
-    @Environment(\.openLexicon) private var open
     let article: LexiconArticle
 
     var body: some View {

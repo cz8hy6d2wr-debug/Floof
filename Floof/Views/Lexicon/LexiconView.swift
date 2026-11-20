@@ -1,8 +1,20 @@
 import SwiftUI
 
-extension EnvironmentValues {
-    /// Öffnet ein Lexikon-Ziel im passenden Kontext (Spalte, Navigation oder Sheet).
-    @Entry var openLexicon: (LexiconRoute) -> Void = { _ in }
+/// Navigation im Lexikon: öffnet Ziele im passenden Kontext –
+/// aufgeklappt in der rechten Spalte, sonst als nächste Seite.
+/// Als Objekt in der Environment (statt einer Funktion), damit SwiftUI
+/// Änderungen gezielt verfolgen kann.
+@MainActor
+@Observable
+final class LexiconNavigator {
+    var path: [LexiconRoute] = []
+    var selection: LexiconRoute = .article("not-fressen")
+    /// Aufgeklappt: Ziele erscheinen in der rechten Spalte statt als neue Seite.
+    var usesColumns = false
+
+    func open(_ route: LexiconRoute) {
+        if usesColumns { selection = route } else { path.append(route) }
+    }
 }
 
 /// Kaninchen-Lexikon: Notfall zuerst, dann Passendes zu den eigenen Tieren,
@@ -13,22 +25,22 @@ extension EnvironmentValues {
 struct LexiconView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.devicePosture) private var posture
-    @State private var path: [LexiconRoute] = []
-    @State private var selection: LexiconRoute = .article("not-fressen")
+    @State private var navigator = LexiconNavigator()
     @State private var search = ""
 
     var body: some View {
-        NavigationStack(path: $path) {
+        @Bindable var navigator = navigator
+        NavigationStack(path: $navigator.path) {
             Group {
                 if posture == .unfolded {
                     FoldColumns {
                         overview
                     } trailing: {
-                        LexiconDestination(route: selection)
-                            .id(selection)
+                        LexiconDestination(route: navigator.selection)
+                            .id(navigator.selection)
                             .transition(.opacity)
                     }
-                    .animation(.smooth, value: selection)
+                    .animation(.smooth, value: navigator.selection)
                 } else {
                     overview
                         .padding(.horizontal, 16)
@@ -39,20 +51,16 @@ struct LexiconView: View {
             .navigationDestination(for: LexiconRoute.self) { LexiconDestination(route: $0) }
             .searchable(text: $search, prompt: "Suchen, z. B. EC, Heu, Krallen")
         }
-        .environment(\.openLexicon, open)
-        .onChange(of: posture) { _, new in
-            switch new {
-            case .unfolded:
-                if let last = path.last { selection = last }
-                path = []
-            case .folded:
-                break   // zugeklappt startet das Lexikon in der Übersicht
+        .environment(self.navigator)
+        .onChange(of: posture, initial: true) { _, new in
+            let nav = self.navigator
+            nav.usesColumns = new == .unfolded
+            if new == .unfolded {
+                // Geöffneter Artikel wandert in die rechte Spalte.
+                if let last = nav.path.last { nav.selection = last }
+                nav.path = []
             }
         }
-    }
-
-    private func open(_ route: LexiconRoute) {
-        if posture == .unfolded { selection = route } else { path.append(route) }
     }
 
     private var overview: some View {
@@ -111,11 +119,12 @@ struct LexiconDestination: View {
 /// Artikel als eigenes Sheet mit eigener Navigation – z. B. aus der Tier-Ansicht heraus.
 struct LexiconSheet: View {
     let start: LexiconRoute
-    @State private var path: [LexiconRoute] = []
+    @State private var navigator = LexiconNavigator()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack(path: $path) {
+        @Bindable var navigator = navigator
+        NavigationStack(path: $navigator.path) {
             LexiconDestination(route: start)
                 .navigationDestination(for: LexiconRoute.self) { LexiconDestination(route: $0) }
                 .toolbar {
@@ -124,7 +133,7 @@ struct LexiconSheet: View {
                     }
                 }
         }
-        .environment(\.openLexicon) { path.append($0) }
+        .environment(self.navigator)
         .floofSheet()
     }
 }
@@ -132,7 +141,7 @@ struct LexiconSheet: View {
 // MARK: - Bausteine der Übersicht
 
 private struct EmergencyCard: View {
-    @Environment(\.openLexicon) private var open
+    @Environment(LexiconNavigator.self) private var navigator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -142,7 +151,7 @@ private struct EmergencyCard: View {
             Text("Frisst nicht, atmet schwer, krampft oder kippt um? **Sofort Tierarzt oder Notdienst anrufen.** Hier steht, was du bis dahin tun kannst.")
                 .font(.subheadline)
             ForEach(Lexicon.articles(in: .emergency)) { article in
-                Button { open(.article(article.id)) } label: {
+                Button { navigator.open(.article(article.id)) } label: {
                     HStack {
                         Text(article.title).font(.subheadline.weight(.semibold))
                         Spacer()
@@ -166,7 +175,7 @@ private struct EmergencyCard: View {
 /// Artikel, die zu Medikamenten, Erkrankungen oder Notizen der eigenen Tiere passen.
 private struct RelevantCard: View {
     @Environment(PetStore.self) private var store
-    @Environment(\.openLexicon) private var open
+    @Environment(LexiconNavigator.self) private var navigator
 
     var body: some View {
         let items = Lexicon.relevant(for: store.pets).filter { $0.article.category != .emergency }
@@ -174,7 +183,7 @@ private struct RelevantCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Passend zu deinen Tieren").font(Theme.title(20))
                 ForEach(items, id: \.article.id) { item in
-                    Button { open(.article(item.article.id)) } label: {
+                    Button { navigator.open(.article(item.article.id)) } label: {
                         HStack(spacing: 12) {
                             ArticleIcon(category: item.article.category)
                             VStack(alignment: .leading, spacing: 2) {
@@ -198,10 +207,10 @@ private struct RelevantCard: View {
 }
 
 private struct FoodCheckTeaser: View {
-    @Environment(\.openLexicon) private var open
+    @Environment(LexiconNavigator.self) private var navigator
 
     var body: some View {
-        Button { open(.foodCheck) } label: {
+        Button { navigator.open(.foodCheck) } label: {
             HStack(spacing: 14) {
                 Image(systemName: "carrot.fill")
                     .font(.title2)
@@ -246,14 +255,14 @@ private struct VitalsCard: View {
 }
 
 private struct CategoryGrid: View {
-    @Environment(\.openLexicon) private var open
+    @Environment(LexiconNavigator.self) private var navigator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Themen").font(Theme.title(20))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
                 ForEach(LexiconCategory.allCases.filter { $0 != .emergency }) { category in
-                    Button { open(.category(category)) } label: {
+                    Button { navigator.open(.category(category)) } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             Image(systemName: category.symbol)
                                 .font(.title3)
@@ -332,11 +341,11 @@ struct ArticleIcon: View {
 }
 
 struct ArticleRow: View {
-    @Environment(\.openLexicon) private var open
+    @Environment(LexiconNavigator.self) private var navigator
     let article: LexiconArticle
 
     var body: some View {
-        Button { open(.article(article.id)) } label: {
+        Button { navigator.open(.article(article.id)) } label: {
             HStack(alignment: .top, spacing: 12) {
                 ArticleIcon(category: article.category)
                 VStack(alignment: .leading, spacing: 2) {
