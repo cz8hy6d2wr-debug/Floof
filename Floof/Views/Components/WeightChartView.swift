@@ -27,12 +27,11 @@ struct WeightChartView: View {
                     .frame(minHeight: 200)
             } else {
                 Chart(entries) { entry in
-                    // Fläche nur bis zum unteren Achsenrand (nicht bis 0 g), weich ausblendend.
+                    // Fläche nur bis zum unteren Achsenrand, nicht bis 0 g.
                     AreaMark(x: .value("Datum", entry.date, unit: .day),
                              yStart: .value("Basis", yDomain.lowerBound),
                              yEnd: .value("Gramm", entry.grams))
-                        .foregroundStyle(LinearGradient(colors: [pet.tint.opacity(0.22), pet.tint.opacity(0)],
-                                                        startPoint: .top, endPoint: .bottom))
+                        .foregroundStyle(pet.tint.opacity(0.18).gradient)
                         .interpolationMethod(.monotone)
                     LineMark(x: .value("Datum", entry.date, unit: .day),
                              y: .value("Gramm", entry.grams))
