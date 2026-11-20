@@ -19,6 +19,10 @@ struct CabinetItemEditor: View {
     }
 
     var body: some View {
+        editor.floofSheet()
+    }
+
+    private var editor: some View {
         NavigationStack {
             Form {
                 Section {

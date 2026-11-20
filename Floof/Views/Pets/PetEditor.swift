@@ -14,6 +14,10 @@ struct PetEditor: View {
     private var group: PetGroup { PetGroup.for(pet.animalType) }
 
     var body: some View {
+        editor.floofSheet()
+    }
+
+    private var editor: some View {
         NavigationStack {
             Form {
                 Section {

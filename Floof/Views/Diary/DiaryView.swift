@@ -1,20 +1,23 @@
 import SwiftUI
 
 /// Tiertagebuch: eigene Einträge + automatisch erfasste Ereignisse auf einer Zeitleiste.
-/// Aufgeklappt kommt rechts der Stimmungskalender dazu.
+/// Aufgeklappt: zwei gleich breite Spalten (Zeitleiste | Stimmungskalender + Themen),
+/// der Zwischenraum liegt auf dem Falz.
 struct DiaryView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.devicePosture) private var posture
     @State private var petFilter: Pet.ID?
     @State private var tagFilter: DiaryTag?
     @State private var editing: DiaryEntry?
+    @State private var screenWidth: CGFloat = 0
 
     var body: some View {
         NavigationStack {
             Group {
                 if posture == .unfolded {
-                    HStack(alignment: .top, spacing: 20) {
-                        timeline.frame(maxWidth: .infinity)
+                    FoldColumns {
+                        timeline
+                    } trailing: {
                         ScrollView {
                             VStack(spacing: 16) {
                                 MoodCalendar(petID: petFilter)
@@ -23,14 +26,15 @@ struct DiaryView: View {
                             .padding(.vertical, 12)
                         }
                         .scrollIndicators(.hidden)
-                        .frame(width: 300)
                     }
-                    .padding(.horizontal, 20)
                 } else {
-                    timeline.padding(.horizontal, 16)
+                    timeline
+                        .padding(.horizontal, 16)
+                        .foldedReadableWidth()
                 }
             }
             .background(Theme.paper)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -57,7 +61,9 @@ struct DiaryView: View {
                 .buttonStyle(.glassProminent)
                 .buttonBorderShape(.circle)
                 .tint(Theme.carrot)
-                .padding(.trailing, 20)
+                // Aufgeklappt in die linke Hälfte, damit der Knopf nicht auf dem Falz sitzt
+                // und neben der Zeitleiste bleibt, zu der er gehört.
+                .padding(.trailing, posture == .unfolded ? rightHalfInset : 20)
                 .padding(.bottom, 8)
                 .accessibilityLabel("Neuer Eintrag")
             }
@@ -65,6 +71,11 @@ struct DiaryView: View {
                 DiaryEditor(entry: entry)
             }
         }
+    }
+
+    /// Abstand vom rechten Rand bis knapp links vom Falz (aufgeklappt).
+    private var rightHalfInset: CGFloat {
+        screenWidth / 2 + FoldLayout.hingeGutter / 2 + 12
     }
 
     private var timeline: some View {

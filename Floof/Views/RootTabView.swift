@@ -8,8 +8,11 @@ enum AppTab: Hashable {
 ///
 /// Liquid Glass: Die Tab-Leiste ist systemseitig aus Glas, schrumpft beim Scrollen
 /// (`tabBarMinimizeBehavior`) und trägt darüber eine gläserne Zusatzleiste mit der
-/// nächsten fälligen Gabe (`tabViewBottomAccessory`). Auf dem aufgeklappten
-/// Innendisplay wird daraus automatisch eine Seitenleiste (`sidebarAdaptable`).
+/// nächsten fälligen Gabe (`tabViewBottomAccessory`).
+///
+/// Faltzustand: Die Größe wird hier einmal gemessen und als `devicePosture` an alle
+/// Tabs weitergegeben. Jeder Tab hat genau einen NavigationStack, dessen Inhalt beim
+/// Falten wechselt – Auswahl, geöffnete Details und offene Editoren bleiben erhalten.
 struct RootTabView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass

@@ -1,49 +1,36 @@
 import SwiftUI
 
-/// Innendisplay (7,6", 4:3): zweispaltig.
+/// Innendisplay (7,6", 4:3): zwei gleich breite Spalten, der Zwischenraum liegt auf dem Falz.
 /// Links: Medikamenten-Checkliste + Stammdaten · Rechts: Gewicht, Impfungen, Abzeichen.
 /// Beide Spalten scrollen unabhängig, damit Checkliste und Diagramm gleichzeitig sichtbar bleiben.
+/// Navigation, Toolbar und Sheets liegen in `TodayView`, damit sie das Falten überstehen.
 struct ExpandedDashboardView: View {
     @Environment(PetStore.self) private var store
-    @State private var showsNewEntry = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let pet = store.selectedPet {
-                    HStack(alignment: .top, spacing: 20) {
-                        column {
-                            ChecklistCard(pet: pet)
-                            AsNeededSection(pet: pet)
-                            DailyCheckCard()
-                            PetProfileCard(pet: pet)
-                        }
-                        column {
-                            StreakStrip()
-                            CabinetAlertCard()
-                            WeightChartView(pet: pet)
-                            VaccinationCalendarView(pet: pet)
-                            BadgeShelf()
-                        }
+        Group {
+            if let pet = store.selectedPet {
+                FoldColumns {
+                    column {
+                        ChecklistCard(pet: pet)
+                        AsNeededSection(pet: pet)
+                        DailyCheckCard()
+                        PetProfileCard(pet: pet)
                     }
-                    .padding(.horizontal, 20)
-                    .id(pet.id)
-                    .transition(.opacity)
+                } trailing: {
+                    column {
+                        StreakStrip()
+                        CabinetAlertCard()
+                        WeightChartView(pet: pet)
+                        VaccinationCalendarView(pet: pet)
+                        BadgeShelf()
+                    }
                 }
-            }
-            .animation(.smooth, value: store.selectedPetID)
-            .background(Theme.paper)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) { PetPickerMenu() }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Tagebuch-Eintrag", systemImage: "square.and.pencil") { showsNewEntry = true }
-                }
-            }
-            .sheet(isPresented: $showsNewEntry) {
-                DiaryEditor(entry: DiaryEntry(petIDs: [store.selectedPet?.id].compactMap { $0 }))
+                .id(pet.id)
+                .transition(.opacity)
             }
         }
+        .animation(.smooth, value: store.selectedPetID)
     }
 
     private func column<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -52,7 +39,6 @@ struct ExpandedDashboardView: View {
                 .padding(.vertical, 12)
         }
         .scrollIndicators(.hidden)
-        .frame(maxWidth: .infinity)
     }
 }
 

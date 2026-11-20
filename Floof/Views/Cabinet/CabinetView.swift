@@ -44,7 +44,7 @@ struct CabinetView: View {
                             .foregroundStyle(Theme.inkSoft)
                             .padding(.vertical, 24)
                     } else {
-                        LazyVGrid(columns: columns, spacing: 14) {
+                        LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(items) { item in
                                 NavigationLink(value: item.id) {
                                     CabinetItemCard(item: item)
@@ -54,8 +54,9 @@ struct CabinetView: View {
                         }
                     }
                 }
-                .padding(.horizontal, posture == .unfolded ? 24 : 16)
+                .padding(.horizontal, posture == .unfolded ? FoldLayout.outerMargin : 16)
                 .padding(.bottom, 24)
+                .modifier(FoldedWidth(isActive: posture == .folded))
             }
             .background(Theme.paper)
             .navigationDestination(for: CabinetItem.ID.self) { id in
@@ -72,8 +73,9 @@ struct CabinetView: View {
         }
     }
 
+    /// Aufgeklappt zwei gleich breite Spalten – der Spaltenabstand liegt auf dem Falz.
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 14), count: posture == .unfolded ? 2 : 1)
+        Array(repeating: GridItem(.flexible(), spacing: FoldLayout.hingeGutter), count: posture == .unfolded ? 2 : 1)
     }
 
     private var header: some View {

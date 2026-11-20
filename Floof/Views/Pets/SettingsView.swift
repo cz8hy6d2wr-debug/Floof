@@ -9,6 +9,10 @@ struct SettingsView: View {
     @State private var message: String?
 
     var body: some View {
+        editor.floofSheet()
+    }
+
+    private var editor: some View {
         NavigationStack {
             Form {
                 Section {

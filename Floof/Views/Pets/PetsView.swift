@@ -1,29 +1,65 @@
 import SwiftUI
 
-/// Übersicht aller Tiere. Zugeklappt eine Liste, aufgeklappt Liste + Detail nebeneinander.
+/// Übersicht aller Tiere.
+/// Zugeklappt: Liste → Detail (Navigation). Aufgeklappt: Liste | Detail in zwei gleich
+/// breiten Spalten, der Zwischenraum liegt auf dem Falz.
+///
+/// Beim Auf-/Zuklappen bleibt das gerade angesehene Tier erhalten: Der Navigationspfad
+/// wird in die Auswahl übernommen und umgekehrt. Sheets hängen am gemeinsamen Stack
+/// und bleiben dadurch offen.
 struct PetsView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.devicePosture) private var posture
+    @State private var path: [Pet.ID] = []
     @State private var selection: Pet.ID?
     @State private var showsNewPet = false
     @State private var showsSettings = false
+    @State private var sheets = PetSheets()
 
     var body: some View {
-        if posture == .unfolded {
-            NavigationSplitView {
-                list
-                    .navigationSplitViewColumnWidth(min: 260, ideal: 300)
-            } detail: {
-                if let id = selection ?? store.pets.first?.id {
-                    NavigationStack { PetDetailView(petID: id) }
+        @Bindable var sheets = sheets
+        NavigationStack(path: $path) {
+            Group {
+                if posture == .unfolded {
+                    FoldColumns {
+                        list
+                    } trailing: {
+                        if let id = selection ?? store.pets.first?.id {
+                            PetDetailView(petID: id, embedded: true)
+                                .id(id)
+                        } else {
+                            ContentUnavailableView("Noch keine Tiere", systemImage: "pawprint")
+                        }
+                    }
                 } else {
-                    ContentUnavailableView("Kein Tier ausgewählt", systemImage: "pawprint")
+                    list
+                        .padding(.horizontal, 16)
+                        .foldedReadableWidth()
                 }
             }
-        } else {
-            NavigationStack {
-                list
-                    .navigationDestination(for: Pet.ID.self) { PetDetailView(petID: $0) }
+            .background(Theme.paper.ignoresSafeArea())
+            .navigationDestination(for: Pet.ID.self) { PetDetailView(petID: $0) }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Einstellungen", systemImage: "gearshape") { showsSettings = true }
+                }
+            }
+            .sheet(isPresented: $showsNewPet) { PetEditor(pet: .new()) }
+            .sheet(isPresented: $showsSettings) { SettingsView() }
+            .sheet(item: $sheets.editPet) { PetEditor(pet: $0) }
+            .sheet(item: $sheets.weigh) { WeightSheet(pet: $0) }
+            .sheet(item: $sheets.care) { CareEntryEditor(entry: $0.entry, petID: $0.petID) }
+        }
+        .environment(self.sheets)
+        .onChange(of: posture) { _, new in
+            switch new {
+            case .unfolded:
+                // Geöffnetes Detail wird zur Auswahl in der rechten Spalte.
+                if let last = path.last { selection = last }
+                path = []
+            case .folded:
+                // Ausgewähltes Tier bleibt sichtbar: als geöffnetes Detail.
+                if let selection { path = [selection] }
             }
         }
     }
@@ -34,8 +70,10 @@ struct PetsView: View {
                 HandTitle(text: "Deine Tiere", size: 32).padding(.top, 4).padding(.bottom, 6)
                 ForEach(store.pets) { pet in
                     if posture == .unfolded {
-                        Button { selection = pet.id } label: { PetRow(pet: pet, isSelected: selection == pet.id) }
-                            .buttonStyle(.plain)
+                        Button { withAnimation(.snappy) { selection = pet.id } } label: {
+                            PetRow(pet: pet, isSelected: (selection ?? store.pets.first?.id) == pet.id)
+                        }
+                        .buttonStyle(.plain)
                     } else {
                         NavigationLink(value: pet.id) { PetRow(pet: pet, isSelected: false) }
                             .buttonStyle(.plain)
@@ -46,17 +84,9 @@ struct PetsView: View {
                     .controlSize(.large)
                     .padding(.top, 4)
             }
-            .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
-        .background(Theme.paper)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Einstellungen", systemImage: "gearshape") { showsSettings = true }
-            }
-        }
-        .sheet(isPresented: $showsNewPet) { PetEditor(pet: .new()) }
-        .sheet(isPresented: $showsSettings) { SettingsView() }
+        .scrollIndicators(.hidden)
     }
 }
 

@@ -4,48 +4,37 @@ import SwiftUI
 /// Die wichtigste Aktion ("Gegeben") liegt in der gläsernen Leiste über den Tabs – im Daumenbereich.
 struct CompactDashboardView: View {
     @Environment(PetStore.self) private var store
-    @State private var showsNewEntry = false
 
     var body: some View {
         let doses = store.todaysDoses()
         let open = doses.filter { !store.isTaken($0) }
 
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    header(open: open, doses: doses)
-                        .padding(.top, 4)
-                        .padding(.bottom, 6)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                header(open: open, doses: doses)
+                    .padding(.top, 4)
+                    .padding(.bottom, 6)
 
-                    StreakStrip()
+                StreakStrip()
 
-                    if doses.isEmpty {
-                        ContentUnavailableView("Heute nichts zu geben", systemImage: "leaf",
-                                               description: Text("Genieß den Tag mit deinen Tieren."))
-                    } else {
-                        ForEach(doses) { dose in
-                            MedicationCard(dose: dose, style: .large)
-                        }
+                if doses.isEmpty {
+                    ContentUnavailableView("Heute nichts zu geben", systemImage: "leaf",
+                                           description: Text("Genieß den Tag mit deinen Tieren."))
+                } else {
+                    ForEach(doses) { dose in
+                        MedicationCard(dose: dose, style: .large)
                     }
+                }
 
-                    AsNeededSection()
-                    DailyCheckCard()
-                    CabinetAlertCard()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
+                AsNeededSection()
+                DailyCheckCard()
+                CabinetAlertCard()
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .background(Theme.paper)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Tagebuch-Eintrag", systemImage: "square.and.pencil") { showsNewEntry = true }
-                }
-            }
-            .sheet(isPresented: $showsNewEntry) {
-                DiaryEditor(entry: DiaryEntry(petIDs: store.pets.map(\.id)))
-            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+            .foldedReadableWidth()
         }
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     private func header(open: [ScheduledDose], doses: [ScheduledDose]) -> some View {

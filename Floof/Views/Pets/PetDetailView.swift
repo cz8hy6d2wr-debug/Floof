@@ -1,12 +1,27 @@
 import SwiftUI
 
+/// Sheets der Tier-Ansichten. Liegen am NavigationStack von `PetsView`,
+/// damit ein offener Editor das Auf-/Zuklappen übersteht.
+@MainActor
+@Observable
+final class PetSheets {
+    var editPet: Pet?
+    var weigh: Pet?
+    var care: CareSheet?
+
+    struct CareSheet: Identifiable {
+        let entry: CareEntry
+        let petID: Pet.ID
+        var id: String { entry.id }
+    }
+}
+
 struct PetDetailView: View {
     @Environment(PetStore.self) private var store
+    @Environment(PetSheets.self) private var sheets
     let petID: Pet.ID
-
-    @State private var showsEditor = false
-    @State private var showsWeight = false
-    @State private var editingCare: CareEntry?
+    /// Aufgeklappt als rechte Spalte eingebettet (kein eigener Titel).
+    var embedded = false
 
     var body: some View {
         if let pet = store.pet(petID) {
@@ -24,7 +39,7 @@ struct PetDetailView: View {
 
                 WeightChartView(pet: pet)
                     .overlay(alignment: .bottomTrailing) {
-                        Button("Wiegen", systemImage: "plus") { showsWeight = true }
+                        Button("Wiegen", systemImage: "plus") { sheets.weigh = pet }
                             .buttonStyle(.glass)
                             .controlSize(.small)
                             .padding(12)
@@ -35,17 +50,15 @@ struct PetDetailView: View {
                 careSection(pet, kind: .vaccination, title: "Impfungen")
                 careSection(pet, kind: .other, title: "Sonstiges")
             }
-            .padding(16)
+            .padding(embedded ? .vertical : .all, embedded ? 12 : 16)
         }
+        .scrollIndicators(embedded ? .hidden : .automatic)
         .background(Theme.paper)
-        .navigationTitle(pet.name)
+        .navigationTitle(embedded ? "" : pet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            Button("Bearbeiten") { showsEditor = true }
+            Button("Bearbeiten") { sheets.editPet = pet }
         }
-        .sheet(isPresented: $showsEditor) { PetEditor(pet: pet) }
-        .sheet(isPresented: $showsWeight) { WeightSheet(pet: pet) }
-        .sheet(item: $editingCare) { entry in CareEntryEditor(entry: entry, petID: pet.id) }
     }
 
     private func header(_ pet: Pet) -> some View {
@@ -67,7 +80,8 @@ struct PetDetailView: View {
                 Text(title).font(Theme.title(20))
                 Spacer()
                 Button("Hinzufügen", systemImage: "plus") {
-                    editingCare = CareEntry(id: UUID().uuidString, date: .now, title: "", details: "", kind: kind.rawValue)
+                    let entry = CareEntry(id: UUID().uuidString, date: .now, title: "", details: "", kind: kind.rawValue)
+                    sheets.care = .init(entry: entry, petID: pet.id)
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.glass)
@@ -77,7 +91,7 @@ struct PetDetailView: View {
                 Text(emptyText(kind)).font(.subheadline).foregroundStyle(Theme.inkSoft)
             }
             ForEach(entries) { entry in
-                Button { editingCare = entry } label: { CareRow(entry: entry) }
+                Button { sheets.care = .init(entry: entry, petID: pet.id) } label: { CareRow(entry: entry) }
                     .buttonStyle(.plain)
                 if entry.id != entries.last?.id { Divider() }
             }

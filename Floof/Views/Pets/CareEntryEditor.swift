@@ -33,6 +33,10 @@ struct CareEntryEditor: View {
     private var linkedItem: CabinetItem? { store.cabinetItem(entry.cabinetItemID) }
 
     var body: some View {
+        editor.floofSheet()
+    }
+
+    private var editor: some View {
         NavigationStack {
             Form {
                 Section {

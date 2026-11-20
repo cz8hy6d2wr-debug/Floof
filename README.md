@@ -19,7 +19,15 @@ einen bestehenden Export importieren.
 | **Heute** | Medikamente des Tages zum Abhaken, "Wenn nötig"-Mittel, Tages-Check (Ampel), Hinweise aus dem Schrank, Möhren/Serie/Abzeichen |
 | **Tagebuch** | Einträge mit Stimmung, Themen, Foto und optionalem Gewicht; automatisch dazu: Wiegen, Tierarzt, Impfungen. Aufgeklappt mit Stimmungskalender |
 | **Schrank** | Bestand je Medikament, Reichweite in Tagen, Ablauf/Anbruch, Nachfüllen, Korrekturen, Verlauf. Abhaken einer Gabe bucht automatisch ab |
-| **Tiere** | Profile, Gewichtskurve, Medikamente mit Zeitplan & Schrank-Verknüpfung, Erkrankungen, Impfungen, Einstellungen, Import/Export |
+| **Tiere** | Profile, Gewichtskurve, Medikamente mit Zeitplan & Schrank-Verknüpfung, Erkrankungen, Impfungen, Einstellungen, Import/Export. Aufgeklappt Liste und Detail nebeneinander |
+
+## Faltbares iPhone
+
+- **Erkennung:** Seitenverhältnis + Size Class der verfügbaren Fläche (`DevicePosture`), in allen Tabs verfügbar
+- **Zugeklappt (5,4"):** Einhand-Layouts, wichtigste Aktionen im Daumenbereich; im Querformat auf Lesebreite begrenzt
+- **Aufgeklappt (7,6", 4:3):** zwei gleich breite Spalten in jedem Tab (`FoldColumns`) – der Spaltenabstand liegt genau auf dem Falz, nichts läuft über die Knickstelle
+- **Nahtloser Wechsel:** ein NavigationStack pro Tab, Sheets hängen darüber; offene Editoren, das gewählte Tier und geöffnete Details überstehen das Auf-/Zuklappen
+- **Editoren** erscheinen aufgeklappt als kompaktes Formular (`presentationSizing(.form)`)
 
 ## Liquid Glass
 
@@ -43,9 +51,9 @@ Floof/
    ├─ Today/       Heute (zugeklappt: Einhand, aufgeklappt: zweispaltig)
    ├─ Diary/       Zeitleiste, Editor, Stimmungskalender
    ├─ Cabinet/     Übersicht, Detail, Editor, Füllstand
-   ├─ Pets/        Liste/SplitView, Detail, Editoren, Einstellungen
+   ├─ Pets/        Liste + Detail, Editoren, Einstellungen
    ├─ Components/  Karten, Diagramm, Impfungen, Gamification
-   ├─ Shared/      Faltzustand, Tier-Filter, Fotoauswahl
+   ├─ Shared/      Faltzustand, Falz-Layout, Tier-Filter, Fotoauswahl
    └─ Theme/       Farben (hell + OLED-Schwarz), Schrift, handgezeichnete Details
 ```
 

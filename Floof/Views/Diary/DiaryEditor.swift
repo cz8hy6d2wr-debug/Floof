@@ -15,6 +15,10 @@ struct DiaryEditor: View {
     private var exists: Bool { store.diary.contains { $0.id == entry.id } }
 
     var body: some View {
+        editor.floofSheet()
+    }
+
+    private var editor: some View {
         NavigationStack {
             Form {
                 Section {

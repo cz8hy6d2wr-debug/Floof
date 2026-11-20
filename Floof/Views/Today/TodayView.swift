@@ -1,26 +1,47 @@
 import SwiftUI
 
 /// "Heute"-Tab: wechselt je nach Faltzustand zwischen Einhand- und Zweispalten-Layout.
+///
+/// Es gibt bewusst nur *einen* NavigationStack und die Sheets hängen hier oben:
+/// Beim Auf- oder Zuklappen tauscht nur der Inhalt, ein offener Editor bleibt offen.
 struct TodayView: View {
     @Environment(\.devicePosture) private var posture
     @Environment(PetStore.self) private var store
+    @State private var newEntry: DiaryEntry?
 
     var body: some View {
-        Group {
-            if store.pets.isEmpty {
-                NavigationStack { WelcomeView() }
-            } else {
-                switch posture {
-                case .folded:
-                    CompactDashboardView()
-                        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(0.96)), removal: .opacity))
-                case .unfolded:
-                    ExpandedDashboardView()
-                        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(1.03)), removal: .opacity))
+        NavigationStack {
+            Group {
+                if store.pets.isEmpty {
+                    WelcomeView()
+                } else {
+                    switch posture {
+                    case .folded:
+                        CompactDashboardView()
+                            .transition(.asymmetric(insertion: .opacity.combined(with: .scale(0.96)), removal: .opacity))
+                    case .unfolded:
+                        ExpandedDashboardView()
+                            .transition(.asymmetric(insertion: .opacity.combined(with: .scale(1.03)), removal: .opacity))
+                    }
                 }
             }
+            .background(Theme.paper.ignoresSafeArea())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if posture == .unfolded && !store.pets.isEmpty {
+                    ToolbarItem(placement: .principal) { PetPickerMenu() }
+                }
+                if !store.pets.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Tagebuch-Eintrag", systemImage: "square.and.pencil") {
+                            let pets = posture == .unfolded ? [store.selectedPet?.id].compactMap { $0 } : store.pets.map(\.id)
+                            newEntry = DiaryEntry(petIDs: pets)
+                        }
+                    }
+                }
+            }
+            .sheet(item: $newEntry) { DiaryEditor(entry: $0) }
         }
-        .background(Theme.paper.ignoresSafeArea())
     }
 }
 
@@ -56,7 +77,6 @@ private struct WelcomeView: View {
         .padding(24)
         .frame(maxWidth: 520, alignment: .leading)
         .frame(maxWidth: .infinity)
-        .background(Theme.paper)
         .sheet(isPresented: $showsEditor) { PetEditor(pet: .new()) }
         .sheet(isPresented: $showsSettings) { SettingsView() }
     }
