@@ -8,6 +8,7 @@ struct CabinetDetailView: View {
     @State private var showsEditor = false
     @State private var showsCorrection = false
     @State private var showsRefill = false
+    @State private var lexiconProductID: String?
 
     var body: some View {
         if let item = store.cabinetItem(itemID) {
@@ -49,6 +50,7 @@ struct CabinetDetailView: View {
                 }
 
                 facts(item)
+                supplementInfo(item)
                 linked(item)
                 history(item)
             }
@@ -63,6 +65,37 @@ struct CabinetDetailView: View {
         .sheet(isPresented: $showsEditor) { CabinetItemEditor(item: item, isNew: false) }
         .sheet(isPresented: $showsCorrection) { StockCorrectionSheet(item: item) }
         .sheet(isPresented: $showsRefill) { RefillSheet(item: item) }
+        .sheet(isPresented: Binding(get: { lexiconProductID != nil }, set: { if !$0 { lexiconProductID = nil } })) {
+            if let id = lexiconProductID { LexiconSheet(start: .supplement(id)) }
+        }
+    }
+
+    /// Erkennt RodiCare-Mittel am Namen und verlinkt den Lexikon-Eintrag.
+    @ViewBuilder
+    private func supplementInfo(_ item: CabinetItem) -> some View {
+        if let product = Supplements.mentioned(in: item.name).first {
+            Button { lexiconProductID = product.id } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: product.area.symbol)
+                        .foregroundStyle(Theme.leaf)
+                        .frame(width: 36, height: 36)
+                        .background(Theme.leaf.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Wofür ist das?").font(.caption.weight(.bold)).foregroundStyle(Theme.inkSoft)
+                        Text(product.purpose).font(.subheadline).foregroundStyle(Theme.ink)
+                        if !product.forRabbits {
+                            Text("Laut Hersteller nicht für Kaninchen vorgesehen.")
+                                .font(.caption.weight(.semibold)).foregroundStyle(Theme.berry)
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "books.vertical").foregroundStyle(Theme.inkSoft)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .card()
+        }
     }
 
     @ViewBuilder

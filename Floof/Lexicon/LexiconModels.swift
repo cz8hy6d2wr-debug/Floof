@@ -115,4 +115,6 @@ enum LexiconRoute: Hashable {
     case article(String)
     case foodCheck
     case category(LexiconCategory)
+    case supplements
+    case supplement(String)
 }

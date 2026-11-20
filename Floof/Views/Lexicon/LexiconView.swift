@@ -78,6 +78,7 @@ struct LexiconView: View {
                     EmergencyCard()
                     RelevantCard()
                     FoodCheckTeaser()
+                    SupplementTeaser()
                     VitalsCard()
                     CategoryGrid()
                     BookmarksCard()
@@ -112,6 +113,14 @@ struct LexiconDestination: View {
             FoodCheckView()
         case .category(let category):
             CategoryListView(category: category)
+        case .supplements:
+            SupplementListView()
+        case .supplement(let id):
+            if let product = Supplements.product(id) {
+                SupplementDetailView(product: product)
+            } else {
+                ContentUnavailableView("Mittel nicht gefunden", systemImage: "cross.vial")
+            }
         }
     }
 }
@@ -304,15 +313,23 @@ private struct SearchResults: View {
     var body: some View {
         let articles = Lexicon.articles.filter { $0.matches(search: query) }
         let foods = Lexicon.foods.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let supplements = Supplements.products.filter { $0.matches(search: query) }
 
         VStack(alignment: .leading, spacing: 14) {
-            if articles.isEmpty && foods.isEmpty {
+            if articles.isEmpty && foods.isEmpty && supplements.isEmpty {
                 ContentUnavailableView.search(text: query)
             }
             if !articles.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Artikel").font(Theme.title(18))
                     ForEach(articles) { ArticleRow(article: $0) }
+                }
+                .card()
+            }
+            if !supplements.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("RodiCare-Mittel").font(Theme.title(18))
+                    ForEach(supplements) { SupplementRow(product: $0) }
                 }
                 .card()
             }

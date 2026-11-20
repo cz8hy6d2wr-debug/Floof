@@ -19,7 +19,7 @@ einen bestehenden Export importieren.
 | **Heute** | Medikamente des Tages zum Abhaken, "Wenn nötig"-Mittel, Tages-Check (Ampel), Hinweise aus dem Schrank, Möhren/Serie/Abzeichen |
 | **Tagebuch** | Einträge mit Stimmung, Themen, Foto und optionalem Gewicht; automatisch dazu: Wiegen, Tierarzt, Impfungen. Aufgeklappt mit Stimmungskalender |
 | **Schrank** | Bestand je Medikament, Reichweite in Tagen, Ablauf/Anbruch, Nachfüllen, Korrekturen, Verlauf. Abhaken einer Gabe bucht automatisch ab |
-| **Lexikon** | Kaninchenwissen: Notfall-Hilfe, Krankheiten (EC, Epilepsie, Zähne, RHD …), Medikamente, Ernährung, Pflege, Verhalten, Haltung. Futter-Check „Darf mein Kaninchen das?“, Normalwerte, Merkliste, Suche. Hebt automatisch Artikel hervor, die zur Akte deiner Tiere passen |
+| **Lexikon** | Kaninchenwissen: Notfall-Hilfe, Krankheiten (EC, Epilepsie, Zähne, RHD …), Medikamente, Ernährung, Pflege, Verhalten, Haltung. Futter-Check „Darf mein Kaninchen das?“, RodiCare-Ergänzungsmittel nach Anwendungsgebiet, Normalwerte, Merkliste, Suche. Hebt automatisch Artikel hervor, die zur Akte deiner Tiere passen |
 | **Tiere** | Profile, Gewichtskurve, Medikamente mit Zeitplan & Schrank-Verknüpfung, Erkrankungen, Impfungen, Einstellungen, Import/Export. Aufgeklappt Liste und Detail nebeneinander |
 
 ## Faltbares iPhone
