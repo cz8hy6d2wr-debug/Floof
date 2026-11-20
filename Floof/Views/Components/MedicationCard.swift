@@ -22,6 +22,8 @@ struct MedicationCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(dose.medication.title)
                         .font(Theme.title(style == .large ? 22 : 17))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .foregroundStyle(taken ? Theme.inkSoft : Theme.ink)
                         .strikethrough(taken, color: Theme.leaf)
                     Text(dosageLine)
@@ -46,7 +48,8 @@ struct MedicationCard: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: taken) { _, new in new }
         .overlay(alignment: .topTrailing) {
             // "+10" fliegt kurz aus der Karte, wenn abgehakt wird
-            if taken, let points = store.game.awarded[dose.id] {
+            // Nur direkt nach dem Abhaken – nicht jedes Mal, wenn die Karte wieder erscheint.
+            if taken, store.recentlyAwardedDoseID == dose.id, let points = store.game.awarded[dose.id] {
                 PointsPop(points: points).offset(x: -16, y: -6)
             }
         }

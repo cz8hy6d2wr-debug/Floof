@@ -80,6 +80,11 @@ extension PetStore {
             if let badge = fresh.last { reason = .badge(badge) }   // Abzeichen schlägt Tagesfeier
         }
         if let reason { celebration = Celebration(reason: reason) }
+        recentlyAwardedDoseID = dose.id
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if recentlyAwardedDoseID == dose.id { recentlyAwardedDoseID = nil }
+        }
     }
 
     var streak: Int { game.streak() }

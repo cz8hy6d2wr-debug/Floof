@@ -13,6 +13,8 @@ final class PetStore {
     var celebration: Celebration?
     /// Kurze Bestätigung unten ("Vitamin B eingetragen").
     var toast: String?
+    /// Gerade abgehakte Dosis – nur für die kurze "+10"-Animation, wird nicht gespeichert.
+    var recentlyAwardedDoseID: String?
     /// Per AirDrop o. Ä. empfangene Datei, die auf Bestätigung wartet.
     var pendingImport: PendingImport?
 
