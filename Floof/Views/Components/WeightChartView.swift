@@ -27,9 +27,12 @@ struct WeightChartView: View {
                     .frame(minHeight: 200)
             } else {
                 Chart(entries) { entry in
+                    // Fläche nur bis zum unteren Achsenrand (nicht bis 0 g), weich ausblendend.
                     AreaMark(x: .value("Datum", entry.date, unit: .day),
-                             y: .value("Gramm", entry.grams))
-                        .foregroundStyle(pet.tint.opacity(0.18).gradient)
+                             yStart: .value("Basis", yDomain.lowerBound),
+                             yEnd: .value("Gramm", entry.grams))
+                        .foregroundStyle(LinearGradient(colors: [pet.tint.opacity(0.22), pet.tint.opacity(0)],
+                                                        startPoint: .top, endPoint: .bottom))
                         .interpolationMethod(.monotone)
                     LineMark(x: .value("Datum", entry.date, unit: .day),
                              y: .value("Gramm", entry.grams))
@@ -59,6 +62,7 @@ struct WeightChartView: View {
                         AxisValueLabel()
                     }
                 }
+                .chartPlotStyle { $0.clipped() }
                 .frame(minHeight: 220)
                 .accessibilityLabel("Gewichtsverlauf von \(pet.name)")
 
