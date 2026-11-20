@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EE8A48"/>
+      <stop offset="1" stop-color="#C9541F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.3" cy="0.22" r="0.7">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <g id="background">
+    <rect width="1024" height="1024" fill="#000"/>
+    <radialGradient id="dglow" cx="0.5" cy="0.62" r="0.62"><stop offset="0" stop-color="#F08A4B" stop-opacity="0.38"/><stop offset="1" stop-color="#F08A4B" stop-opacity="0"/></radialGradient>
+    <rect width="1024" height="1024" fill="url(#dglow)"/>
+  </g>
+  <g id="bunny">
+    <!-- Schatten -->
+    <ellipse cx="520" cy="842" rx="250" ry="34" fill="#000" opacity="0.5"/>
+    <!-- linkes Ohr, aufrecht -->
+    <path d="M392 470 C352 360 340 228 372 160 C398 106 452 118 466 186 C482 262 476 372 470 470 Z" fill="#FFF4E6"/>
+    <path d="M404 432 C380 350 374 250 394 196 C408 162 436 170 442 214 C452 280 448 360 444 432 Z" fill="#F4B39A"/>
+    <!-- rechtes Ohr, Schlappohr -->
+    <path d="M580 452 C620 360 700 300 790 312 C856 322 868 384 820 420 C760 466 680 476 600 498 Z" fill="#FFF4E6"/>
+    <path d="M612 450 C650 392 712 352 776 356 C818 360 822 392 792 412 C744 444 680 452 622 470 Z" fill="#F4B39A"/>
+    <g id="mane" fill="#F4D9BA"><circle cx="770" cy="656" r="59"/><circle cx="752" cy="709" r="44"/><circle cx="271" cy="707" r="44"/><circle cx="259" cy="657" r="61"/><circle cx="258" cy="603" r="59"/><circle cx="270" cy="551" r="51"/><circle cx="303" cy="506" r="60"/><circle cx="340" cy="466" r="58"/><circle cx="391" cy="436" r="61"/><circle cx="449" cy="418" r="58"/><circle cx="513" cy="403" r="60"/><circle cx="575" cy="408" r="52"/><circle cx="634" cy="430" r="52"/><circle cx="686" cy="468" r="59"/><circle cx="732" cy="503" r="62"/><circle cx="755" cy="550" r="58"/><circle cx="774" cy="603" r="62"/></g>
+    <!-- Kopf, leicht unregelmäßig -->
+    <path d="M512 420 C660 414 760 500 764 628 C768 760 660 840 516 842 C366 846 258 766 262 632 C266 504 364 426 512 420 Z" fill="#FFF4E6"/>
+    <!-- geschlossene, zufriedene Augen -->
+    <path d="M404 610 C420 586 452 586 468 610" stroke="#3A2A20" stroke-width="16" stroke-linecap="round" fill="none"/>
+    <path d="M560 606 C576 582 608 584 624 608" stroke="#3A2A20" stroke-width="16" stroke-linecap="round" fill="none"/>
+    <!-- Bäckchen -->
+    <ellipse cx="400" cy="676" rx="38" ry="24" fill="#F29B84" opacity="0.55"/>
+    <ellipse cx="636" cy="672" rx="38" ry="24" fill="#F29B84" opacity="0.55"/>
+    <!-- Nase + Mund -->
+    <path d="M498 660 C506 652 528 652 536 660 C530 674 518 680 516 680 C514 680 504 674 498 660 Z" fill="#D9616A"/>
+    <path d="M516 682 C514 702 498 712 484 706 M516 682 C520 702 536 710 550 703" stroke="#3A2A20" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <!-- Blatt-Zweig am Kopf -->
+    <path d="M560 438 C572 392 604 366 650 362 C646 406 614 434 560 438 Z" fill="#5E8C4A"/>
+    <path d="M562 436 C590 410 612 392 640 372" stroke="#3E6A2E" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <path d="M548 440 C526 404 532 372 556 350 C574 378 570 412 548 440 Z" fill="#7BA65E"/>
+  </g>
+</svg>

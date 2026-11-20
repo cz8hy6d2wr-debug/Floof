@@ -53,10 +53,12 @@ private struct WelcomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Spacer()
-            Image(systemName: "pawprint.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(Theme.carrot)
-                .rotationEffect(.degrees(-12))
+            Image("FloofLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 120)
+                .rotationEffect(.degrees(-4))
+                .accessibilityHidden(true)
             HandTitle(text: "Willkommen bei Floof", size: 32)
             Text("Hier landet alles, was deine Tiere betrifft: Medikamente, Gewicht, Tierarzt – und die kleinen Momente dazwischen.")
                 .foregroundStyle(Theme.inkSoft)
