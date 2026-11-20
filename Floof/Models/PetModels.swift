@@ -162,7 +162,9 @@ struct ReminderTime: Codable, Hashable, Comparable {
 enum PetGroup: String {
     case smallAnimal, dog, cat, bird, other
 
-    static let animalTypes = ["Kaninchen", "Meerschweinchen", "Hamster", "Ratte", "Hund", "Katze", "Vogel", "Sonstiges"]
+    /// Vorerst nur Kaninchen. Weitere Tierarten (Meerschweinchen, Hund, Katze …)
+    /// lassen sich hier wieder ergänzen – Datenmodell und Notizfelder unterstützen sie bereits.
+    static let animalTypes = ["Kaninchen"]
 
     static func `for`(_ animalType: String) -> PetGroup {
         switch animalType {

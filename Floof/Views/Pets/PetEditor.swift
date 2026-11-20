@@ -33,8 +33,11 @@ struct PetEditor: View {
                 Section {
                     TextField("Name", text: $pet.name)
                         .font(Theme.title(20))
-                    Picker("Tierart", selection: $pet.animalType) {
-                        ForEach(PetGroup.animalTypes, id: \.self) { Text($0).tag($0) }
+                    // Auswahl nur, wenn es mehr als eine Tierart gibt (vorerst nur Kaninchen).
+                    if PetGroup.animalTypes.count > 1 {
+                        Picker("Tierart", selection: $pet.animalType) {
+                            ForEach(PetGroup.animalTypes, id: \.self) { Text($0).tag($0) }
+                        }
                     }
                     TextField("Rasse", text: $pet.breed)
                     DatePicker("Geburtstag", selection: $pet.birthday, in: ...Date.now, displayedComponents: .date)
