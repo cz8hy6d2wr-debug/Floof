@@ -18,10 +18,10 @@ struct TodayView: View {
                     switch posture {
                     case .folded:
                         CompactDashboardView()
-                            .transition(.asymmetric(insertion: .opacity.combined(with: .scale(0.96)), removal: .opacity))
+                            .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.96)), removal: .opacity))
                     case .unfolded:
                         ExpandedDashboardView()
-                            .transition(.asymmetric(insertion: .opacity.combined(with: .scale(1.03)), removal: .opacity))
+                            .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 1.03)), removal: .opacity))
                     }
                 }
             }

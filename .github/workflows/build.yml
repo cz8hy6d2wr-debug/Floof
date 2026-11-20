@@ -34,6 +34,7 @@ jobs:
             -sdk iphonesimulator \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES ARCHS=arm64 \
             build 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
 
