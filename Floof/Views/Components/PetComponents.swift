@@ -3,7 +3,9 @@ import SwiftUI
 // MARK: - Farben
 
 extension Pet {
-    var tint: Color {
+    var tint: Color { Pet.tint(forColor: color) }
+
+    static func tint(forColor color: Int) -> Color {
         // Erdige Töne statt Regenbogen – passend zum Fell, nicht zur Ampel.
         let palette: [Color] = [
             Color(light: 0xB5523B, dark: 0xE08A72),  // Rost
@@ -49,7 +51,7 @@ struct PetAvatar: View {
 
     var body: some View {
         Group {
-            if let file = pet.photoFilename, let image = store.photos[file] {
+            if let image = store.photo(named: pet.photoFilename) {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
                 Text(pet.name.prefix(1))

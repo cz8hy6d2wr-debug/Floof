@@ -5,6 +5,7 @@ import SwiftUI
 /// Beide Spalten scrollen unabhängig, damit Checkliste und Diagramm gleichzeitig sichtbar bleiben.
 struct ExpandedDashboardView: View {
     @Environment(PetStore.self) private var store
+    @State private var showsNewEntry = false
 
     var body: some View {
         NavigationStack {
@@ -14,10 +15,12 @@ struct ExpandedDashboardView: View {
                         column {
                             ChecklistCard(pet: pet)
                             AsNeededSection(pet: pet)
+                            DailyCheckCard()
                             PetProfileCard(pet: pet)
                         }
                         column {
                             StreakStrip()
+                            CabinetAlertCard()
                             WeightChartView(pet: pet)
                             VaccinationCalendarView(pet: pet)
                             BadgeShelf()
@@ -26,18 +29,19 @@ struct ExpandedDashboardView: View {
                     .padding(.horizontal, 20)
                     .id(pet.id)
                     .transition(.opacity)
-                } else {
-                    ContentUnavailableView("Noch keine Tiere", systemImage: "pawprint",
-                                           description: Text("Lade oben rechts einen Floof-Export."))
                 }
             }
             .animation(.smooth, value: store.selectedPetID)
             .background(Theme.paper)
-            .toolbarBackground(Theme.paper, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) { PetPickerMenu() }
-                ImportToolbarItem()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Tagebuch-Eintrag", systemImage: "square.and.pencil") { showsNewEntry = true }
+                }
+            }
+            .sheet(isPresented: $showsNewEntry) {
+                DiaryEditor(entry: DiaryEntry(petIDs: [store.selectedPet?.id].compactMap { $0 }))
             }
         }
     }

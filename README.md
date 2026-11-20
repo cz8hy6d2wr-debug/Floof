@@ -1,32 +1,56 @@
 # Floof
 
-Haustier-Gesundheits- und Medikamenten-App (SwiftUI) mit adaptivem Layout für faltbare iPhones.
+Tiertagebuch mit Medikamentenplan und Medikamentenschrank – SwiftUI, Liquid Glass,
+optimiert für faltbare iPhones (Außen- und Innendisplay).
+
+## Öffnen & starten
+
+1. `Floof.xcodeproj` in Xcode 26 (oder neuer) öffnen.
+2. Unter *Signing & Capabilities* dein Team wählen.
+3. Auf iPhone oder Simulator starten (Mindestversion iOS 26 – wegen Liquid Glass).
+
+Beim ersten Start: Tier anlegen oder unter *Tiere → Einstellungen → Floof-Export laden*
+einen bestehenden Export importieren.
+
+## Bereiche
+
+| Tab | Inhalt |
+|---|---|
+| **Heute** | Medikamente des Tages zum Abhaken, "Wenn nötig"-Mittel, Tages-Check (Ampel), Hinweise aus dem Schrank, Möhren/Serie/Abzeichen |
+| **Tagebuch** | Einträge mit Stimmung, Themen, Foto und optionalem Gewicht; automatisch dazu: Wiegen, Tierarzt, Impfungen. Aufgeklappt mit Stimmungskalender |
+| **Schrank** | Bestand je Medikament, Reichweite in Tagen, Ablauf/Anbruch, Nachfüllen, Korrekturen, Verlauf. Abhaken einer Gabe bucht automatisch ab |
+| **Tiere** | Profile, Gewichtskurve, Medikamente mit Zeitplan & Schrank-Verknüpfung, Erkrankungen, Impfungen, Einstellungen, Import/Export |
+
+## Liquid Glass
+
+Glas nur auf der Steuerungsebene, Inhalte bleiben ruhig und lesbar:
+
+- Tab-Leiste (System-Glas), schrumpft beim Scrollen (`tabBarMinimizeBehavior`)
+- gläserne Zusatzleiste über den Tabs mit der nächsten Gabe (`tabViewBottomAccessory`)
+- Filter-Chips, Stimmungswahl, Tages-Check: `GlassEffectContainer` + `glassEffectID` – die Kapseln verschmelzen beim Wechsel
+- Aktionen: `.buttonStyle(.glass)` / `.glassProminent`, schwebender Stift im Tagebuch
+- Toasts als getöntes Glas
 
 ## Aufbau
 
 ```
 Floof/
-├─ App/FloofApp.swift                 Einstiegspunkt
-├─ Models/PetModels.swift             Datenmodell = Floof-Export (version 2)
-├─ Store/PetStore.swift               @Observable Store, Tagesdosen, Import
-├─ Views/Adaptive/
-│  ├─ DevicePosture.swift             zugeklappt/aufgeklappt aus der Geometrie
-│  └─ AdaptiveRootView.swift          Hauptansicht, wechselt das Layout animiert
-├─ Views/Folded/CompactDashboardView  Außendisplay: Einhand, große Medikamenten-Karten
-├─ Views/Unfolded/ExpandedDashboard   Innendisplay: 2 Spalten (Checkliste+Stammdaten | Gewicht+Impfungen)
-├─ Views/Components/…                 Karten, Swift-Charts-Gewichtsverlauf, Impfkalender
-└─ Resources/Info-FullScreen.plist    Info.plist-Schlüssel gegen Letterboxing
+├─ App/            Einstiegspunkt
+├─ Models/         Pet & Care (Export-Format), Tagebuch, Schrank, AppData + DiskStore
+├─ Store/          PetStore (+Doses, +Cabinet, +Diary, +Pets, +Transfer), Gamification, Erinnerungen, Vorschaudaten
+└─ Views/
+   ├─ RootTabView  Tabs, Glas-Zusatzleiste, Toast, Feier
+   ├─ Today/       Heute (zugeklappt: Einhand, aufgeklappt: zweispaltig)
+   ├─ Diary/       Zeitleiste, Editor, Stimmungskalender
+   ├─ Cabinet/     Übersicht, Detail, Editor, Füllstand
+   ├─ Pets/        Liste/SplitView, Detail, Editoren, Einstellungen
+   ├─ Components/  Karten, Diagramm, Impfungen, Gamification
+   ├─ Shared/      Faltzustand, Tier-Filter, Fotoauswahl
+   └─ Theme/       Farben (hell + OLED-Schwarz), Schrift, handgezeichnete Details
 ```
 
-## Einrichten
+## Daten
 
-1. In Xcode ein neues iOS-App-Projekt „Floof“ (SwiftUI) anlegen, Mindestziel iOS 18.
-2. Den Ordner `Floof/` ins Projekt ziehen (die generierte `ContentView`/`App`-Datei löschen).
-3. Schlüssel aus `Resources/Info-FullScreen.plist` in die Info.plist des Targets übernehmen.
-4. Eigene Daten über den Import-Button (oben rechts) aus einer Floof-Export-JSON laden.
-
-## Faltzustand
-
-`DevicePosture.resolve` entscheidet anhand von Size Class **und** Seitenverhältnis der
-verfügbaren Fläche (4:3 innen ≈ 0,75, außen ≈ 0,46). Sollte das SDK eine eigene
-Faltzustand-API anbieten, wird sie nur dort eingehängt.
+Alles liegt lokal in `Documents/floof-data.json` (+ `Documents/Photos`), mit
+Dateischutz. Export/Import nutzt das Floof-Exportformat (Version 2 lesbar,
+Version 3 ergänzt Tagebuch und Schrank).

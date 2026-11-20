@@ -2,15 +2,14 @@ import SwiftUI
 
 @main
 struct FloofApp: App {
-    @State private var store = PetStore.preview   // bis zum ersten Import
+    @State private var store = PetStore.load()
 
     var body: some Scene {
         WindowGroup {
-            AdaptiveRootView()
+            RootTabView()
                 .environment(store)
-                // Persistente Systemleisten nicht ausblenden: die (im Querformat
-                // seitliche) Statusleiste bleibt sichtbar, Inhalte respektieren ihre Safe Area.
-                .persistentSystemOverlays(.automatic)
+                .tint(Theme.carrot)
+                .task { await ReminderScheduler.requestAuthorization() }
         }
     }
 }
