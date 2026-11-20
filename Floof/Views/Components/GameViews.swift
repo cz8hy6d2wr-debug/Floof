@@ -20,6 +20,7 @@ struct StreakStrip: View {
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
