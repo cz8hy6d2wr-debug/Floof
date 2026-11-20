@@ -44,7 +44,7 @@ jobs:
           shoot() {  # $1 Gerät-UDID, $2 Name, $3 Tab, $4 light|dark
             xcrun simctl ui "$1" appearance "$4"
             xcrun simctl terminate "$1" "$BUNDLE" 2>/dev/null || true
-            xcrun simctl launch "$1" "$BUNDLE" -FloofDemo YES -FloofTab "$3" >/dev/null
+            xcrun simctl launch "$1" "$BUNDLE" -FloofDemo YES -FloofTab "$3" -AppleLanguages "(de)" -AppleLocale de_DE >/dev/null
             sleep 6
             xcrun simctl io "$1" screenshot "shots/$2-$3-$4.png" >/dev/null
             echo "📸 $2-$3-$4"

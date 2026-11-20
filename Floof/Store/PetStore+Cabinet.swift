@@ -30,10 +30,10 @@ extension PetStore {
         if let expiry = item.effectiveExpiry {
             let days = Calendar.current.dateComponents([.day], from: .now, to: expiry).day ?? 0
             if days < 0 { return .expired }
-            if let left = daysLeft(of: item), left < item.warnBelowDays { return .low(daysLeft: left) }
+            if let left = daysLeft(of: item), left <= item.warnBelowDays { return .low(daysLeft: left) }
             if days <= 14 { return .expiringSoon(days: days) }
         }
-        if let left = daysLeft(of: item), left < item.warnBelowDays { return .low(daysLeft: left) }
+        if let left = daysLeft(of: item), left <= item.warnBelowDays { return .low(daysLeft: left) }
         return .ok
     }
 

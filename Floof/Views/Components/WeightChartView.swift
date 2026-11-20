@@ -48,7 +48,7 @@ struct WeightChartView: View {
                 .chartYScale(domain: yDomain)
                 .chartYAxisLabel("g")
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 5)) {
+                    AxisMarks(values: .automatic(desiredCount: 3)) {
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
                         AxisValueLabel(format: .dateTime.day().month(.abbreviated))
                     }

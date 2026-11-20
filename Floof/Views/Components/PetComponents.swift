@@ -135,3 +135,16 @@ struct CardBackground: ViewModifier {
 extension View {
     func card() -> some View { modifier(CardBackground()) }
 }
+
+extension DiaryEntry.Mood {
+    /// Farbe für das Stimmungssymbol – sichtbar auf hellem und dunklem Grund.
+    var tint: Color {
+        switch self {
+        case .great: Theme.honey
+        case .good: Theme.carrot
+        case .okay: Theme.inkSoft
+        case .low: Color(light: 0x557A95, dark: 0x8FB3CE)
+        case .sick: Theme.berry
+        }
+    }
+}

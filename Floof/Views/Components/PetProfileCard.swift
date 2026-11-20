@@ -10,9 +10,12 @@ struct PetProfileCard: View {
                 PetAvatar(pet: pet, size: 64)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(pet.name).font(Theme.title(24))
+                        .lineLimit(1).minimumScaleFactor(0.7)
                     Text("\(pet.breed) · \(pet.ageDescription)")
                         .font(.subheadline).foregroundStyle(Theme.inkSoft)
+                        .lineLimit(2)
                 }
+                .layoutPriority(1)
                 Spacer()
                 if let check = pet.dailyChecks.max(by: { $0.id < $1.id }) {
                     Label(check.need.label, systemImage: "circle.fill")
@@ -21,6 +24,7 @@ struct PetProfileCard: View {
                         .foregroundStyle(check.need.color)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(check.need.color.opacity(0.15), in: Capsule())
+                        .fixedSize()
                 }
             }
 

@@ -119,7 +119,8 @@ struct DiaryEditor: View {
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: mood.symbol)
-                                .symbolRenderingMode(.multicolor)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(mood.tint)
                                 .font(selected ? .title2 : .title3)
                             Text(mood.label).font(.caption2.weight(selected ? .bold : .regular))
                                 .lineLimit(1).minimumScaleFactor(0.8)

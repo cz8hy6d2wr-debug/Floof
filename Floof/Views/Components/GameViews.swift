@@ -7,16 +7,29 @@ struct StreakStrip: View {
     @Environment(PetStore.self) private var store
 
     var body: some View {
+        // Breit: alles in einer Zeile. Schmal (halbe Spalte aufgeklappt): Wochenpunkte darunter.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                stats
+                Spacer(minLength: 4)
+                WeekDots()
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                stats
+                WeekDots()
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var stats: some View {
         HStack(spacing: 14) {
             stat(value: store.game.carrots, label: "Möhren", symbol: "carrot.fill", tint: Theme.carrot)
             Rectangle().fill(Theme.hairline).frame(width: 1, height: 34)
             stat(value: store.streak, label: store.streak == 1 ? "Tag am Stück" : "Tage am Stück",
                  symbol: "flame.fill", tint: Theme.honey)
-            Spacer(minLength: 4)
-            WeekDots()
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private func stat(value: Int, label: String, symbol: String, tint: Color) -> some View {
@@ -28,6 +41,8 @@ struct StreakStrip: View {
                     .contentTransition(.numericText(value: Double(value)))
                 Text(label).font(.caption2).foregroundStyle(Theme.inkSoft)
             }
+            .lineLimit(1)
+            .fixedSize()
         }
         .accessibilityElement(children: .combine)
     }

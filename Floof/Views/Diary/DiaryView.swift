@@ -188,7 +188,8 @@ struct DiaryEntryCard: View {
                         .font(Theme.title(18))
                     Spacer(minLength: 6)
                     Image(systemName: entry.mood.symbol)
-                        .symbolRenderingMode(.multicolor)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(entry.mood.tint)
                         .accessibilityLabel(entry.mood.label)
                 }
                 if !entry.text.isEmpty {
