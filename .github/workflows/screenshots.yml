@@ -1,0 +1,86 @@
+name: Screenshots
+
+# Startet Floof im Simulator mit Beispieldaten und fotografiert alle Tabs –
+# iPhone (zugeklappt) und iPad mini (als Ersatz für das aufgeklappte 4:3-Display),
+# jeweils hell und dunkel. Die Bilder landen auf dem Branch "ci-screenshots".
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  screenshots:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Neuestes Xcode wählen
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      - name: App für den Simulator bauen
+        run: |
+          set -o pipefail
+          xcodebuild -project Floof.xcodeproj -target Floof -sdk iphonesimulator \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES ARCHS=arm64 \
+            build 2>&1 | tail -5
+
+      - name: Screenshots aufnehmen
+        run: |
+          set -e
+          APP="build/Debug-iphonesimulator/Floof.app"
+          BUNDLE="app.floof.diary"
+          mkdir -p shots
+
+          pick() {  # neuestes verfügbares Gerät, dessen Name mit $1 beginnt
+            xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          prefix=sys.argv[1]
+          devs=[d for rt,ds in json.load(sys.stdin)['devices'].items() if 'iOS' in rt for d in ds if d['name'].startswith(prefix)]
+          print(devs[-1]['udid'] if devs else '')" "$1"
+          }
+
+          shoot() {  # $1 Gerät-UDID, $2 Name, $3 Tab, $4 light|dark
+            xcrun simctl ui "$1" appearance "$4"
+            xcrun simctl terminate "$1" "$BUNDLE" 2>/dev/null || true
+            xcrun simctl launch "$1" "$BUNDLE" -FloofDemo YES -FloofTab "$3" >/dev/null
+            sleep 6
+            xcrun simctl io "$1" screenshot "shots/$2-$3-$4.png" >/dev/null
+            echo "📸 $2-$3-$4"
+          }
+
+          run_device() {  # $1 Präfix, $2 Name, Tabs…
+            UDID=$(pick "$1")
+            if [ -z "$UDID" ]; then echo "Kein Simulator für $1 gefunden"; return; fi
+            local name=$2; shift 2
+            xcrun simctl boot "$UDID" || true
+            xcrun simctl bootstatus "$UDID" -b
+            xcrun simctl status_bar "$UDID" override --time 10:24 --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4
+            xcrun simctl install "$UDID" "$APP"
+            for mode in light dark; do
+              for tab in "$@"; do shoot "$UDID" "$name" "$tab" "$mode"; done
+            done
+            xcrun simctl shutdown "$UDID"
+          }
+
+          xcrun simctl list devices available | grep -E "iPhone|iPad" | head -30
+          run_device "iPhone 17 Pro" "zugeklappt" today diary cabinet pets lexicon
+          run_device "iPad mini" "aufgeklappt" today diary cabinet lexicon
+
+      - name: Auf Branch ci-screenshots ablegen
+        run: |
+          cd shots
+          git init -q -b ci-screenshots
+          git add .
+          git -c user.name="Floof CI" -c user.email="ci@users.noreply.github.com" \
+            commit -q -m "Screenshots von ${GITHUB_SHA::7} [skip ci]"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-screenshots
+
+      - name: Screenshots als Artefakt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots
+          if-no-files-found: ignore

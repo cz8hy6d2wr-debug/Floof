@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum AppTab: Hashable {
+enum AppTab: String, Hashable {
     case today, diary, cabinet, pets, lexicon
 }
 
@@ -16,7 +16,7 @@ enum AppTab: Hashable {
 struct RootTabView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @State private var tab: AppTab = .today
+    @State private var tab: AppTab = DemoMode.startTab ?? .today
     @State private var size: CGSize = .zero
 
     var body: some View {

@@ -4,6 +4,7 @@ name: Build
 # nur um sicherzustellen, dass der Code baut.
 on:
   push:
+    branches-ignore: [ci-screenshots]
   pull_request:
   workflow_dispatch:
 
