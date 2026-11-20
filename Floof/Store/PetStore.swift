@@ -13,6 +13,8 @@ final class PetStore {
     var celebration: Celebration?
     /// Kurze Bestätigung unten ("Vitamin B eingetragen").
     var toast: String?
+    /// Per AirDrop o. Ä. empfangene Datei, die auf Bestätigung wartet.
+    var pendingImport: PendingImport?
 
     @ObservationIgnored private var photoCache: [String: UIImage] = [:]
     /// Wird erhöht, wenn sich Fotos ändern – Views beobachten das statt des Caches.

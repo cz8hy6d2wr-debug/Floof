@@ -50,6 +50,15 @@ struct RootTabView: View {
         .animation(.smooth(duration: 0.35), value: posture)
         .celebrations(store)
         .overlay(alignment: .top) { ToastView() }
+        // Empfangene .floof-Dateien (AirDrop, Dateien-App, Nachrichten) öffnen hier.
+        .onOpenURL { url in
+            guard url.isFileURL else { return }
+            do { store.pendingImport = try PendingImport(url: url) }
+            catch { store.showToast("Datei konnte nicht gelesen werden") }
+        }
+        .sheet(item: Binding(get: { store.pendingImport }, set: { store.pendingImport = $0 })) {
+            ImportReviewSheet(pending: $0)
+        }
         .animation(.spring(duration: 0.35), value: store.toast)
     }
 }

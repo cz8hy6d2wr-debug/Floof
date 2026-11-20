@@ -10,9 +10,22 @@
 		F100F100F100F100F1000001 /* Floof.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Floof.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F100F100F100F100F1000010 /* Exceptions for "Floof" folder in "Floof" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F100F100F100F100F1000006 /* Floof */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F100F100F100F100F1000002 /* Floof */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F100F100F100F100F1000010 /* Exceptions for "Floof" folder in "Floof" target */,
+			);
 			path = Floof;
 			sourceTree = "<group>";
 		};
@@ -179,6 +192,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Floof/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Floof;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -207,6 +221,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Floof/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Floof;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

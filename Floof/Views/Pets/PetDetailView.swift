@@ -63,7 +63,14 @@ struct PetDetailView: View {
         .navigationTitle(embedded ? "" : pet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            Button("Bearbeiten") { sheets.editPet = pet }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                // Ein Tier per AirDrop teilen – z. B. an Tiersitter.
+                ShareLink(item: store.share(pet),
+                          preview: SharePreview("Floof: \(pet.name)", image: Image("FloofLogo"))) {
+                    Label("\(pet.name) teilen", systemImage: "square.and.arrow.up")
+                }
+                Button("Bearbeiten") { sheets.editPet = pet }
+            }
         }
     }
 

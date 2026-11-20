@@ -5,7 +5,7 @@ struct SettingsView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var isImporting = false
-    @State private var exportDocument: FloofExportDocument?
+    @State private var pending: PendingImport?
     @State private var message: String?
 
     var body: some View {
@@ -23,12 +23,22 @@ struct SettingsView: View {
                     Text("Mitteilungen zu den Uhrzeiten aus dem Medikamentenplan und wenn im Schrank etwas knapp wird.")
                 }
 
-                Section("Daten") {
-                    Button("Floof-Export laden", systemImage: "square.and.arrow.down") { isImporting = true }
-                    Button("Alles exportieren", systemImage: "square.and.arrow.up") {
-                        do { exportDocument = FloofExportDocument(data: try store.makeExport()) }
-                        catch { message = error.localizedDescription }
+                Section {
+                    ShareLink(item: store.shareAll,
+                              preview: SharePreview("Alle Floof-Daten", image: Image("FloofLogo"))) {
+                        Label("Alles teilen (AirDrop, Nachrichten …)", systemImage: "square.and.arrow.up")
                     }
+                    ForEach(store.pets) { pet in
+                        ShareLink(item: store.share(pet),
+                                  preview: SharePreview("Floof: \(pet.name)", image: Image("FloofLogo"))) {
+                            Label("Nur \(pet.name) teilen", systemImage: "pawprint")
+                        }
+                    }
+                    Button("Datei öffnen", systemImage: "square.and.arrow.down") { isImporting = true }
+                } header: {
+                    Text("Teilen & Übernehmen")
+                } footer: {
+                    Text("Per AirDrop empfangene Floof-Dateien öffnen sich direkt in Floof – du siehst vorher, was übernommen wird. Ein einzelnes Tier enthält sein Tagebuch und die verknüpften Medikamente aus dem Schrank, ideal für Tiersitter.")
                 }
 
                 Section("Dein Fortschritt") {
@@ -38,7 +48,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("Floof speichert alles nur auf diesem Gerät. Für ein Backup: „Alles exportieren“.")
+                    Text("Floof speichert alles nur auf diesem Gerät. Für ein Backup: „Alles teilen“ und in Dateien sichern.")
                         .font(.footnote).foregroundStyle(Theme.inkSoft)
                 }
             }
@@ -49,17 +59,11 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Fertig", role: .close) { dismiss() } }
             }
-            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
-                do {
-                    try store.importExport(from: result.get())
-                    message = "Import erfolgreich: \(store.pets.count) Tier\(store.pets.count == 1 ? "" : "e")."
-                } catch {
-                    message = "Das hat nicht geklappt: \(error.localizedDescription)"
-                }
+            .fileImporter(isPresented: $isImporting, allowedContentTypes: [.floofExport, .json]) { result in
+                do { pending = try PendingImport(url: result.get()) }
+                catch { message = "Das hat nicht geklappt: \(error.localizedDescription)" }
             }
-            .fileExporter(isPresented: Binding(get: { exportDocument != nil }, set: { if !$0 { exportDocument = nil } }),
-                          document: exportDocument, contentType: .json,
-                          defaultFilename: "Floof-Export-\(DoseKey.day(.now))") { _ in }
+            .sheet(item: $pending) { ImportReviewSheet(pending: $0) }
             .alert(message ?? "", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
                 Button("OK") { message = nil }
             }

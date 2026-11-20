@@ -60,6 +60,12 @@ Floof/
    └─ Theme/       Farben (hell + OLED-Schwarz), Schrift, handgezeichnete Details
 ```
 
+## Teilen per AirDrop
+
+- **Senden:** Tiere → ⚙︎ → „Alles teilen“ oder „Nur … teilen“, bzw. in der Tieransicht oben rechts. Das iOS-Teilen-Menü bietet AirDrop, Nachrichten, Mail, Dateien.
+- **Empfangen:** Floof registriert das Format `.floof` – per AirDrop empfangene Dateien öffnen sich direkt in Floof mit Vorschau. Standard ist *Zusammenführen* (gleiche Tiere/Einträge werden aktualisiert, Neues ergänzt), optional *Alles ersetzen*.
+- Ein einzelnes Tier enthält sein Tagebuch und die verknüpften Schrank-Artikel – ideal für Tiersitter.
+
 ## Daten
 
 Alles liegt lokal in `Documents/floof-data.json` (+ `Documents/Photos`), mit
