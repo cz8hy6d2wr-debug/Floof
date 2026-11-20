@@ -3,13 +3,14 @@ import UIKit
 
 /// Eigenes, warmes Farbsystem statt System-Grau.
 /// Jede Farbe hat eine bewusst gewählte Hell- und Dunkelvariante –
-/// Dunkel ist kein invertiertes Hell, sondern ein warmes "Abend im Kaninchenzimmer".
+/// Dunkel ist kein invertiertes Hell: OLED-Schwarz als Grund, warme Akzente darauf.
 enum Theme {
-    // Flächen
-    static let paper   = Color(light: 0xF6F1E8, dark: 0x1B1916)   // Hintergrund, leicht cremig
-    static let card    = Color(light: 0xFFFCF6, dark: 0x262320)   // Karten
-    static let sunken  = Color(light: 0xEDE5D8, dark: 0x312D29)   // Badges, Ringspur
-    static let hairline = Color(light: 0xE4DACB, dark: 0x3A3530)
+    // Flächen – Dunkel = echtes OLED-Schwarz (Pixel aus, spart Akku),
+    // Karten heben sich nur minimal und warm davon ab.
+    static let paper   = Color(light: 0xF6F1E8, dark: 0x000000)   // Hintergrund
+    static let card    = Color(light: 0xFFFCF6, dark: 0x141210)   // Karten
+    static let sunken  = Color(light: 0xEDE5D8, dark: 0x221F1C)   // Badges, Ringspur
+    static let hairline = Color(light: 0xE4DACB, dark: 0x2B2723)
 
     // Text
     static let ink     = Color(light: 0x2B2622, dark: 0xF1EADF)
@@ -18,7 +19,7 @@ enum Theme {
     // Akzente
     static let carrot  = Color(light: 0xD9682B, dark: 0xF08A4B)   // Hauptakzent, Möhren-Punkte
     static let leaf    = Color(light: 0x4F7D3A, dark: 0x8BBF6E)   // erledigt
-    static let leafWash = Color(light: 0xE6EEDB, dark: 0x27321F)
+    static let leafWash = Color(light: 0xE6EEDB, dark: 0x16200F)
     static let berry   = Color(light: 0xB8434E, dark: 0xE77C86)   // Erkrankungen, überfällig
     static let honey   = Color(light: 0xC99A2E, dark: 0xE8C064)   // beobachten, Serie
 
