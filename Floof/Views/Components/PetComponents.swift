@@ -102,15 +102,27 @@ struct DoseProgressRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(Theme.sunken, lineWidth: lineWidth)
-            Circle()
+            // Ring komplett innerhalb der eigenen Fläche zeichnen (inset), damit er
+            // am Spaltenrand nicht abgeschnitten wird.
+            Circle().inset(by: lineWidth / 2).stroke(Theme.sunken, lineWidth: lineWidth)
+            Circle().inset(by: lineWidth / 2)
                 .trim(from: 0, to: progress)
                 .stroke(progress >= 1 ? Theme.leaf : Theme.carrot,
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Text(progress, format: .percent.precision(.fractionLength(0)))
-                .font(Theme.number(.caption))
-                .foregroundStyle(Theme.ink)
+            if progress >= 1 {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.leaf)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Text(progress, format: .percent.precision(.fractionLength(0)))
+                    .font(Theme.number(.caption))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .padding(lineWidth + 2)
+            }
         }
         .animation(.smooth, value: progress)
         .accessibilityElement()
