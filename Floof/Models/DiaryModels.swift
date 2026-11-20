@@ -27,6 +27,16 @@ struct DiaryEntry: Codable, Identifiable, Hashable {
             case .sick: "Krank"
             }
         }
+        /// Kurzform für die Auswahl-Kacheln (alle gleich breit).
+        var shortLabel: String {
+            switch self {
+            case .great: "Super"
+            case .good: "Gut"
+            case .okay: "Geht so"
+            case .low: "Schlapp"
+            case .sick: "Krank"
+            }
+        }
         var symbol: String {
             switch self {
             case .great: "sun.max.fill"

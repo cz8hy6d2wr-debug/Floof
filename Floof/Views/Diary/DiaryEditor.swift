@@ -122,8 +122,8 @@ struct DiaryEditor: View {
                                 .symbolRenderingMode(.hierarchical)
                                 .foregroundStyle(mood.tint)
                                 .font(selected ? .title2 : .title3)
-                            Text(mood.label).font(.caption2.weight(selected ? .bold : .regular))
-                                .lineLimit(1).minimumScaleFactor(0.8)
+                            Text(mood.shortLabel).font(.caption2.weight(selected ? .bold : .regular))
+                                .lineLimit(1)
                         }
                         .frame(maxWidth: .infinity, minHeight: 58)
                     }
@@ -131,6 +131,7 @@ struct DiaryEditor: View {
                     .glassEffect(selected ? .regular.tint(Theme.carrot.opacity(0.22)).interactive() : .regular.interactive(),
                                  in: .rect(cornerRadius: 14))
                     .glassEffectID(mood.rawValue, in: glass)
+                    .accessibilityLabel(mood.label)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
