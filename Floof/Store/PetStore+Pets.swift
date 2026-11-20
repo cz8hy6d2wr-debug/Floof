@@ -57,3 +57,15 @@ extension PetStore {
         }
     }
 }
+
+/// Lexikon: Merkliste.
+extension PetStore {
+    func isBookmarked(_ articleID: String) -> Bool { data.lexiconBookmarks.contains(articleID) }
+
+    func toggleBookmark(_ articleID: String) {
+        update { data in
+            if data.lexiconBookmarks.contains(articleID) { data.lexiconBookmarks.remove(articleID) }
+            else { data.lexiconBookmarks.insert(articleID) }
+        }
+    }
+}

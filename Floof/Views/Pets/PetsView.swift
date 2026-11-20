@@ -49,6 +49,7 @@ struct PetsView: View {
             .sheet(item: $sheets.editPet) { PetEditor(pet: $0) }
             .sheet(item: $sheets.weigh) { WeightSheet(pet: $0) }
             .sheet(item: $sheets.care) { CareEntryEditor(entry: $0.entry, petID: $0.petID) }
+            .sheet(item: $sheets.article) { LexiconSheet(start: .article($0.id)) }
         }
         .environment(self.sheets)
         .onChange(of: posture) { _, new in

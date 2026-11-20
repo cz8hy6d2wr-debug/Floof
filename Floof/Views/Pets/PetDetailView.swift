@@ -8,6 +8,11 @@ final class PetSheets {
     var editPet: Pet?
     var weigh: Pet?
     var care: CareSheet?
+    var article: ArticleSheet?
+
+    struct ArticleSheet: Identifiable {
+        let id: String
+    }
 
     struct CareSheet: Identifiable {
         let entry: CareEntry
@@ -49,6 +54,7 @@ struct PetDetailView: View {
                 careSection(pet, kind: .condition, title: "Erkrankungen")
                 careSection(pet, kind: .vaccination, title: "Impfungen")
                 careSection(pet, kind: .other, title: "Sonstiges")
+                readingSection(pet)
             }
             .padding(embedded ? .vertical : .all, embedded ? 12 : 16)
         }
@@ -97,6 +103,32 @@ struct PetDetailView: View {
             }
         }
         .card()
+    }
+
+    /// Lexikon-Artikel, die zu Medikamenten, Erkrankungen und Notizen dieses Tieres passen.
+    @ViewBuilder
+    private func readingSection(_ pet: Pet) -> some View {
+        let articles = Lexicon.relevant(for: [pet]).map(\.article)
+        if !articles.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Zum Nachlesen", systemImage: "books.vertical").font(Theme.title(20))
+                ForEach(articles) { article in
+                    Button { sheets.article = .init(id: article.id) } label: {
+                        HStack(alignment: .top, spacing: 12) {
+                            ArticleIcon(category: article.category)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(article.title).font(.subheadline.weight(.semibold))
+                                Text(article.summary).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
+                            }
+                            Spacer()
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .card()
+        }
     }
 
     private func emptyText(_ kind: CareKind) -> String {

@@ -11,6 +11,26 @@ struct AppData: Codable {
     var takenDoses: Set<String> = []
     var game = GameState()
     var notificationsEnabled = true
+    /// Gemerkte Lexikon-Artikel.
+    var lexiconBookmarks: Set<String> = []
+}
+
+extension AppData {
+    /// Tolerantes Laden: Fehlende Felder (z. B. nach einem App-Update) bekommen
+    /// ihren Standardwert, statt dass die ganze Datei nicht gelesen werden kann.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init()
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? version
+        pets = try c.decodeIfPresent([Pet].self, forKey: .pets) ?? []
+        diary = try c.decodeIfPresent([DiaryEntry].self, forKey: .diary) ?? []
+        cabinet = try c.decodeIfPresent([CabinetItem].self, forKey: .cabinet) ?? []
+        customBreeds = try c.decodeIfPresent([String].self, forKey: .customBreeds) ?? []
+        takenDoses = try c.decodeIfPresent(Set<String>.self, forKey: .takenDoses) ?? []
+        game = try c.decodeIfPresent(GameState.self, forKey: .game) ?? GameState()
+        notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
+        lexiconBookmarks = try c.decodeIfPresent(Set<String>.self, forKey: .lexiconBookmarks) ?? []
+    }
 }
 
 /// Datei-Ablage: `floof-data.json` + Fotos als JPEG im Ordner `Photos`.

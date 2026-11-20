@@ -19,6 +19,7 @@ einen bestehenden Export importieren.
 | **Heute** | Medikamente des Tages zum Abhaken, "Wenn nötig"-Mittel, Tages-Check (Ampel), Hinweise aus dem Schrank, Möhren/Serie/Abzeichen |
 | **Tagebuch** | Einträge mit Stimmung, Themen, Foto und optionalem Gewicht; automatisch dazu: Wiegen, Tierarzt, Impfungen. Aufgeklappt mit Stimmungskalender |
 | **Schrank** | Bestand je Medikament, Reichweite in Tagen, Ablauf/Anbruch, Nachfüllen, Korrekturen, Verlauf. Abhaken einer Gabe bucht automatisch ab |
+| **Lexikon** | Kaninchenwissen: Notfall-Hilfe, Krankheiten (EC, Epilepsie, Zähne, RHD …), Medikamente, Ernährung, Pflege, Verhalten, Haltung. Futter-Check „Darf mein Kaninchen das?“, Normalwerte, Merkliste, Suche. Hebt automatisch Artikel hervor, die zur Akte deiner Tiere passen |
 | **Tiere** | Profile, Gewichtskurve, Medikamente mit Zeitplan & Schrank-Verknüpfung, Erkrankungen, Impfungen, Einstellungen, Import/Export. Aufgeklappt Liste und Detail nebeneinander |
 
 ## Faltbares iPhone
@@ -45,6 +46,7 @@ Glas nur auf der Steuerungsebene, Inhalte bleiben ruhig und lesbar:
 Floof/
 ├─ App/            Einstiegspunkt
 ├─ Models/         Pet & Care (Export-Format), Tagebuch, Schrank, AppData + DiskStore
+├─ Lexicon/        Lexikon-Inhalte (Artikel, Futterliste, Normalwerte)
 ├─ Store/          PetStore (+Doses, +Cabinet, +Diary, +Pets, +Transfer), Gamification, Erinnerungen, Vorschaudaten
 └─ Views/
    ├─ RootTabView  Tabs, Glas-Zusatzleiste, Toast, Feier
@@ -52,6 +54,7 @@ Floof/
    ├─ Diary/       Zeitleiste, Editor, Stimmungskalender
    ├─ Cabinet/     Übersicht, Detail, Editor, Füllstand
    ├─ Pets/        Liste + Detail, Editoren, Einstellungen
+   ├─ Lexicon/     Übersicht, Artikel, Futter-Check
    ├─ Components/  Karten, Diagramm, Impfungen, Gamification
    ├─ Shared/      Faltzustand, Falz-Layout, Tier-Filter, Fotoauswahl
    └─ Theme/       Farben (hell + OLED-Schwarz), Schrift, handgezeichnete Details

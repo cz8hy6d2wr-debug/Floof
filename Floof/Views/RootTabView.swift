@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case today, diary, cabinet, pets
+    case today, diary, cabinet, pets, lexicon
 }
 
 /// Hauptnavigation.
@@ -35,6 +35,9 @@ struct RootTabView: View {
             .badge(store.cabinetAlerts.count)
             Tab("Tiere", systemImage: "pawprint", value: AppTab.pets) {
                 PetsView()
+            }
+            Tab("Lexikon", systemImage: "books.vertical", value: AppTab.lexicon) {
+                LexiconView()
             }
         }
         .tabViewStyle(.sidebarAdaptable)
