@@ -9,8 +9,12 @@ final class PetStore {
     var selectedPetID: Pet.ID?
     /// Abgehakte Dosen, Schlüssel = `ScheduledDose.id` (enthält das Datum).
     private(set) var takenDoses: Set<String>
+    private(set) var game: GameState
+    /// Wird gesetzt, wenn etwas gefeiert werden soll (Tag geschafft, neues Abzeichen).
+    var celebration: Celebration?
 
     private static let takenKey = "floof.takenDoses"
+    private static let gameKey = "floof.game"
 
     init(pets: [Pet] = [], photos: [String: UIImage] = [:]) {
         self.pets = pets
@@ -18,6 +22,8 @@ final class PetStore {
         self.selectedPetID = pets.first?.id
         let stored = UserDefaults.standard.stringArray(forKey: Self.takenKey) ?? []
         self.takenDoses = Set(stored)
+        self.game = UserDefaults.standard.data(forKey: Self.gameKey)
+            .flatMap { try? JSONDecoder().decode(GameState.self, from: $0) } ?? GameState()
     }
 
     var selectedPet: Pet? {
@@ -45,9 +51,45 @@ final class PetStore {
     func isTaken(_ dose: ScheduledDose) -> Bool { takenDoses.contains(dose.id) }
 
     func toggle(_ dose: ScheduledDose) {
-        if takenDoses.contains(dose.id) { takenDoses.remove(dose.id) } else { takenDoses.insert(dose.id) }
+        if takenDoses.contains(dose.id) {
+            takenDoses.remove(dose.id)
+            let points = game.awarded.removeValue(forKey: dose.id) ?? 0
+            game.carrots -= points
+            if points == 10 { game.onTimeCount -= 1 }
+            if game.perfectDays.remove(DoseKey.day(dose.day)) != nil { game.carrots -= 20 }
+        } else {
+            takenDoses.insert(dose.id)
+            award(dose)
+        }
         UserDefaults.standard.set(Array(takenDoses), forKey: Self.takenKey)
+        if let data = try? JSONEncoder().encode(game) { UserDefaults.standard.set(data, forKey: Self.gameKey) }
     }
+
+    /// Pünktlich (±1 h) = 10 Möhren, später = 5. Kein Abzug fürs Vergessen.
+    private func award(_ dose: ScheduledDose) {
+        let cal = Calendar.current
+        let due = cal.date(bySettingHour: dose.time.hour, minute: dose.time.minute, second: 0, of: dose.day) ?? dose.day
+        let onTime = abs(Date.now.timeIntervalSince(due)) <= GameState.onTimeWindow
+        let points = onTime ? 10 : 5
+        game.carrots += points
+        game.awarded[dose.id] = points
+        if onTime { game.onTimeCount += 1 }
+
+        var reason: Celebration.Reason?
+        let day = todaysDoses(on: dose.day)
+        if !day.isEmpty, day.allSatisfy(isTaken) {
+            game.perfectDays.insert(DoseKey.day(dose.day))
+            game.carrots += 20
+            reason = .perfectDay(streak: game.streak(today: dose.day))
+        }
+        let fresh = Badge.all.filter { !game.unlocked.contains($0.id) && $0.isEarned(by: game) }
+        game.unlocked.formUnion(fresh.map(\.id))
+        if let badge = fresh.last { reason = .badge(badge) }   // Abzeichen schlägt Tagesfeier
+        if let reason { celebration = Celebration(reason: reason) }
+    }
+
+    var streak: Int { game.streak() }
+    var unlockedBadges: Set<Badge.ID> { game.unlocked }
 
     func progress(_ doses: [ScheduledDose]) -> Double {
         guard !doses.isEmpty else { return 1 }
@@ -118,4 +160,13 @@ extension PetStore {
 
         return PetStore(pets: [cinnamon, brownie])
     }
+}
+
+struct Celebration: Identifiable, Equatable {
+    enum Reason: Equatable {
+        case perfectDay(streak: Int)
+        case badge(Badge)
+    }
+    let id = UUID()
+    let reason: Reason
 }

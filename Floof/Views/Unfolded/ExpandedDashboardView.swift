@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Innendisplay (7,6", 4:3): zweispaltig.
-/// Links: Medikamenten-Checkliste + Stammdaten · Rechts: Gewichtsverlauf + Impfkalender.
+/// Links: Medikamenten-Checkliste + Stammdaten · Rechts: Gewicht, Impfungen, Abzeichen.
 /// Beide Spalten scrollen unabhängig, damit Checkliste und Diagramm gleichzeitig sichtbar bleiben.
 struct ExpandedDashboardView: View {
     @Environment(PetStore.self) private var store
@@ -17,20 +17,23 @@ struct ExpandedDashboardView: View {
                             PetProfileCard(pet: pet)
                         }
                         column {
+                            StreakStrip()
                             WeightChartView(pet: pet)
                             VaccinationCalendarView(pet: pet)
+                            BadgeShelf()
                         }
                     }
                     .padding(.horizontal, 20)
                     .id(pet.id)
                     .transition(.opacity)
                 } else {
-                    ContentUnavailableView("Keine Tiere", systemImage: "pawprint",
-                                           description: Text("Importiere einen Floof-Export."))
+                    ContentUnavailableView("Noch keine Tiere", systemImage: "pawprint",
+                                           description: Text("Lade oben rechts einen Floof-Export."))
                 }
             }
             .animation(.smooth, value: store.selectedPetID)
-            .background(Color(.systemGroupedBackground))
+            .background(Theme.paper)
+            .toolbarBackground(Theme.paper, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) { PetPickerMenu() }
@@ -56,15 +59,21 @@ private struct ChecklistCard: View {
     var body: some View {
         let doses = store.doses(for: pet)
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("Medikamente heute", systemImage: "pills.fill").font(.headline)
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HandTitle(text: "Heute für \(pet.name)", size: 24)
+                    Text(Greeting.status(open: doses.filter { !store.isTaken($0) }, pets: [pet]))
+                        .font(.subheadline).foregroundStyle(Theme.inkSoft)
+                }
                 Spacer()
                 DoseProgressRing(progress: store.progress(doses), lineWidth: 5)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
             }
+            .padding(.bottom, 4)
+
             if doses.isEmpty {
-                Text("Heute keine geplanten Gaben für \(pet.name).")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                Text("Heute stehen für \(pet.name) keine Medikamente an.")
+                    .font(.subheadline).foregroundStyle(Theme.inkSoft)
                     .padding(.vertical, 8)
             } else {
                 ForEach(doses) { dose in

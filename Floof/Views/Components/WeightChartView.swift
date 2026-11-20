@@ -9,27 +9,27 @@ struct WeightChartView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Label("Gewichtsverlauf", systemImage: "scalemass.fill").font(.headline)
+                Text("Gewicht").font(Theme.title(20))
                 Spacer()
                 if let latest = pet.latestWeight {
-                    Text("\(latest.grams) g").font(.title2.bold().monospacedDigit())
+                    Text("\(latest.grams) g").font(Theme.number(.title2))
                     if let delta = trend {
                         Text(delta > 0 ? "+\(delta) g" : "\(delta) g")
                             .font(.subheadline.monospacedDigit())
-                            .foregroundStyle(abs(delta) > 50 ? Color.orange : Color.secondary)
+                            .foregroundStyle(abs(delta) > 50 ? Theme.berry : Theme.inkSoft)
                     }
                 }
             }
 
             if entries.isEmpty {
-                ContentUnavailableView("Noch keine Messung", systemImage: "scalemass",
-                                       description: Text("Wiege \(pet.name) regelmäßig, um den Verlauf zu sehen."))
+                ContentUnavailableView("Noch nicht gewogen", systemImage: "scalemass",
+                                       description: Text("Einmal pro Woche auf die Küchenwaage – dann siehst du hier, wie es \(pet.name) geht."))
                     .frame(minHeight: 200)
             } else {
                 Chart(entries) { entry in
                     AreaMark(x: .value("Datum", entry.date, unit: .day),
                              y: .value("Gramm", entry.grams))
-                        .foregroundStyle(pet.tint.opacity(0.15).gradient)
+                        .foregroundStyle(pet.tint.opacity(0.18).gradient)
                         .interpolationMethod(.monotone)
                     LineMark(x: .value("Datum", entry.date, unit: .day),
                              y: .value("Gramm", entry.grams))
@@ -41,7 +41,7 @@ struct WeightChartView: View {
                         .foregroundStyle(pet.tint)
                         .annotation(position: .top) {
                             if entries.count <= 6 {
-                                Text("\(entry.grams)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                                Text("\(entry.grams)").font(Theme.number(.caption2)).foregroundStyle(Theme.inkSoft)
                             }
                         }
                 }
@@ -49,12 +49,23 @@ struct WeightChartView: View {
                 .chartYAxisLabel("g")
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 5)) {
-                        AxisGridLine()
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
                         AxisValueLabel(format: .dateTime.day().month(.abbreviated))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks {
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+                        AxisValueLabel()
                     }
                 }
                 .frame(minHeight: 220)
                 .accessibilityLabel("Gewichtsverlauf von \(pet.name)")
+
+                if entries.count == 1 {
+                    Text("Ab der zweiten Wägung wird daraus eine Linie.")
+                        .font(.caption).foregroundStyle(Theme.inkSoft)
+                }
             }
         }
         .card()

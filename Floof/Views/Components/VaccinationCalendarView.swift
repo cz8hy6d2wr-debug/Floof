@@ -5,11 +5,11 @@ struct VaccinationCalendarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Impfkalender", systemImage: "syringe.fill").font(.headline)
+            Text("Impfungen").font(Theme.title(20))
 
             if pet.vaccinations.isEmpty {
-                ContentUnavailableView("Keine Impfungen eingetragen", systemImage: "calendar.badge.plus",
-                                       description: Text("Für Kaninchen empfohlen: RHD-1/RHD-2 und Myxomatose, jährlich auffrischen."))
+                ContentUnavailableView("Noch nichts eingetragen", systemImage: "syringe",
+                                       description: Text("Bei Kaninchen üblich: RHD-1/RHD-2 und Myxomatose, einmal im Jahr. Trag die letzte Impfung ein, dann erinnern wir dich."))
                     .frame(minHeight: 180)
             } else {
                 ForEach(pet.vaccinations) { vaccination in
@@ -29,17 +29,17 @@ private struct VaccinationRow: View {
         HStack(spacing: 12) {
             VStack(spacing: 0) {
                 Text(vaccination.date, format: .dateTime.month(.abbreviated))
-                    .font(.caption2.bold()).textCase(.uppercase).foregroundStyle(.red)
+                    .font(.caption2.bold()).textCase(.uppercase).foregroundStyle(Theme.carrot)
                 Text(vaccination.date, format: .dateTime.day())
-                    .font(.title3.bold().monospacedDigit())
+                    .font(Theme.number(.title3))
             }
             .frame(width: 48, height: 48)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+            .background(Theme.sunken, in: RoundedRectangle(cornerRadius: 10))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(vaccination.title).font(.body.weight(.semibold))
                 if !vaccination.details.isEmpty {
-                    Text(vaccination.details).font(.caption).foregroundStyle(.secondary)
+                    Text(vaccination.details).font(.caption).foregroundStyle(Theme.inkSoft)
                 }
             }
             Spacer()
@@ -53,9 +53,9 @@ private struct VaccinationRow: View {
     @ViewBuilder
     private func dueBadge(_ due: Date) -> some View {
         let days = Calendar.current.dateComponents([.day], from: .now, to: due).day ?? 0
-        let color: Color = days < 0 ? .red : (days < 30 ? .orange : .green)
+        let color: Color = days < 0 ? Theme.berry : (days < 30 ? Theme.honey : Theme.leaf)
         VStack(alignment: .trailing, spacing: 2) {
-            Text(days < 0 ? "Überfällig" : "Fällig").font(.caption2).foregroundStyle(.secondary)
+            Text(days < 0 ? "Überfällig" : "Fällig").font(.caption2).foregroundStyle(Theme.inkSoft)
             Text(due, format: .dateTime.day().month().year())
                 .font(.caption.bold().monospacedDigit())
                 .foregroundStyle(color)

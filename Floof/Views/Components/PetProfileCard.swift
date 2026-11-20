@@ -9,13 +9,14 @@ struct PetProfileCard: View {
             HStack(spacing: 14) {
                 PetAvatar(pet: pet, size: 64)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(pet.name).font(.title2.bold())
+                    Text(pet.name).font(Theme.title(24))
                     Text("\(pet.breed) · \(pet.ageDescription)")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(Theme.inkSoft)
                 }
                 Spacer()
                 if let check = pet.dailyChecks.max(by: { $0.id < $1.id }) {
                     Label(check.need.label, systemImage: "circle.fill")
+                        .labelStyle(DotLabelStyle())
                         .font(.caption.bold())
                         .foregroundStyle(check.need.color)
                         .padding(.horizontal, 10).padding(.vertical, 6)
@@ -31,7 +32,7 @@ struct PetProfileCard: View {
 
             if !pet.conditions.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Erkrankungen").font(.caption.bold()).foregroundStyle(.secondary)
+                    Text("Worauf wir achten").font(.caption.bold()).foregroundStyle(Theme.inkSoft)
                     FlowChips(items: pet.conditions.map(\.title))
                 }
             }
@@ -46,7 +47,7 @@ struct PetProfileCard: View {
 
     private func row(_ label: String, _ value: String) -> some View {
         GridRow {
-            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            Text(label).font(.subheadline).foregroundStyle(Theme.inkSoft)
             Text(value).font(.subheadline)
         }
     }
@@ -65,8 +66,17 @@ private struct FlowChips: View {
             Text(item)
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 10).padding(.vertical, 5)
-                .background(.red.opacity(0.12), in: Capsule())
-                .foregroundStyle(.red)
+                .background(Theme.berry.opacity(0.12), in: Capsule())
+                .foregroundStyle(Theme.berry)
+        }
+    }
+}
+
+private struct DotLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon.font(.system(size: 7))
+            configuration.title
         }
     }
 }

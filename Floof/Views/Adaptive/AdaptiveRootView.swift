@@ -26,7 +26,8 @@ struct AdaptiveRootView: View {
             .animation(.smooth(duration: 0.35), value: posture)
         }
         // Hintergrund randlos bis in alle Ecken – Inhalte bleiben in der Safe Area.
-        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .background(Theme.paper.ignoresSafeArea())
+        .celebrations(store)
     }
 }
 
@@ -38,4 +39,16 @@ struct AdaptiveRootView: View {
 #Preview("Aufgeklappt (4:3)", traits: .fixedLayout(width: 744, height: 992)) {
     AdaptiveRootView()
         .environment(PetStore.preview)
+}
+
+#Preview("Zugeklappt · Dunkel") {
+    AdaptiveRootView()
+        .environment(PetStore.preview)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Aufgeklappt · Dunkel", traits: .fixedLayout(width: 744, height: 992)) {
+    AdaptiveRootView()
+        .environment(PetStore.preview)
+        .preferredColorScheme(.dark)
 }

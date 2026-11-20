@@ -21,11 +21,12 @@ struct MedicationCard: View {
                 checkmark
                 VStack(alignment: .leading, spacing: 4) {
                     Text(dose.medication.title)
-                        .font(style == .large ? .title2.bold() : .headline)
-                        .strikethrough(taken)
+                        .font(Theme.title(style == .large ? 22 : 17))
+                        .foregroundStyle(taken ? Theme.inkSoft : Theme.ink)
+                        .strikethrough(taken, color: Theme.leaf)
                     Text(dosageLine)
                         .font(style == .large ? .body : .subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.inkSoft)
                         .lineLimit(2)
                     if showsPet {
                         Label(dose.pet.name, systemImage: "pawprint.fill")
@@ -42,7 +43,13 @@ struct MedicationCard: View {
             .contentShape(.rect(cornerRadius: 24))
         }
         .buttonStyle(.plain)
-        .sensoryFeedback(.success, trigger: taken) { _, new in new }
+        .sensoryFeedback(.impact(weight: .medium), trigger: taken) { _, new in new }
+        .overlay(alignment: .topTrailing) {
+            // "+10" fliegt kurz aus der Karte, wenn abgehakt wird
+            if taken, let points = store.game.awarded[dose.id] {
+                PointsPop(points: points).offset(x: -16, y: -6)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(dose.medication.title) für \(dose.pet.name) um \(dose.time.label)")
         .accessibilityValue(taken ? "Gegeben" : "Offen")
@@ -58,13 +65,13 @@ struct MedicationCard: View {
     private var checkmark: some View {
         Image(systemName: taken ? "checkmark.circle.fill" : "circle")
             .font(.system(size: style == .large ? 44 : 28, weight: .semibold))
-            .foregroundStyle(taken ? Color.green : dose.pet.tint)
+            .foregroundStyle(taken ? Theme.leaf : dose.pet.tint)
             .contentTransition(.symbolEffect(.replace))
     }
 
     private var timeBadge: some View {
         Text(dose.time.label)
-            .font((style == .large ? Font.title3 : .subheadline).monospacedDigit().bold())
+            .font(Theme.number(style == .large ? .title3 : .subheadline))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(timeColor.opacity(0.15), in: Capsule())
@@ -72,18 +79,37 @@ struct MedicationCard: View {
     }
 
     private var timeColor: Color {
-        if taken { return .green }
-        return dose.isOverdue ? .orange : .secondary
+        if taken { return Theme.leaf }
+        return dose.isOverdue ? Theme.berry : Theme.inkSoft
     }
 
     private var background: some View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(taken ? AnyShapeStyle(Color.green.opacity(0.12)) : AnyShapeStyle(BackgroundStyle()))
+            .fill(taken ? Theme.leafWash : Theme.card)
             .overlay {
                 if dose.isOverdue && !taken {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(.orange.opacity(0.6), lineWidth: 2)
+                        .strokeBorder(Theme.berry.opacity(0.55), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                 }
             }
+    }
+}
+
+/// Kleines "+10 🥕" das nach oben wegschwebt.
+private struct PointsPop: View {
+    let points: Int
+    @State private var shown = false
+
+    var body: some View {
+        Label("+\(points)", systemImage: "carrot.fill")
+            .font(Theme.number(.caption))
+            .foregroundStyle(Theme.carrot)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Theme.card, in: Capsule())
+            .offset(y: shown ? -18 : 0)
+            .opacity(shown ? 0 : 1)
+            .onAppear { withAnimation(.easeOut(duration: 1.1).delay(0.2)) { shown = true } }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
