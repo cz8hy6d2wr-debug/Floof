@@ -37,6 +37,7 @@ enum Theme {
 /// ein warmer Lichtkegel fällt von oben mittig nach unten, die Ränder liegen im Halbschatten.
 struct AmbientBackground: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dark: Bool { scheme == .dark }
     /// Grundton: im Hellen etwas tiefer, damit das Licht darauf wirken kann.
@@ -47,15 +48,20 @@ struct AmbientBackground: View {
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width, h = proxy.size.height
+            // Lampe wandert beim Neigen (Bewegungssensor), bei "Bewegung reduzieren" nicht.
+            let light = reduceMotion ? .zero : LightSource.shared.offset
+            let lx = 0.5 + light.x * 0.16          // Lampenposition horizontal (0…1)
+            let ly = -0.03 + light.y * 0.05        // leicht vor/zurück
             ZStack {
                 base
 
                 // Lichtkegel: oben schmal, nach unten breiter und schwächer.
                 Path { path in
-                    path.move(to: CGPoint(x: w * 0.36, y: -h * 0.05))
-                    path.addLine(to: CGPoint(x: w * 0.64, y: -h * 0.05))
-                    path.addLine(to: CGPoint(x: w * 1.15, y: h * 0.85))
-                    path.addLine(to: CGPoint(x: -w * 0.15, y: h * 0.85))
+                    // Oben an der Lampe, unten schwingt der Kegel stärker mit.
+                    path.move(to: CGPoint(x: w * (lx - 0.14), y: -h * 0.05))
+                    path.addLine(to: CGPoint(x: w * (lx + 0.14), y: -h * 0.05))
+                    path.addLine(to: CGPoint(x: w * (lx + 0.65 + light.x * 0.25), y: h * 0.85))
+                    path.addLine(to: CGPoint(x: w * (lx - 0.65 + light.x * 0.25), y: h * 0.85))
                     path.closeSubpath()
                 }
                 .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
@@ -64,17 +70,17 @@ struct AmbientBackground: View {
 
                 // Die "Lampe": heller Punkt oben mittig mit weichem Hof.
                 RadialGradient(colors: [light.opacity(dark ? 0.55 : 1.0), light.opacity(0)],
-                               center: UnitPoint(x: 0.5, y: -0.03),
+                               center: UnitPoint(x: lx, y: ly),
                                startRadius: 0, endRadius: min(w, h) * 0.75)
 
                 // Wärme im Licht (auch im Hellen ein Hauch Bernstein).
                 RadialGradient(colors: [Theme.glow.opacity(dark ? 0.22 : 0.16), .clear],
-                               center: UnitPoint(x: 0.5, y: 0.0),
+                               center: UnitPoint(x: lx, y: ly + 0.03),
                                startRadius: 0, endRadius: min(w, h) * 0.9)
 
                 // Halbschatten an Rändern und unten – macht das Licht gerichtet.
                 RadialGradient(colors: [.clear, .black.opacity(dark ? 0.55 : 0.10)],
-                               center: UnitPoint(x: 0.5, y: 0.25),
+                               center: UnitPoint(x: lx, y: 0.25),
                                startRadius: min(w, h) * 0.45, endRadius: max(w, h) * 0.95)
             }
         }
@@ -98,20 +104,26 @@ extension View {
 
 private struct LitGlass: ViewModifier {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let light = reduceMotion ? .zero : LightSource.shared.offset
+        // Lichtkante kommt von der Lampe her, der Schatten fällt auf die andere Seite.
+        let from = UnitPoint(x: 0.5 + light.x * 0.6, y: 0)
+        let to = UnitPoint(x: 0.5 - light.x * 0.6, y: 0.5)
         content
             .glassEffect(.regular, in: shape)
             .overlay {
                 shape.strokeBorder(
                     LinearGradient(colors: [.white.opacity(scheme == .dark ? 0.28 : 0.85), .white.opacity(0)],
-                                   startPoint: .top, endPoint: .center),
+                                   startPoint: from, endPoint: to),
                     lineWidth: 1)
                 .allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.10), radius: 18, x: 0, y: 12)
+            .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.10), radius: 18,
+                    x: -light.x * 10, y: 12 - light.y * 4)
     }
 }
 
