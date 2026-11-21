@@ -49,9 +49,9 @@ struct AmbientBackground: View {
         GeometryReader { proxy in
             let w = proxy.size.width, h = proxy.size.height
             // Lampe wandert beim Neigen (Bewegungssensor), bei "Bewegung reduzieren" nicht.
-            let light = reduceMotion ? .zero : LightSource.shared.offset
-            let lx = 0.5 + light.x * 0.16          // Lampenposition horizontal (0…1)
-            let ly = -0.03 + light.y * 0.05        // leicht vor/zurück
+            let tilt = reduceMotion ? .zero : LightSource.shared.offset
+            let lx = 0.5 + tilt.x * 0.16          // Lampenposition horizontal (0…1)
+            let ly = -0.03 + tilt.y * 0.05        // leicht vor/zurück
             ZStack {
                 base
 
@@ -60,8 +60,8 @@ struct AmbientBackground: View {
                     // Oben an der Lampe, unten schwingt der Kegel stärker mit.
                     path.move(to: CGPoint(x: w * (lx - 0.14), y: -h * 0.05))
                     path.addLine(to: CGPoint(x: w * (lx + 0.14), y: -h * 0.05))
-                    path.addLine(to: CGPoint(x: w * (lx + 0.65 + light.x * 0.25), y: h * 0.85))
-                    path.addLine(to: CGPoint(x: w * (lx - 0.65 + light.x * 0.25), y: h * 0.85))
+                    path.addLine(to: CGPoint(x: w * (lx + 0.65 + tilt.x * 0.25), y: h * 0.85))
+                    path.addLine(to: CGPoint(x: w * (lx - 0.65 + tilt.x * 0.25), y: h * 0.85))
                     path.closeSubpath()
                 }
                 .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
