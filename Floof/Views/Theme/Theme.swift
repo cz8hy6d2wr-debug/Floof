@@ -33,32 +33,85 @@ enum Theme {
 
 // MARK: - Hintergrund
 
-/// Leuchtender Hintergrund im Stil von Lumy, aber zurückhaltend:
-/// ein warmer Schimmer von oben, ein leiser Nachhall unten rechts.
+/// Indirekt beleuchteter Hintergrund – wie eine Schrank- oder Taschenlampe von oben:
+/// ein warmer Lichtkegel fällt von oben mittig nach unten, die Ränder liegen im Halbschatten.
 struct AmbientBackground: View {
     @Environment(\.colorScheme) private var scheme
 
+    private var dark: Bool { scheme == .dark }
+    /// Grundton: im Hellen etwas tiefer, damit das Licht darauf wirken kann.
+    private var base: Color { dark ? .black : Color(red: 0.91, green: 0.88, blue: 0.83) }
+    /// Lichtfarbe: warmes Glühbirnenlicht (dunkel) bzw. warmes Weiß (hell).
+    private var light: Color { dark ? Color(red: 1.0, green: 0.70, blue: 0.42) : Color(red: 1.0, green: 0.97, blue: 0.91) }
+
     var body: some View {
-        ZStack {
-            Theme.paper
-            RadialGradient(colors: [Theme.glow.opacity(scheme == .dark ? 0.40 : 0.42), .clear],
-                           center: UnitPoint(x: 0.5, y: -0.12), startRadius: 0, endRadius: 520)
-            RadialGradient(colors: [Theme.glow.opacity(scheme == .dark ? 0.12 : 0.14), .clear],
-                           center: UnitPoint(x: 1.05, y: 1.05), startRadius: 0, endRadius: 420)
+        GeometryReader { proxy in
+            let w = proxy.size.width, h = proxy.size.height
+            ZStack {
+                base
+
+                // Lichtkegel: oben schmal, nach unten breiter und schwächer.
+                Path { path in
+                    path.move(to: CGPoint(x: w * 0.36, y: -h * 0.05))
+                    path.addLine(to: CGPoint(x: w * 0.64, y: -h * 0.05))
+                    path.addLine(to: CGPoint(x: w * 1.15, y: h * 0.85))
+                    path.addLine(to: CGPoint(x: -w * 0.15, y: h * 0.85))
+                    path.closeSubpath()
+                }
+                .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
+                                     startPoint: .top, endPoint: .bottom))
+                .blur(radius: 50)
+
+                // Die "Lampe": heller Punkt oben mittig mit weichem Hof.
+                RadialGradient(colors: [light.opacity(dark ? 0.55 : 1.0), light.opacity(0)],
+                               center: UnitPoint(x: 0.5, y: -0.03),
+                               startRadius: 0, endRadius: min(w, h) * 0.75)
+
+                // Wärme im Licht (auch im Hellen ein Hauch Bernstein).
+                RadialGradient(colors: [Theme.glow.opacity(dark ? 0.22 : 0.16), .clear],
+                               center: UnitPoint(x: 0.5, y: 0.0),
+                               startRadius: 0, endRadius: min(w, h) * 0.9)
+
+                // Halbschatten an Rändern und unten – macht das Licht gerichtet.
+                RadialGradient(colors: [.clear, .black.opacity(dark ? 0.55 : 0.10)],
+                               center: UnitPoint(x: 0.5, y: 0.25),
+                               startRadius: min(w, h) * 0.45, endRadius: max(w, h) * 0.95)
+            }
         }
         .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 }
 
 extension View {
-    /// Leuchtender Hintergrund hinter dem Inhalt.
+    /// Indirekt beleuchteter Hintergrund hinter dem Inhalt.
     func ambientBackground() -> some View {
         background { AmbientBackground() }
     }
 
-    /// Gläserne Fläche (Liquid Glass) für Inhaltsgruppen.
+    /// Gläserne Fläche (Liquid Glass), von oben beleuchtet:
+    /// feine Lichtkante oben, weicher Schatten nach unten.
     func glassPanel(cornerRadius: CGFloat = 24) -> some View {
-        glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        modifier(LitGlass(cornerRadius: cornerRadius))
+    }
+}
+
+private struct LitGlass: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .glassEffect(.regular, in: shape)
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(colors: [.white.opacity(scheme == .dark ? 0.28 : 0.85), .white.opacity(0)],
+                                   startPoint: .top, endPoint: .center),
+                    lineWidth: 1)
+                .allowsHitTesting(false)
+            }
+            .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.10), radius: 18, x: 0, y: 12)
     }
 }
 
