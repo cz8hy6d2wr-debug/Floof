@@ -36,10 +36,9 @@ struct TodayHeader: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Theme.inkSoft)
 
-            HStack(alignment: .lastTextBaseline) {
-                if doses.isEmpty {
-                    Text("Frei").font(.system(size: 44, weight: .bold, design: .rounded))
-                } else {
+            // Ohne Medikamente nur das Datum – der Hinweis steht darunter in der Liste.
+            if !doses.isEmpty {
+                HStack(alignment: .lastTextBaseline) {
                     HStack(alignment: .lastTextBaseline, spacing: 8) {
                         Text("\(given)")
                             .font(.system(size: 48, weight: .bold, design: .rounded))
@@ -48,17 +47,15 @@ struct TodayHeader: View {
                             .font(.system(size: 22, weight: .semibold, design: .rounded))
                             .foregroundStyle(Theme.inkSoft)
                     }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Gaben").foregroundStyle(Theme.inkSoft)
+                        statusLine(doses: doses, open: open)
+                    }
+                    .font(.subheadline)
+                    .multilineTextAlignment(.trailing)
                 }
-                Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(doses.isEmpty ? "keine Gaben" : "Gaben").foregroundStyle(Theme.inkSoft)
-                    statusLine(doses: doses, open: open)
-                }
-                .font(.subheadline)
-                .multilineTextAlignment(.trailing)
-            }
 
-            if !doses.isEmpty {
                 ProgressBar(value: Double(given) / Double(doses.count))
                     .padding(.top, 8)
             }
