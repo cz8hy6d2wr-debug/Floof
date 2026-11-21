@@ -22,7 +22,7 @@ final class LightSource {
 
     func start() {
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
-        motion.deviceMotionUpdateInterval = 1.0 / 30
+        motion.deviceMotionUpdateInterval = 1.0 / 20
         motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
             guard let gravity = data?.gravity else { return }
             MainActor.assumeIsolated { self?.update(gravity) }
@@ -45,7 +45,7 @@ final class LightSource {
 
         // Glätten, damit nichts zittert.
         let next = CGPoint(x: offset.x * 0.8 + x * 0.2, y: offset.y * 0.8 + y * 0.2)
-        if abs(next.x - offset.x) > 0.003 || abs(next.y - offset.y) > 0.003 {
+        if abs(next.x - offset.x) > 0.008 || abs(next.y - offset.y) > 0.008 {
             offset = next
         }
     }

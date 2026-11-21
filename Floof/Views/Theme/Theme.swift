@@ -37,7 +37,6 @@ enum Theme {
 /// ein warmer Lichtkegel fällt von oben mittig nach unten, die Ränder liegen im Halbschatten.
 struct AmbientBackground: View {
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dark: Bool { scheme == .dark }
     /// Grundton: im Hellen etwas tiefer, damit das Licht darauf wirken kann.
@@ -48,44 +47,62 @@ struct AmbientBackground: View {
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width, h = proxy.size.height
-            // Lampe wandert beim Neigen (Bewegungssensor), bei "Bewegung reduzieren" nicht.
-            let tilt = reduceMotion ? .zero : LightSource.shared.offset
-            let lx = 0.5 + tilt.x * 0.16          // Lampenposition horizontal (0…1)
-            let ly = -0.03 + tilt.y * 0.05        // leicht vor/zurück
             ZStack {
                 base
 
-                // Lichtkegel: oben schmal, nach unten breiter und schwächer.
-                Path { path in
-                    // Oben an der Lampe, unten schwingt der Kegel stärker mit.
-                    path.move(to: CGPoint(x: w * (lx - 0.14), y: -h * 0.05))
-                    path.addLine(to: CGPoint(x: w * (lx + 0.14), y: -h * 0.05))
-                    path.addLine(to: CGPoint(x: w * (lx + 0.65 + tilt.x * 0.25), y: h * 0.85))
-                    path.addLine(to: CGPoint(x: w * (lx - 0.65 + tilt.x * 0.25), y: h * 0.85))
-                    path.closeSubpath()
+                // Licht wird EINMAL gezeichnet (drawingGroup) und beim Neigen nur verschoben –
+                // das übernimmt die Grafikkarte, ohne den Weichzeichner neu zu berechnen.
+                MovingLight {
+                    ZStack {
+                        // Lichtkegel: oben schmal, nach unten breiter und schwächer.
+                        Path { path in
+                            path.move(to: CGPoint(x: w * 0.36, y: -h * 0.05))
+                            path.addLine(to: CGPoint(x: w * 0.64, y: -h * 0.05))
+                            path.addLine(to: CGPoint(x: w * 1.15, y: h * 0.85))
+                            path.addLine(to: CGPoint(x: -w * 0.15, y: h * 0.85))
+                            path.closeSubpath()
+                        }
+                        .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .blur(radius: 50)
+
+                        // Die "Lampe": heller Punkt oben mittig mit weichem Hof.
+                        RadialGradient(colors: [light.opacity(dark ? 0.55 : 1.0), light.opacity(0)],
+                                       center: UnitPoint(x: 0.5, y: -0.03),
+                                       startRadius: 0, endRadius: min(w, h) * 0.75)
+
+                        // Wärme im Licht (auch im Hellen ein Hauch Bernstein).
+                        RadialGradient(colors: [Theme.glow.opacity(dark ? 0.22 : 0.16), .clear],
+                                       center: UnitPoint(x: 0.5, y: 0.0),
+                                       startRadius: 0, endRadius: min(w, h) * 0.9)
+                    }
+                    .frame(width: w, height: h)
+                    .drawingGroup()
                 }
-                .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
-                                     startPoint: .top, endPoint: .bottom))
-                .blur(radius: 50)
 
-                // Die "Lampe": heller Punkt oben mittig mit weichem Hof.
-                RadialGradient(colors: [light.opacity(dark ? 0.55 : 1.0), light.opacity(0)],
-                               center: UnitPoint(x: lx, y: ly),
-                               startRadius: 0, endRadius: min(w, h) * 0.75)
-
-                // Wärme im Licht (auch im Hellen ein Hauch Bernstein).
-                RadialGradient(colors: [Theme.glow.opacity(dark ? 0.22 : 0.16), .clear],
-                               center: UnitPoint(x: lx, y: ly + 0.03),
-                               startRadius: 0, endRadius: min(w, h) * 0.9)
-
-                // Halbschatten an Rändern und unten – macht das Licht gerichtet.
+                // Halbschatten an Rändern und unten – statisch.
                 RadialGradient(colors: [.clear, .black.opacity(dark ? 0.55 : 0.10)],
-                               center: UnitPoint(x: lx, y: 0.25),
+                               center: UnitPoint(x: 0.5, y: 0.25),
                                startRadius: min(w, h) * 0.45, endRadius: max(w, h) * 0.95)
             }
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+    }
+}
+
+/// Verschiebt das fertig gezeichnete Licht passend zur Neigung des iPhones.
+/// Nur diese kleine Ansicht hängt am Bewegungssensor – nicht der ganze Bildschirm.
+private struct MovingLight<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        GeometryReader { proxy in
+            let tilt = reduceMotion ? .zero : LightSource.shared.offset
+            content
+                .offset(x: tilt.x * proxy.size.width * 0.16, y: tilt.y * proxy.size.height * 0.03)
+        }
     }
 }
 
@@ -104,26 +121,21 @@ extension View {
 
 private struct LitGlass: ViewModifier {
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        let light = reduceMotion ? .zero : LightSource.shared.offset
-        // Lichtkante kommt von der Lampe her, der Schatten fällt auf die andere Seite.
-        let from = UnitPoint(x: 0.5 + light.x * 0.6, y: 0)
-        let to = UnitPoint(x: 0.5 - light.x * 0.6, y: 0.5)
         content
             .glassEffect(.regular, in: shape)
             .overlay {
+                // Feste Lichtkante oben – hängt bewusst nicht am Bewegungssensor (flüssiger).
                 shape.strokeBorder(
                     LinearGradient(colors: [.white.opacity(scheme == .dark ? 0.28 : 0.85), .white.opacity(0)],
-                                   startPoint: from, endPoint: to),
+                                   startPoint: .top, endPoint: .center),
                     lineWidth: 1)
                 .allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(scheme == .dark ? 0.55 : 0.10), radius: 18,
-                    x: -light.x * 10, y: 12 - light.y * 4)
+            .shadow(color: .black.opacity(scheme == .dark ? 0.45 : 0.08), radius: 12, x: 0, y: 8)
     }
 }
 

@@ -58,6 +58,11 @@ struct TodayHeader: View {
 
                 ProgressBar(value: Double(given) / Double(doses.count))
                     .padding(.top, 8)
+
+                if selection.isToday {
+                    NextDoseCountdown(open: open)
+                        .padding(.top, 10)
+                }
             }
         }
         .animation(.smooth, value: given)
@@ -82,6 +87,43 @@ struct TodayHeader: View {
                 .fontWeight(.semibold).foregroundStyle(Theme.berry)
         } else if let next = open.first {
             Text("Nächste um \(next.time.label)").fontWeight(.semibold).foregroundStyle(Theme.ink)
+        }
+    }
+}
+
+/// Countdown bis zur nächsten Gabe, z. B. "Panacur & Gabapentin · 2:14:05".
+/// Das Herunterzählen übernimmt das System (Text mit Timer) – kein Ruckeln, kein Mehraufwand.
+struct NextDoseCountdown: View {
+    let open: [ScheduledDose]
+
+    var body: some View {
+        // Alle 30 Sekunden neu prüfen, damit eine fällig gewordene Gabe weiterrückt.
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let upcoming = open.filter { $0.dueDate > context.date }.sorted { $0.dueDate < $1.dueDate }
+            if let next = upcoming.first {
+                let sameTime = upcoming.filter { $0.dueDate == next.dueDate }
+                let names = Array(Set(sameTime.map(\.medication.title))).sorted().joined(separator: " & ")
+                HStack(spacing: 10) {
+                    Image(systemName: "timer")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.carrot)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Nächste Gabe").font(.caption2.weight(.semibold)).foregroundStyle(Theme.inkSoft)
+                        Text(names).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(timerInterval: context.date...next.dueDate, countsDown: true)
+                            .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
+                            .multilineTextAlignment(.trailing)
+                        Text("um \(next.time.label) Uhr").font(.caption2).foregroundStyle(Theme.inkSoft)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .glassEffect(.regular, in: .capsule)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Nächste Gabe \(names) um \(next.time.label) Uhr")
+            }
         }
     }
 }

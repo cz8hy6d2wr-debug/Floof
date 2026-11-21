@@ -370,6 +370,11 @@ struct ScheduledDose: Identifiable, Hashable {
 
     var id: String { "\(DoseKey.day(day))|\(medication.id)|\(time.label)" }
 
+    /// Zeitpunkt, an dem die Gabe fällig ist.
+    var dueDate: Date {
+        Calendar.current.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: day) ?? day
+    }
+
     var isOverdue: Bool {
         let cal = Calendar.current
         guard let due = cal.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: day) else { return false }
