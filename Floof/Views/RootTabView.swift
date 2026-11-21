@@ -90,7 +90,7 @@ private struct NextDoseAccessory: View {
                         .lineLimit(1)
                     if placement != .inline {
                         (dose.isOverdue ? Text("seit \(dose.time.label) Uhr fällig")
-                                        : Text("in ") + Text(dose.dueDate, style: .relative) + Text(" · \(dose.time.label) Uhr"))
+                                        : Text("in \(dose.dueDate, style: .relative) · \(dose.time.label) Uhr"))
                             .font(.caption)
                             .foregroundStyle(dose.isOverdue ? Theme.berry : Theme.inkSoft)
                     }
