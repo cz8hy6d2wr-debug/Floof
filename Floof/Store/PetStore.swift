@@ -13,6 +13,8 @@ final class PetStore {
     var celebration: Celebration?
     /// Kurze Bestätigung unten ("Vitamin B eingetragen").
     var toast: String?
+    /// Der aktuelle Kalendertag. Ändert er sich, baut die Oberfläche neu auf.
+    private(set) var currentDay = Calendar.current.startOfDay(for: .now)
     /// Gerade abgehakte Dosis – nur für die kurze "+10"-Animation, wird nicht gespeichert.
     var recentlyAwardedDoseID: String?
     /// Per AirDrop o. Ä. empfangene Datei, die auf Bestätigung wartet.
@@ -91,6 +93,12 @@ final class PetStore {
         }
         photoVersion += 1
         return name
+    }
+
+    /// Prüft, ob ein neuer Tag begonnen hat (Mitternacht, App wieder geöffnet).
+    func refreshDay() {
+        let today = Calendar.current.startOfDay(for: .now)
+        if today != currentDay { currentDay = today }
     }
 
     /// Leert den Foto-Cache (z. B. nach einem Import mit neuen Dateien).

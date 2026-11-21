@@ -16,6 +16,7 @@ enum AppTab: String, Hashable {
 struct RootTabView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: AppTab = DemoMode.startTab ?? .today
     @State private var size: CGSize = .zero
 
@@ -40,6 +41,9 @@ struct RootTabView: View {
                 LexiconView()
             }
         }
+        // Neuer Tag → alles, was vom heutigen Datum abhängt, neu aufbauen
+        // (Tagesplan, Datum, Wochenpunkte, Serie, Reichweiten im Schrank).
+        .id(store.currentDay)
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory {
@@ -50,6 +54,13 @@ struct RootTabView: View {
         .animation(.smooth(duration: 0.35), value: posture)
         .celebrations(store)
         .overlay(alignment: .top) { ToastView() }
+        // Tageswechsel erkennen: um Mitternacht (App offen) und beim Zurückkehren in die App.
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            store.refreshDay()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { store.refreshDay() }
+        }
         // Empfangene .floof-Dateien (AirDrop, Dateien-App, Nachrichten) öffnen hier.
         .onOpenURL { url in
             guard url.isFileURL else { return }
