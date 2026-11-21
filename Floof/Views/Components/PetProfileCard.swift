@@ -26,7 +26,7 @@ struct PetProfileCard: View {
 
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 8) {
                 row("Geburtstag", pet.birthday.formatted(date: .long, time: .omitted))
-                if let w = pet.latestWeight { row("Gewicht", "\(w.grams) g") }
+                if let w = pet.latestWeight { row("Gewicht", "\(w.grams.formatted()) g") }
                 ForEach(infoRows, id: \.0) { row($0.0, $0.1) }
             }
 

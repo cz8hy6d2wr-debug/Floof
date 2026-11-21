@@ -143,7 +143,7 @@ struct TimelineRow: View {
                 .buttonStyle(.plain)
         case .weight(let pet, let weight):
             eventRow(pet: pet, symbol: "scalemass", date: weight.date,
-                     text: "\(pet.name) gewogen: **\(weight.grams) g**")
+                     text: "\(pet.name) gewogen: **\(weight.grams.formatted()) g**")
         case .care(let pet, let care):
             eventRow(pet: pet, symbol: care.careKind.symbol, date: care.date,
                      text: "\(care.careKind.rawValue): **\(care.title)** · \(pet.name)")

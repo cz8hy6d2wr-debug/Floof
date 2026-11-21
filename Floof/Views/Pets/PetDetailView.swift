@@ -42,13 +42,7 @@ struct PetDetailView: View {
                 header(pet)
                 PetProfileCard(pet: pet)
 
-                WeightChartView(pet: pet)
-                    .overlay(alignment: .bottomTrailing) {
-                        Button("Wiegen", systemImage: "plus") { sheets.weigh = pet }
-                            .buttonStyle(.glass)
-                            .controlSize(.small)
-                            .padding(12)
-                    }
+                WeightChartView(pet: pet) { sheets.weigh = pet }
 
                 careSection(pet, kind: .medication, title: "Medikamente")
                 careSection(pet, kind: .condition, title: "Erkrankungen")
@@ -221,7 +215,7 @@ struct WeightSheet: View {
                 if !pet.weights.isEmpty {
                     Section("Bisherige Messungen") {
                         ForEach(pet.weights.sorted { $0.date > $1.date }) { w in
-                            LabeledContent(w.date.formatted(date: .abbreviated, time: .omitted), value: "\(w.grams) g")
+                            LabeledContent(w.date.formatted(date: .abbreviated, time: .omitted), value: "\(w.grams.formatted()) g")
                         }
                         .onDelete { offsets in
                             let sorted = pet.weights.sorted { $0.date > $1.date }

@@ -3,6 +3,8 @@ import Charts
 
 struct WeightChartView: View {
     let pet: Pet
+    /// Optional: "Wiegen"-Knopf im Kopf der Karte.
+    var onWeigh: (() -> Void)? = nil
 
     private var entries: [WeightEntry] { pet.sortedWeights }
 
@@ -12,12 +14,20 @@ struct WeightChartView: View {
                 Text("Gewicht").font(Theme.title(20))
                 Spacer()
                 if let latest = pet.latestWeight {
-                    Text("\(latest.grams) g").font(Theme.number(.title2))
+                    Text("\(latest.grams.formatted()) g").font(Theme.number(.title2))
                     if let delta = trend {
                         Text(delta > 0 ? "+\(delta) g" : "\(delta) g")
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(abs(delta) > 50 ? Theme.berry : Theme.inkSoft)
                     }
+                }
+                if let onWeigh {
+                    Button("Wiegen", systemImage: "plus", action: onWeigh)
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.circle)
+                        .controlSize(.small)
+                        .padding(.leading, 4)
                 }
             }
 
@@ -48,9 +58,11 @@ struct WeightChartView: View {
                         }
                 }
                 .chartYScale(domain: yDomain)
-                .chartYAxisLabel("g")
+                .chartXScale(domain: xDomain)
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 3)) {
+                    // Wenige Messungen: genau deren Tage beschriften (keine doppelten Daten).
+                    AxisMarks(values: entries.count <= 4 ? .stride(by: .day, count: max(1, xStrideDays))
+                                                         : .automatic(desiredCount: 3)) {
                         AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
                         AxisValueLabel(format: .dateTime.day().month(.abbreviated))
                     }
@@ -77,6 +89,22 @@ struct WeightChartView: View {
     private var trend: Int? {
         guard entries.count >= 2 else { return nil }
         return entries[entries.count - 1].grams - entries[entries.count - 2].grams
+    }
+
+    /// Zeitachse: bei nur einer Messung ±3 Tage drumherum, sonst Spanne der Messungen.
+    private var xDomain: ClosedRange<Date> {
+        let cal = Calendar.current
+        let first = cal.startOfDay(for: entries.first?.date ?? .now)
+        let last = cal.startOfDay(for: entries.last?.date ?? .now)
+        let start = cal.date(byAdding: .day, value: first == last ? -3 : -1, to: first) ?? first
+        let end = cal.date(byAdding: .day, value: first == last ? 3 : 1, to: last) ?? last
+        return start...end
+    }
+
+    /// Abstand der Datumsbeschriftungen, damit höchstens etwa drei erscheinen.
+    private var xStrideDays: Int {
+        let days = Calendar.current.dateComponents([.day], from: xDomain.lowerBound, to: xDomain.upperBound).day ?? 6
+        return max(1, days / 3)
     }
 
     /// Enger Bereich um die Messwerte, damit Schwankungen sichtbar werden.

@@ -105,7 +105,7 @@ private struct PetRow: View {
                     .font(.subheadline).foregroundStyle(Theme.inkSoft)
                 HStack(spacing: 10) {
                     if let w = pet.latestWeight {
-                        Label("\(w.grams) g", systemImage: "scalemass").font(.caption)
+                        Label("\(w.grams.formatted()) g", systemImage: "scalemass").font(.caption)
                     }
                     let meds = pet.medications.count
                     if meds > 0 {
