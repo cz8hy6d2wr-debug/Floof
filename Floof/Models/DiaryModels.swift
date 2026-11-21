@@ -80,12 +80,14 @@ enum TimelineItem: Identifiable, Hashable {
     case entry(DiaryEntry)
     case weight(Pet, WeightEntry)
     case care(Pet, CareEntry)
+    case check(Pet, DailyCheck)
 
     var id: String {
         switch self {
         case .entry(let e): "d-\(e.id)"
         case .weight(_, let w): "w-\(w.id)"
         case .care(_, let c): "c-\(c.id)"
+        case .check(let p, let c): "k-\(p.id)-\(c.id)"
         }
     }
 
@@ -94,6 +96,7 @@ enum TimelineItem: Identifiable, Hashable {
         case .entry(let e): e.date
         case .weight(_, let w): w.date
         case .care(_, let c): c.date
+        case .check(_, let c): DoseKey.date(c.id) ?? .distantPast
         }
     }
 }

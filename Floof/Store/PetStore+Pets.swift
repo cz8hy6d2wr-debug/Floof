@@ -48,12 +48,57 @@ extension PetStore {
         }
     }
 
-    func setDailyCheck(_ need: DailyCheck.Need, for petID: Pet.ID) {
-        let today = DoseKey.day(.now)
+    // MARK: Kurz-Check
+
+    /// Setzt eine Beobachtung (Fressen/Köttel/Verhalten) für einen Tag.
+    func setCheck(_ aspect: DailyCheck.Aspect, _ level: DailyCheck.Level, for petID: Pet.ID, on day: Date = .now) {
+        let key = DoseKey.day(day)
         update { data in
             guard let p = data.pets.firstIndex(where: { $0.id == petID }) else { return }
-            data.pets[p].dailyChecks.removeAll { $0.id == today }
-            data.pets[p].dailyChecks.append(DailyCheck(id: today, need: need))
+            var check = data.pets[p].dailyChecks.first { $0.id == key } ?? DailyCheck(id: key, need: .green)
+            check.set(aspect, level)
+            data.pets[p].dailyChecks.removeAll { $0.id == key }
+            data.pets[p].dailyChecks.append(check)
+        }
+    }
+
+    /// Alles normal – ein Tipp für alle drei Punkte.
+    func setCheckAllNormal(for petID: Pet.ID, on day: Date = .now) {
+        for aspect in DailyCheck.Aspect.allCases { setCheck(aspect, .normal, for: petID, on: day) }
+    }
+
+    func setCheckNote(_ note: String, for petID: Pet.ID, on day: Date = .now) {
+        let key = DoseKey.day(day)
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        update { data in
+            guard let p = data.pets.firstIndex(where: { $0.id == petID }),
+                  let c = data.pets[p].dailyChecks.firstIndex(where: { $0.id == key }) else { return }
+            data.pets[p].dailyChecks[c].note = trimmed.isEmpty ? nil : trimmed
+        }
+    }
+
+    // MARK: Pflege-Routinen
+
+    /// Routine erledigt: Datum merken und im Tagebuch festhalten.
+    func markRoutineDone(_ kind: CareRoutine.Kind, for petID: Pet.ID, on date: Date = .now) {
+        guard let pet = pet(petID) else { return }
+        update { data in
+            guard let p = data.pets.firstIndex(where: { $0.id == petID }) else { return }
+            var routines = data.pets[p].careRoutines
+            if let r = routines.firstIndex(where: { $0.kind == kind }) { routines[r].lastDone = date }
+            data.pets[p].routines = routines
+        }
+        upsertDiary(DiaryEntry(date: date, petIDs: [petID], mood: .good, title: kind.doneTitle,
+                               tags: [.grooming], isAutomatic: true))
+        showToast("\(kind.doneTitle) – \(pet.name)")
+    }
+
+    func setRoutineInterval(_ kind: CareRoutine.Kind, days: Int, for petID: Pet.ID) {
+        update { data in
+            guard let p = data.pets.firstIndex(where: { $0.id == petID }) else { return }
+            var routines = data.pets[p].careRoutines
+            if let r = routines.firstIndex(where: { $0.kind == kind }) { routines[r].intervalDays = max(1, days) }
+            data.pets[p].routines = routines
         }
     }
 }

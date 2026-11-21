@@ -54,6 +54,8 @@ struct PetDetailView: View {
                 careSection(pet, kind: .condition, title: "Erkrankungen")
                 careSection(pet, kind: .vaccination, title: "Impfungen")
                 careSection(pet, kind: .other, title: "Sonstiges")
+                PetHealthHistory(pet: pet)
+                PetRoutinesCard(pet: pet)
                 readingSection(pet)
             }
             .padding(embedded ? .vertical : .all, embedded ? 12 : 16)

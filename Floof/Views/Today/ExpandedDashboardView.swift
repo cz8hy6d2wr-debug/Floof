@@ -18,15 +18,22 @@ struct ExpandedDashboardView: View {
                     .padding(.bottom, 4)
                 WeekStrip(selection: $selection)
                 DoseList(selection: selection)
+                if !selection.isFuture {
+                    ForEach(selection.petID.flatMap(store.pet).map { [$0] } ?? store.pets) { pet in
+                        HealthCheckCard(pet: pet, day: selection.day)
+                            .id("\(pet.id)-\(DoseKey.day(selection.day))")
+                    }
+                }
                 if selection.isToday {
                     AsNeededSection(pet: selection.petID.flatMap(store.pet))
-                    DailyCheckCard()
                 }
             }
         } trailing: {
             column {
                 StatTiles(petID: pet?.id)
-                CabinetAlertCard()
+                if selection.isToday {
+                    TodayHintsCard(petID: selection.petID)
+                }
                 if let pet {
                     WeightChartView(pet: pet)
                     VaccinationCalendarView(pet: pet)

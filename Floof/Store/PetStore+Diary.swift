@@ -29,6 +29,10 @@ extension PetStore {
             if tag == nil || tag == .vet || tag == .health {
                 items += pet.care.filter { $0.careKind != .medication }.map { .care(pet, $0) }
             }
+            // Kurz-Checks mit Auffälligkeiten oder Notiz – so bleibt nachvollziehbar, seit wann etwas war.
+            if tag == nil || tag == .health {
+                items += pet.dailyChecks.filter { $0.findings != nil || $0.note != nil }.map { .check(pet, $0) }
+            }
         }
         return items.sorted { $0.date > $1.date }
     }

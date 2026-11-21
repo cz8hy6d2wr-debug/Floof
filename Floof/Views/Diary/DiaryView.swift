@@ -147,6 +147,10 @@ struct TimelineRow: View {
         case .care(let pet, let care):
             eventRow(pet: pet, symbol: care.careKind.symbol, date: care.date,
                      text: "\(care.careKind.rawValue): **\(care.title)** · \(pet.name)")
+        case .check(let pet, let check):
+            eventRow(pet: pet, symbol: check.need == .red ? "exclamationmark.triangle.fill" : "stethoscope",
+                     date: DoseKey.date(check.id) ?? .now,
+                     text: "\(pet.name): **\(check.findings ?? "alles unauffällig")**\(check.note.map { " – \($0)" } ?? "")")
         }
     }
 

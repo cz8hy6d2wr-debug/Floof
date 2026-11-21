@@ -50,6 +50,29 @@ struct Pet: Codable, Identifiable, Hashable {
     var hour: Int?
     var weekday: Int?
     var weighReminder: Bool?
+    /// Pflege-Routinen; `nil` bei älteren Daten → Standard-Routinen.
+    var routines: [CareRoutine]?
+
+    var careRoutines: [CareRoutine] { routines ?? CareRoutine.defaults }
+
+    /// Wann eine Routine zuletzt erledigt wurde – Wiegen ergibt sich aus den Gewichten.
+    func lastDone(_ routine: CareRoutine) -> Date? {
+        if routine.kind == .weigh {
+            return [routine.lastDone, latestWeight?.date].compactMap { $0 }.max()
+        }
+        return routine.lastDone
+    }
+
+    /// Tage bis zur nächsten Fälligkeit (negativ = überfällig, nil = noch nie erledigt).
+    func daysUntilDue(_ routine: CareRoutine) -> Int? {
+        guard let due = routine.nextDue(lastDone: lastDone(routine)) else { return nil }
+        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: .now),
+                                               to: Calendar.current.startOfDay(for: due)).day
+    }
+
+    func check(on day: Date) -> DailyCheck? {
+        dailyChecks.first { $0.id == DoseKey.day(day) }
+    }
 
     var medications: [CareEntry] { care.filter { $0.careKind == .medication } }
     var conditions: [CareEntry] { care.filter { $0.careKind == .condition } }
@@ -197,11 +220,144 @@ struct WeightEntry: Codable, Identifiable, Hashable {
     var note: String
 }
 
+/// Tages-Check eines Tieres: drei konkrete Beobachtungen statt einer vagen Ampel.
+/// Der Gesamtstatus (`need`) wird daraus abgeleitet. Ältere Daten mit nur `need` bleiben lesbar.
 struct DailyCheck: Codable, Hashable, Identifiable {
     var id: String      // "yyyy-MM-dd"
     var need: Need
+    var appetite: Level?
+    var droppings: Level?
+    var behavior: Level?
+    var note: String?
 
     enum Need: String, Codable { case green, yellow, red }
+
+    /// 0 = normal, 1 = auffällig, 2 = Alarm.
+    enum Level: Int, Codable, CaseIterable, Identifiable {
+        case normal = 0, reduced = 1, alarming = 2
+        var id: Self { self }
+    }
+
+    enum Aspect: String, CaseIterable, Identifiable {
+        case appetite, droppings, behavior
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .appetite: "Fressen"
+            case .droppings: "Köttel"
+            case .behavior: "Verhalten"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .appetite: "fork.knife"
+            case .droppings: "circle.grid.2x2.fill"
+            case .behavior: "hare.fill"
+            }
+        }
+        func label(_ level: Level) -> String {
+            switch (self, level) {
+            case (.appetite, .normal): "normal"
+            case (.appetite, .reduced): "weniger"
+            case (.appetite, .alarming): "gar nicht"
+            case (.droppings, .normal): "normal"
+            case (.droppings, .reduced): "kleiner"
+            case (.droppings, .alarming): "keine"
+            case (.behavior, .normal): "munter"
+            case (.behavior, .reduced): "ruhiger"
+            case (.behavior, .alarming): "apathisch"
+            }
+        }
+    }
+
+    func level(_ aspect: Aspect) -> Level? {
+        switch aspect {
+        case .appetite: appetite
+        case .droppings: droppings
+        case .behavior: behavior
+        }
+    }
+
+    mutating func set(_ aspect: Aspect, _ level: Level) {
+        switch aspect {
+        case .appetite: appetite = level
+        case .droppings: droppings = level
+        case .behavior: behavior = level
+        }
+        let worst = Aspect.allCases.compactMap { self.level($0)?.rawValue }.max() ?? 0
+        need = worst == 2 ? .red : (worst == 1 ? .yellow : .green)
+    }
+
+    var isComplete: Bool { Aspect.allCases.allSatisfy { level($0) != nil } }
+
+    /// Kurzfassung der Auffälligkeiten, z. B. "frisst weniger, Köttel kleiner".
+    var findings: String? {
+        let items = Aspect.allCases.compactMap { aspect -> String? in
+            guard let l = level(aspect), l != .normal else { return nil }
+            switch aspect {
+            case .appetite: return l == .alarming ? "frisst nicht" : "frisst weniger"
+            case .droppings: return l == .alarming ? "keine Köttel" : "Köttel kleiner"
+            case .behavior: return l == .alarming ? "apathisch" : "ruhiger als sonst"
+            }
+        }
+        return items.isEmpty ? nil : items.joined(separator: ", ")
+    }
+}
+
+// MARK: - Pflege-Routinen
+
+/// Wiederkehrende Pflege mit Intervall (Wiegen, Krallen, Zähne …).
+struct CareRoutine: Codable, Hashable, Identifiable {
+    var id: String
+    var kind: Kind
+    var intervalDays: Int
+    var lastDone: Date?
+
+    enum Kind: String, Codable, CaseIterable {
+        case weigh, claws, teeth, fur
+
+        var title: String {
+            switch self {
+            case .weigh: "Wiegen"
+            case .claws: "Krallen kontrollieren"
+            case .teeth: "Zähne kontrollieren"
+            case .fur: "Fell & Po kontrollieren"
+            }
+        }
+        var doneTitle: String {
+            switch self {
+            case .weigh: "Gewogen"
+            case .claws: "Krallen kontrolliert"
+            case .teeth: "Zähne kontrolliert"
+            case .fur: "Fell & Po kontrolliert"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .weigh: "scalemass"
+            case .claws: "scissors"
+            case .teeth: "mouth"
+            case .fur: "sparkles"
+            }
+        }
+        var defaultInterval: Int {
+            switch self {
+            case .weigh: 7
+            case .claws: 42
+            case .teeth: 90
+            case .fur: 7
+            }
+        }
+    }
+
+    static var defaults: [CareRoutine] {
+        Kind.allCases.map { CareRoutine(id: $0.rawValue, kind: $0, intervalDays: $0.defaultInterval, lastDone: nil) }
+    }
+
+    func nextDue(lastDone: Date?) -> Date? {
+        lastDone.flatMap { Calendar.current.date(byAdding: .day, value: intervalDays, to: $0) }
+    }
 }
 
 // MARK: - Tagesdosis (abgeleitet)
@@ -230,4 +386,8 @@ enum DoseKey {
         return f
     }()
     static func day(_ date: Date) -> String { formatter.string(from: date) }
+    /// "yyyy-MM-dd" → Mittag dieses Tages (für Zeitleisten).
+    static func date(_ key: String) -> Date? {
+        formatter.date(from: key).flatMap { Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: $0) }
+    }
 }

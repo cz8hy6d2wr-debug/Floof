@@ -20,17 +20,26 @@ struct CompactDashboardView: View {
                 DoseList(selection: selection)
                 StatTiles(petID: selection.petID)
 
-                if selection.isToday {
-                    AsNeededSection(pet: selection.petID.flatMap(store.pet))
-                    DailyCheckCard()
+                ForEach(checkPets) { pet in
+                    HealthCheckCard(pet: pet, day: selection.day)
+                        .id("\(pet.id)-\(DoseKey.day(selection.day))")
                 }
-                CabinetAlertCard()
+                if selection.isToday {
+                    TodayHintsCard(petID: selection.petID)
+                    AsNeededSection(pet: selection.petID.flatMap(store.pet))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
             .foldedReadableWidth()
         }
         .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// Kurz-Check für vergangene Tage und heute, nicht für die Zukunft.
+    private var checkPets: [Pet] {
+        guard !selection.isFuture else { return [] }
+        return selection.petID.flatMap(store.pet).map { [$0] } ?? store.pets
     }
 }
 
@@ -76,46 +85,6 @@ struct AsNeededSection: View {
             }
             .card()
         }
-    }
-}
-
-/// "Wie geht's heute?" – Ampel je Tier, ein Tipp genügt.
-struct DailyCheckCard: View {
-    @Environment(PetStore.self) private var store
-    @Namespace private var glass
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Wie geht's heute?").font(.headline)
-            ForEach(store.pets) { pet in
-                let today = pet.dailyChecks.first { $0.id == DoseKey.day(.now) }?.need
-                HStack {
-                    PetAvatar(pet: pet, size: 30)
-                    Text(pet.name).font(.subheadline.weight(.semibold))
-                    Spacer()
-                    GlassEffectContainer(spacing: 6) {
-                        HStack(spacing: 6) {
-                            ForEach([DailyCheck.Need.green, .yellow, .red], id: \.self) { need in
-                                Button {
-                                    withAnimation(.bouncy) { store.setDailyCheck(need, for: pet.id) }
-                                } label: {
-                                    Circle().fill(need.color)
-                                        .frame(width: today == need ? 16 : 10, height: today == need ? 16 : 10)
-                                        .frame(width: 34, height: 34)
-                                }
-                                .buttonStyle(.plain)
-                                .glassEffect(today == need ? .regular.tint(need.color.opacity(0.3)).interactive()
-                                                           : .regular.interactive(), in: .circle)
-                                .glassEffectID("\(pet.id)-\(need.rawValue)", in: glass)
-                                .accessibilityLabel(need.label)
-                                .accessibilityAddTraits(today == need ? .isSelected : [])
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .card()
     }
 }
 
