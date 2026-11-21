@@ -1,83 +1,5 @@
 import SwiftUI
 
-// MARK: - Serie + Möhren
-
-/// Kompakte Leiste: Möhren-Konto, aktuelle Serie und die letzten 7 Tage als Punkte.
-struct StreakStrip: View {
-    @Environment(PetStore.self) private var store
-
-    var body: some View {
-        // Breit: alles in einer Zeile. Schmal (halbe Spalte aufgeklappt): Wochenpunkte darunter.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                stats
-                Spacer(minLength: 0)
-                WeekDots()
-            }
-            VStack(alignment: .leading, spacing: 10) {
-                stats
-                WeekDots()
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-
-    private var stats: some View {
-        HStack(spacing: 10) {
-            stat(value: store.game.carrots, label: "Möhren", symbol: "carrot.fill", tint: Theme.carrot)
-            Rectangle().fill(Theme.hairline).frame(width: 1, height: 34)
-            stat(value: store.streak, label: store.streak == 1 ? "Tag am Stück" : "Tage am Stück",
-                 symbol: "flame.fill", tint: Theme.honey)
-        }
-    }
-
-    private func stat(value: Int, label: String, symbol: String, tint: Color) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol).font(.title3).foregroundStyle(tint)
-                .symbolEffect(.bounce, value: value)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(value, format: .number).font(Theme.number(.title3)).foregroundStyle(Theme.ink)
-                    .contentTransition(.numericText(value: Double(value)))
-                Text(label).font(.caption2).foregroundStyle(Theme.inkSoft)
-            }
-            .lineLimit(1)
-            .fixedSize()
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// Die letzten sieben Tage: gefüllt = alles gegeben. Heute ist umrandet.
-private struct WeekDots: View {
-    @Environment(PetStore.self) private var store
-
-    var body: some View {
-        let cal = Calendar.current
-        let days = (0..<7).reversed().compactMap { cal.date(byAdding: .day, value: -$0, to: .now) }
-        HStack(spacing: 3) {
-            ForEach(days, id: \.self) { day in
-                let done = store.game.perfectDays.contains(DoseKey.day(day))
-                VStack(spacing: 3) {
-                    Circle()
-                        .fill(done ? Theme.leaf : Theme.sunken)
-                        .frame(width: 9, height: 9)
-                        .overlay {
-                            if cal.isDateInToday(day) {
-                                Circle().stroke(Theme.carrot, lineWidth: 1.5).frame(width: 14, height: 14)
-                            }
-                        }
-                        .frame(width: 14, height: 14)
-                    Text(day, format: .dateTime.weekday(.narrow))
-                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.inkSoft)
-                }
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 // MARK: - Abzeichen
 
 struct BadgeShelf: View {
@@ -117,8 +39,7 @@ private struct BadgeTile: View {
                 .frame(width: 54, height: 54)
                 .background(earned ? Theme.carrot.opacity(0.14) : Theme.sunken, in: Circle())
                 .overlay(Circle().strokeBorder(earned ? Theme.carrot.opacity(0.5) : .clear,
-                                               style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
-                .rotationEffect(.degrees(earned ? tilt : 0))
+                                               lineWidth: 1))
             Text(badge.title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(earned ? Theme.ink : Theme.inkSoft)
@@ -171,8 +92,7 @@ struct CelebrationOverlay: View {
             }
             .padding(28)
             .frame(maxWidth: 320)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .rotationEffect(.degrees(-1.5))
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
             .padding(24)
             .onTapGesture { dismiss() }
         }

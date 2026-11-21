@@ -78,7 +78,7 @@ struct FoodCheckView: View {
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 

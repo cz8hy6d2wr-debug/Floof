@@ -62,7 +62,7 @@ struct CareEntryEditor: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.paper)
+            .ambientBackground()
             .navigationTitle(exists ? entry.title : "Neu: \(kind.rawValue)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

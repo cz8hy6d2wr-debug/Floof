@@ -59,7 +59,7 @@ struct PetDetailView: View {
             .padding(embedded ? .vertical : .all, embedded ? 12 : 16)
         }
         .scrollIndicators(embedded ? .hidden : .automatic)
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationTitle(embedded ? "" : pet.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

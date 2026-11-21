@@ -54,7 +54,7 @@ struct SupplementListView: View {
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -148,7 +148,7 @@ struct SupplementDetailView: View {
         }
         .scrollIndicators(.hidden)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }

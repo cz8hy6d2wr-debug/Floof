@@ -33,7 +33,7 @@ struct DiaryView: View {
                         .foldedReadableWidth()
                 }
             }
-            .background(Theme.paper)
+            .ambientBackground()
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -203,10 +203,6 @@ struct DiaryEntryCard: View {
                         .resizable().scaledToFill()
                         .frame(maxWidth: .infinity, maxHeight: 200)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        // Polaroid-artig leicht schief
-                        .padding(5)
-                        .background(Theme.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .rotationEffect(.degrees((entry.id.unicodeScalars.first?.value ?? 0).isMultiple(of: 2) ? -1.2 : 1))
                         .padding(.vertical, 4)
                 }
                 HStack(spacing: 6) {

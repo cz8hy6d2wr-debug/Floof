@@ -37,7 +37,7 @@ struct PetsView: View {
                         .foldedReadableWidth()
                 }
             }
-            .background(Theme.paper.ignoresSafeArea())
+            .ambientBackground()
             .navigationDestination(for: Pet.ID.self) { PetDetailView(petID: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

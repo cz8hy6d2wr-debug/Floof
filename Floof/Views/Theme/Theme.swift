@@ -23,9 +23,43 @@ enum Theme {
     static let berry   = Color(light: 0xB8434E, dark: 0xE77C86)   // Erkrankungen, überfällig
     static let honey   = Color(light: 0xC99A2E, dark: 0xE8C064)   // beobachten, Serie
 
-    // Schrift: Überschriften in New York (Serif), Zahlen gerundet.
-    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .bold, design: .serif) }
+    // Schrift: modern und klar (SF Pro), Zahlen gerundet.
+    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .bold) }
     static func number(_ style: Font.TextStyle) -> Font { .system(style, design: .rounded).weight(.bold).monospacedDigit() }
+
+    /// Warmer Schimmer hinter dem Glas – eine einzige Farbe, nicht bunt.
+    static let glow = Color(light: 0xEE8C50, dark: 0xF08A4B)
+}
+
+// MARK: - Hintergrund
+
+/// Leuchtender Hintergrund im Stil von Lumy, aber zurückhaltend:
+/// ein warmer Schimmer von oben, ein leiser Nachhall unten rechts.
+struct AmbientBackground: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        ZStack {
+            Theme.paper
+            RadialGradient(colors: [Theme.glow.opacity(scheme == .dark ? 0.40 : 0.42), .clear],
+                           center: UnitPoint(x: 0.5, y: -0.12), startRadius: 0, endRadius: 520)
+            RadialGradient(colors: [Theme.glow.opacity(scheme == .dark ? 0.12 : 0.14), .clear],
+                           center: UnitPoint(x: 1.05, y: 1.05), startRadius: 0, endRadius: 420)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+extension View {
+    /// Leuchtender Hintergrund hinter dem Inhalt.
+    func ambientBackground() -> some View {
+        background { AmbientBackground() }
+    }
+
+    /// Gläserne Fläche (Liquid Glass) für Inhaltsgruppen.
+    func glassPanel(cornerRadius: CGFloat = 24) -> some View {
+        glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
 }
 
 extension Color {
@@ -39,40 +73,18 @@ extension Color {
     }
 }
 
-// MARK: - Handgemachte Details
+// MARK: - Seitentitel
 
-/// Leicht unregelmäßige Wellenlinie – wie mit dem Stift unterstrichen.
-struct Scribble: Shape {
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        let y = rect.midY
-        p.move(to: CGPoint(x: rect.minX, y: y + 1))
-        p.addCurve(to: CGPoint(x: rect.width * 0.45, y: y - 1.5),
-                   control1: CGPoint(x: rect.width * 0.15, y: y - 3),
-                   control2: CGPoint(x: rect.width * 0.3, y: y + 2.5))
-        p.addCurve(to: CGPoint(x: rect.maxX, y: y - 2),
-                   control1: CGPoint(x: rect.width * 0.65, y: y - 4),
-                   control2: CGPoint(x: rect.width * 0.85, y: y + 2))
-        return p
-    }
-}
-
-/// Seitentitel in Serif mit handgezogener Unterstreichung.
+/// Großer, klarer Seitentitel.
 struct HandTitle: View {
     let text: String
     var size: CGFloat = 34
 
     var body: some View {
         Text(text)
-            .font(Theme.title(size))
+            .font(.system(size: size, weight: .bold))
+            .tracking(-0.4)
             .foregroundStyle(Theme.ink)
-            .background(alignment: .bottomLeading) {
-                Scribble()
-                    .stroke(Theme.carrot, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                    .frame(height: 8)
-                    .offset(y: 6)
-                    .padding(.trailing, -6)
-            }
             .accessibilityAddTraits(.isHeader)
     }
 }

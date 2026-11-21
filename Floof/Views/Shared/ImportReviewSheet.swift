@@ -68,7 +68,7 @@ struct ImportReviewSheet: View {
                 }
                 .padding(16)
             }
-            .background(Theme.paper)
+            .ambientBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen", role: .cancel) { dismiss() } }

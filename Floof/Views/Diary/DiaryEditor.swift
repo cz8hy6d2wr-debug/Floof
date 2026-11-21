@@ -64,7 +64,7 @@ struct DiaryEditor: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.paper)
+            .ambientBackground()
             .navigationTitle(exists ? "Eintrag" : "Neuer Eintrag")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

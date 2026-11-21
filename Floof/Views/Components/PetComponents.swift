@@ -139,8 +139,7 @@ struct CardBackground: ViewModifier {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .foregroundStyle(Theme.ink)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 0.5))
+            .glassPanel()
     }
 }
 

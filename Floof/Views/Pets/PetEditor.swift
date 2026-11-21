@@ -66,7 +66,7 @@ struct PetEditor: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.paper)
+            .ambientBackground()
             .navigationTitle(exists ? "Bearbeiten" : "Neues Tier")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

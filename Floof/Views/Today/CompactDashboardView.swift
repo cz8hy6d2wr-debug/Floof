@@ -1,33 +1,29 @@
 import SwiftUI
 
-/// Außendisplay (5,4"): Einhand-Dashboard mit Fokus auf die heutigen Medikamente.
-/// Die wichtigste Aktion ("Gegeben") liegt in der gläsernen Leiste über den Tabs – im Daumenbereich.
+/// Außendisplay (5,4"): Einhand-Layout.
+/// Oben Tag und Fortschritt, darunter der Wochenkalender, die Gaben als Glas-Liste
+/// und ein paar ruhige Kacheln. "Gegeben" für die nächste Gabe liegt in der
+/// gläsernen Leiste über den Tabs – im Daumenbereich.
 struct CompactDashboardView: View {
     @Environment(PetStore.self) private var store
+    @Binding var selection: TodaySelection
 
     var body: some View {
-        let doses = store.todaysDoses()
-        let open = doses.filter { !store.isTaken($0) }
-
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                header(open: open, doses: doses)
-                    .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 16) {
+                TodayHeader(selection: selection)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 8)
                     .padding(.bottom, 6)
 
-                StreakStrip()
+                WeekStrip(selection: $selection)
+                DoseList(selection: selection)
+                StatTiles(petID: selection.petID)
 
-                if doses.isEmpty {
-                    ContentUnavailableView("Heute nichts zu geben", systemImage: "leaf",
-                                           description: Text("Genieß den Tag mit deinen Tieren."))
-                } else {
-                    ForEach(doses) { dose in
-                        MedicationCard(dose: dose, style: .large)
-                    }
+                if selection.isToday {
+                    AsNeededSection(pet: selection.petID.flatMap(store.pet))
+                    DailyCheckCard()
                 }
-
-                AsNeededSection()
-                DailyCheckCard()
                 CabinetAlertCard()
             }
             .padding(.horizontal, 16)
@@ -36,37 +32,10 @@ struct CompactDashboardView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
     }
-
-    private func header(open: [ScheduledDose], doses: [ScheduledDose]) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Theme.inkSoft)
-                HandTitle(text: Greeting.now)
-                Text(Greeting.status(open: open, pets: store.pets))
-                    .font(.callout)
-                    .foregroundStyle(Theme.inkSoft)
-                    .padding(.top, 2)
-            }
-            Spacer(minLength: 0)
-            DoseProgressRing(progress: store.progress(doses), lineWidth: 6)
-                .frame(width: 54, height: 54)
-        }
-    }
 }
 
 /// Texte, die nach Mensch klingen statt nach System.
 enum Greeting {
-    static var now: String {
-        switch Calendar.current.component(.hour, from: .now) {
-        case 5..<11: "Guten Morgen"
-        case 11..<17: "Hallo am Mittag"
-        case 17..<22: "Guten Abend"
-        default: "Noch wach?"
-        }
-    }
-
     static func status(open: [ScheduledDose], pets: [Pet]) -> String {
         guard let next = open.first else {
             return pets.count == 1 ? "Alles gegeben. \(pets[0].name) ist versorgt."
@@ -89,18 +58,17 @@ struct AsNeededSection: View {
 
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Wenn nötig").font(Theme.title(18))
+                Text("Wenn nötig").font(.headline)
                 ForEach(items, id: \.1.id) { item in
                     HStack(spacing: 10) {
-                        Image(systemName: "pills").foregroundStyle(item.0.tint)
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(item.1.title).font(.subheadline.weight(.semibold))
-                            Text(pet == nil ? "\(item.0.name) · \(item.1.details)" : item.1.details)
+                            Text(pet == nil && store.pets.count > 1 ? "\(item.0.name) · \(item.1.details)" : item.1.details)
                                 .font(.caption).foregroundStyle(Theme.inkSoft)
                                 .lineLimit(1)
                         }
                         Spacer()
-                        Button("Gegeben") { store.logAsNeeded(item.1, for: item.0) }
+                        Button("Eintragen") { store.logAsNeeded(item.1, for: item.0) }
                             .buttonStyle(.glass)
                             .controlSize(.small)
                     }
@@ -118,7 +86,7 @@ struct DailyCheckCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Wie geht's heute?").font(Theme.title(18))
+            Text("Wie geht's heute?").font(.headline)
             ForEach(store.pets) { pet in
                 let today = pet.dailyChecks.first { $0.id == DoseKey.day(.now) }?.need
                 HStack {
@@ -132,7 +100,7 @@ struct DailyCheckCard: View {
                                     withAnimation(.bouncy) { store.setDailyCheck(need, for: pet.id) }
                                 } label: {
                                     Circle().fill(need.color)
-                                        .frame(width: today == need ? 18 : 12, height: today == need ? 18 : 12)
+                                        .frame(width: today == need ? 16 : 10, height: today == need ? 16 : 10)
                                         .frame(width: 34, height: 34)
                                 }
                                 .buttonStyle(.plain)
@@ -160,7 +128,7 @@ struct CabinetAlertCard: View {
         if !alerts.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Im Schrank wird's knapp", systemImage: "cross.case.fill")
-                    .font(Theme.title(18))
+                    .font(.headline)
                     .foregroundStyle(Theme.berry)
                 ForEach(alerts) { item in
                     HStack {

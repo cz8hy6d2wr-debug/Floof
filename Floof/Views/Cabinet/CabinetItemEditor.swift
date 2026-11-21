@@ -71,7 +71,7 @@ struct CabinetItemEditor: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.paper)
+            .ambientBackground()
             .navigationTitle(isNew ? "Neues Medikament" : "Bearbeiten")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

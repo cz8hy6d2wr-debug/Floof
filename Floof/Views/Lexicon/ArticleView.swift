@@ -61,7 +61,7 @@ struct ArticleView: View {
         }
         .scrollIndicators(.hidden)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {

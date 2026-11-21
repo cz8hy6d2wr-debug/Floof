@@ -56,7 +56,7 @@ struct CabinetDetailView: View {
             }
             .padding(16)
         }
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationTitle(item.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

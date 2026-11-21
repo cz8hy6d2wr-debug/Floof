@@ -8,6 +8,7 @@ struct TodayView: View {
     @Environment(\.devicePosture) private var posture
     @Environment(PetStore.self) private var store
     @State private var newEntry: DiaryEntry?
+    @State private var selection = TodaySelection()
 
     var body: some View {
         NavigationStack {
@@ -17,31 +18,41 @@ struct TodayView: View {
                 } else {
                     switch posture {
                     case .folded:
-                        CompactDashboardView()
+                        CompactDashboardView(selection: $selection)
                             .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.96)), removal: .opacity))
                     case .unfolded:
-                        ExpandedDashboardView()
+                        ExpandedDashboardView(selection: $selection)
                             .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 1.03)), removal: .opacity))
                     }
                 }
             }
-            .background(Theme.paper.ignoresSafeArea())
+            .ambientBackground()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if posture == .unfolded && !store.pets.isEmpty {
-                    ToolbarItem(placement: .principal) { PetPickerMenu() }
-                }
                 if !store.pets.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        TodayPetMenu(petID: $selection.petID)
+                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Tagebuch-Eintrag", systemImage: "square.and.pencil") {
-                            let pets = posture == .unfolded ? [store.selectedPet?.id].compactMap { $0 } : store.pets.map(\.id)
-                            newEntry = DiaryEntry(petIDs: pets)
+                            let pets = selection.petID.map { [$0] } ?? store.pets.map(\.id)
+                            newEntry = DiaryEntry(date: entryDate, petIDs: pets)
                         }
                     }
                 }
             }
             .sheet(item: $newEntry) { DiaryEditor(entry: $0) }
+            .onAppear {
+                // Ein Tier: direkt dieses zeigen, mehrere: alle.
+                if selection.petID == nil, store.pets.count == 1 { selection.petID = store.pets.first?.id }
+            }
         }
+    }
+
+    /// Eintrag für den gewählten Tag (heute: jetzt, sonst Mittag dieses Tages).
+    private var entryDate: Date {
+        selection.isToday ? .now
+            : Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: selection.day) ?? selection.day
     }
 }
 

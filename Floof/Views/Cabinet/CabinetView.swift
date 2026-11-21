@@ -58,7 +58,7 @@ struct CabinetView: View {
                 .padding(.bottom, 24)
                 .modifier(FoldedWidth(isActive: posture == .folded))
             }
-            .background(Theme.paper)
+            .ambientBackground()
             .navigationDestination(for: CabinetItem.ID.self) { id in
                 CabinetDetailView(itemID: id)
             }

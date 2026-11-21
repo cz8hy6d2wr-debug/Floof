@@ -47,7 +47,7 @@ struct LexiconView: View {
                         .foldedReadableWidth()
                 }
             }
-            .background(Theme.paper.ignoresSafeArea())
+            .ambientBackground()
             .navigationDestination(for: LexiconRoute.self) { LexiconDestination(route: $0) }
             .searchable(text: $search, prompt: "Suchen, z. B. EC, Heu, Krallen")
         }
@@ -175,7 +175,7 @@ private struct EmergencyCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .glassPanel()
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
             .strokeBorder(Theme.berry.opacity(0.45), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
     }
@@ -282,8 +282,7 @@ private struct CategoryGrid: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 0.5))
+                        .glassPanel(cornerRadius: 20)
                     }
                     .buttonStyle(.plain)
                 }
@@ -399,7 +398,7 @@ struct CategoryListView: View {
         }
         .scrollIndicators(.hidden)
         .contentMargins(.horizontal, 16, for: .scrollContent)
-        .background(Theme.paper)
+        .ambientBackground()
         .navigationBarTitleDisplayMode(.inline)
     }
 }
