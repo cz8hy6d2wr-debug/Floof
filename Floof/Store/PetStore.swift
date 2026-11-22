@@ -54,8 +54,22 @@ final class PetStore {
 
     /// Einzige Stelle, an der `data` verändert wird.
     func update(_ change: (inout AppData) -> Void) {
+        let before = data
         change(&data)
+        SyncEngine.stamp(before: before, after: &data)
         scheduleSave()
+        SyncManager.shared.localDidChange()
+    }
+
+    /// Übernimmt einen zusammengeführten Stand aus der gemeinsamen Datei
+    /// (ohne neu zu stempeln – die Zeitstempel kommen aus der Zusammenführung).
+    func applySynced(_ merged: AppData) {
+        guard merged.pets != data.pets || merged.diary != data.diary || merged.cabinet != data.cabinet
+                || merged.takenDoses != data.takenDoses || merged.sync != data.sync else { return }
+        data = merged
+        if let id = selectedPetID, pet(id) == nil { selectedPetID = pets.first?.id }
+        scheduleSave()
+        refreshPhotos()
     }
 
     private func scheduleSave() {

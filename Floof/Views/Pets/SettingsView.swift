@@ -7,6 +7,8 @@ struct SettingsView: View {
     @State private var isImporting = false
     @State private var pending: PendingImport?
     @State private var message: String?
+    @State private var choosingFolder = false
+    @State private var sync = SyncManager.shared
 
     var body: some View {
         editor.floofSheet()
@@ -41,6 +43,42 @@ struct SettingsView: View {
                     Text("Per AirDrop empfangene Floof-Dateien öffnen sich direkt in Floof – du siehst vorher, was übernommen wird. Ein einzelnes Tier enthält sein Tagebuch und die verknüpften Medikamente aus dem Schrank, ideal für Tiersitter.")
                 }
 
+                Section {
+                    TextField("Dein Name, z. B. Anna", text: Binding(
+                        get: { store.data.userName },
+                        set: { value in store.update { $0.userName = value } }))
+                    if let folder = sync.folderName {
+                        LabeledContent("Ordner", value: folder)
+                        LabeledContent("Zuletzt abgeglichen") {
+                            if let last = sync.lastSync {
+                                Text(last, style: .relative)
+                            } else {
+                                Text("noch nie")
+                            }
+                        }
+                        if let error = sync.lastError {
+                            Label(error, systemImage: "exclamationmark.triangle.fill")
+                                .font(.footnote).foregroundStyle(Theme.berry)
+                        }
+                        Button(sync.isSyncing ? "Gleicht ab …" : "Jetzt abgleichen", systemImage: "arrow.triangle.2.circlepath") {
+                            Task { await sync.syncNow() }
+                        }
+                        .disabled(sync.isSyncing)
+                        Button("Anderen Ordner wählen", systemImage: "folder") { choosingFolder = true }
+                        Button("Gemeinsame Nutzung beenden", systemImage: "xmark.circle", role: .destructive) {
+                            sync.disconnect()
+                        }
+                    } else {
+                        Button("Gemeinsamen Ordner wählen", systemImage: "folder.badge.person.crop") { choosingFolder = true }
+                    }
+                } header: {
+                    Text("Gemeinsam nutzen (iCloud Drive)")
+                } footer: {
+                    Text("""
+                    So geht's: In der Dateien-App einen Ordner in iCloud Drive anlegen (z. B. „Floof“),                     lange drücken → Teilen → Personen hinzufügen. Dann auf beiden iPhones hier denselben Ordner wählen.                     Floof gleicht ab, wenn die App offen ist, und ab und zu im Hintergrund.                     Hakt der/die andere eine Gabe ab, bekommst du eine Mitteilung und deine Erinnerung entfällt.
+                    """)
+                }
+
                 Section("Dein Fortschritt") {
                     LabeledContent("Möhren", value: "\(store.game.carrots)")
                     LabeledContent("Längste Serie gerade", value: "\(store.streak) Tage")
@@ -64,6 +102,9 @@ struct SettingsView: View {
                 catch { message = "Das hat nicht geklappt: \(error.localizedDescription)" }
             }
             .sheet(item: $pending) { ImportReviewSheet(pending: $0) }
+            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                if case .success(let url) = result { sync.connect(folder: url) }
+            }
             .alert(message ?? "", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
                 Button("OK") { message = nil }
             }

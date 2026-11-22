@@ -13,6 +13,10 @@ struct AppData: Codable {
     var notificationsEnabled = true
     /// Gemerkte Lexikon-Artikel.
     var lexiconBookmarks: Set<String> = []
+    /// Zeitstempel für die gemeinsame Nutzung über iCloud Drive.
+    var sync = SyncMeta()
+    /// Name, der beim gemeinsamen Nutzen angezeigt wird ("Anna hat … gegeben").
+    var userName = ""
 }
 
 extension AppData {
@@ -30,6 +34,8 @@ extension AppData {
         game = try c.decodeIfPresent(GameState.self, forKey: .game) ?? GameState()
         notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
         lexiconBookmarks = try c.decodeIfPresent(Set<String>.self, forKey: .lexiconBookmarks) ?? []
+        sync = try c.decodeIfPresent(SyncMeta.self, forKey: .sync) ?? SyncMeta()
+        userName = try c.decodeIfPresent(String.self, forKey: .userName) ?? ""
     }
 }
 

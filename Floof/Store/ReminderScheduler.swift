@@ -9,40 +9,51 @@ enum ReminderScheduler {
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
     }
 
-    /// Plant alle wöchentlich wiederkehrenden Gaben neu (max. 64 Mitteilungen erlaubt iOS).
+    /// Plant die Erinnerungen der nächsten 7 Tage – konkret je Tag und Uhrzeit, nicht wöchentlich
+    /// wiederholend. So entfällt eine Erinnerung, wenn die Gabe schon gegeben wurde
+    /// (auch vom anderen iPhone bei gemeinsamer Nutzung). iOS erlaubt max. 64 geplante Mitteilungen.
     static func reschedule(for data: AppData) async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
         center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(dosePrefix) })
         guard data.notificationsEnabled else { return }
 
-        // Gaben zur selben Uhrzeit zusammenfassen: "15:00 – Panacur, Gabapentin für Brownie"
-        struct Slot: Hashable { let weekday: Int; let time: ReminderTime }
-        var slots: [Slot: [String]] = [:]
-        for pet in data.pets {
-            for med in pet.medications {
-                guard let reminder = med.reminder else { continue }
-                for weekday in reminder.weekdays {
+        let cal = Calendar.current
+        var requests: [UNNotificationRequest] = []
+        for offset in 0..<7 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: cal.startOfDay(for: .now)) else { continue }
+            let weekday = cal.component(.weekday, from: day)
+
+            // Offene Gaben dieses Tages nach Uhrzeit gruppieren
+            var slots: [ReminderTime: [String]] = [:]
+            for pet in data.pets {
+                for med in pet.medications {
+                    guard let reminder = med.reminder, reminder.weekdays.contains(weekday) else { continue }
                     for time in reminder.allTimes {
-                        slots[Slot(weekday: weekday, time: time), default: []].append("\(med.title) für \(pet.name)")
+                        let key = "\(DoseKey.day(day))|\(med.id)|\(time.label)"
+                        guard !data.takenDoses.contains(key) else { continue }   // schon gegeben
+                        slots[time, default: []].append("\(med.title) für \(pet.name)")
                     }
                 }
             }
+
+            for (time, items) in slots {
+                guard let fire = cal.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: day),
+                      fire > .now else { continue }
+                let content = UNMutableNotificationContent()
+                content.title = "Zeit für die Medizin"
+                content.body = items.sorted().joined(separator: ", ")
+                content.sound = .default
+                content.interruptionLevel = .timeSensitive
+                let parts = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fire)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
+                requests.append(UNNotificationRequest(identifier: "\(dosePrefix)\(DoseKey.day(day))-\(time.label)",
+                                                      content: content, trigger: trigger))
+            }
         }
 
-        for (slot, items) in slots.prefix(60) {
-            let content = UNMutableNotificationContent()
-            content.title = "Zeit für die Medizin"
-            content.body = items.joined(separator: ", ")
-            content.sound = .default
-            content.interruptionLevel = .timeSensitive
-            var components = DateComponents()
-            components.weekday = slot.weekday
-            components.hour = slot.time.hour
-            components.minute = slot.time.minute
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-            let id = "\(dosePrefix)\(slot.weekday)-\(slot.time.label)"
-            try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        for request in requests.sorted(by: { $0.identifier < $1.identifier }).prefix(60) {
+            try? await center.add(request)
         }
     }
 

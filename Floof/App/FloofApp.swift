@@ -2,8 +2,14 @@ import SwiftUI
 
 @main
 struct FloofApp: App {
-    @State private var store = DemoMode.isActive ? PetStore.preview : PetStore.load()
+    @State private var store: PetStore
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let store = DemoMode.isActive ? PetStore.preview : PetStore.load()
+        _store = State(initialValue: store)
+        if !DemoMode.isActive { SyncManager.shared.attach(store) }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -17,7 +23,23 @@ struct FloofApp: App {
         }
         // Lampe (Bewegungssensor) nur im Vordergrund – spart Akku.
         .onChange(of: scenePhase, initial: true) { _, phase in
-            if phase == .active { LightSource.shared.start() } else { LightSource.shared.stop() }
+            if phase == .active {
+                LightSource.shared.start()
+                SyncManager.shared.startForeground()
+                // Erinnerungen der nächsten 7 Tage auffrischen (konkrete Termine, nicht wiederholend).
+                if !DemoMode.isActive {
+                    let snapshot = store.data
+                    Task { await ReminderScheduler.reschedule(for: snapshot) }
+                }
+            } else {
+                LightSource.shared.stop()
+                SyncManager.shared.stopForeground()
+            }
+        }
+        // Gemeinsame Datei gelegentlich auch im Hintergrund prüfen (iOS entscheidet, wann).
+        .backgroundTask(.appRefresh(SyncManager.backgroundTaskID)) {
+            await SyncManager.shared.syncNow()
+            await SyncManager.shared.scheduleBackgroundRefresh()
         }
     }
 }

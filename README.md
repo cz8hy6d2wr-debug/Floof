@@ -77,6 +77,15 @@ zweimal pro Woche selbst neu bauen und aufs iPhone installieren – Daten bleibe
 3. Fertig – Protokoll unter `~/Library/Logs/Floof-Update.log`.
    Abschalten: `bash scripts/uninstall-auto-update.sh`.
 
+## Gemeinsam nutzen (ohne bezahlten Account)
+
+Floof gleicht über eine Datei in einem **geteilten iCloud-Drive-Ordner** ab
+(Tiere → ⚙︎ → „Gemeinsam nutzen“). Zusammenführen je Datensatz: abgehakte Gaben
+nach letzter Aktion, Gewichte/Checks/Medikamente einzeln, Schrank-Buchungen ohne
+Doppelabbuchung, Löschungen bleiben gelöscht. Hakt der/die andere eine Gabe ab, gibt es
+eine Mitteilung und die eigene Erinnerung entfällt. Abgleich beim Öffnen, alle 45 s im
+Vordergrund und gelegentlich im Hintergrund.
+
 ## Daten
 
 Alles liegt lokal in `Documents/floof-data.json` (+ `Documents/Photos`), mit
