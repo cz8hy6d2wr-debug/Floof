@@ -73,6 +73,10 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("Gemeinsam nutzen (iCloud Drive)")
+                        // Eigener Dateiauswahl-Dialog (zwei fileImporter an derselben Ansicht vertragen sich nicht).
+                        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
+                            if case .success(let url) = result { sync.connect(folder: url) }
+                        }
                 } footer: {
                     Text("""
                     So geht's: In der Dateien-App einen Ordner in iCloud Drive anlegen (z. B. „Floof“),                     lange drücken → Teilen → Personen hinzufügen. Dann auf beiden iPhones hier denselben Ordner wählen.                     Floof gleicht ab, wenn die App offen ist, und ab und zu im Hintergrund.                     Hakt der/die andere eine Gabe ab, bekommst du eine Mitteilung und deine Erinnerung entfällt.
@@ -102,9 +106,7 @@ struct SettingsView: View {
                 catch { message = "Das hat nicht geklappt: \(error.localizedDescription)" }
             }
             .sheet(item: $pending) { ImportReviewSheet(pending: $0) }
-            .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
-                if case .success(let url) = result { sync.connect(folder: url) }
-            }
+
             .alert(message ?? "", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
                 Button("OK") { message = nil }
             }
