@@ -71,8 +71,8 @@ Floof/
 Mit kostenlosem Account läuft die Signatur nach 7 Tagen ab. Der Mac kann Floof
 zweimal pro Woche selbst neu bauen und aufs iPhone installieren – Daten bleiben erhalten.
 
-1. iPhone einmal per Kabel verbinden, in Xcode unter *Window → Devices and Simulators*
-   „Connect via network“ aktivieren.
+1. Jedes iPhone einmal per Kabel verbinden, in Xcode unter *Window → Devices and Simulators*
+   „Connect via network“ aktivieren (mehrere iPhones möglich, z. B. für die Familie).
 2. Im Terminal: `bash scripts/install-auto-update.sh` und den Fragen folgen.
 3. Fertig – Protokoll unter `~/Library/Logs/Floof-Update.log`.
    Abschalten: `bash scripts/uninstall-auto-update.sh`.

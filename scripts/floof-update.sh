@@ -25,7 +25,10 @@ fail() {
 [ -f "$CONFIG" ] || fail "Keine Einstellungen gefunden. Bitte install-auto-update.sh ausführen."
 # shellcheck source=/dev/null
 source "$CONFIG"
-: "${REPO_DIR:?}" "${TEAM_ID:?}" "${BUNDLE_ID:?}" "${DEVICE:?}"
+: "${REPO_DIR:?}" "${TEAM_ID:?}" "${BUNDLE_ID:?}"
+# Mehrere iPhones, getrennt durch "|" (ältere Einstellungen mit nur DEVICE gehen weiter).
+DEVICES="${DEVICES:-${DEVICE:-}}"
+[ -n "$DEVICES" ] || fail "Kein iPhone eingetragen."
 
 cd "$REPO_DIR" || fail "Projektordner $REPO_DIR nicht gefunden."
 
@@ -47,9 +50,25 @@ xcodebuild \
 APP="$REPO_DIR/build/Release-iphoneos/Floof.app"
 [ -d "$APP" ] || fail "Gebaute App nicht gefunden."
 
-echo "→ Auf dem iPhone installieren ($DEVICE)"
-xcrun devicectl device install app --device "$DEVICE" "$APP" \
-    || fail "iPhone nicht erreichbar. Entsperrt, im selben WLAN und in Xcode per Netzwerk verbunden?"
+OK=(); MISSED=()
+IFS='|' read -ra LIST <<< "$DEVICES"
+for device in "${LIST[@]}"; do
+    device="$(echo "$device" | xargs)"   # Leerzeichen am Rand entfernen
+    [ -n "$device" ] || continue
+    echo "→ Installieren auf: $device"
+    if xcrun devicectl device install app --device "$device" "$APP"; then
+        OK+=("$device")
+    else
+        echo "   nicht erreichbar: $device"
+        MISSED+=("$device")
+    fi
+done
 
-echo "✓ Fertig"
-notify "Floof aktualisiert" "Neueste Version installiert – läuft wieder 7 Tage."
+if [ ${#MISSED[@]} -eq 0 ]; then
+    echo "✓ Fertig"
+    notify "Floof aktualisiert" "Auf ${#OK[@]} iPhone(s) installiert – läuft wieder 7 Tage."
+else
+    missed="$(IFS=', '; echo "${MISSED[*]}")"
+    notify "Floof: nicht alle iPhones erreicht" "Nicht erreicht: $missed. Entsperrt und im selben WLAN? Nächster Versuch beim nächsten Termin."
+    [ ${#OK[@]} -gt 0 ] || exit 1
+fi

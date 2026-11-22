@@ -45,14 +45,21 @@ echo ""
 echo "Verbundene Geräte:"
 xcrun devicectl list devices 2>/dev/null || true
 echo ""
-read -r -p "Name deines iPhones (wie oben angezeigt): " DEVICE
-[ -n "$DEVICE" ] || { echo "Gerät fehlt."; exit 1; }
+echo "Trag die iPhones ein, auf denen Floof laufen soll – eins pro Zeile."
+echo "Leere Zeile = fertig."
+DEVICES=""
+while true; do
+    read -r -p "iPhone-Name: " NAME
+    [ -n "$NAME" ] || break
+    DEVICES="${DEVICES:+$DEVICES|}$NAME"
+done
+[ -n "$DEVICES" ] || { echo "Kein iPhone eingetragen."; exit 1; }
 
 cat > "$CONFIG" <<CONF
 REPO_DIR="$REPO_DIR"
 TEAM_ID="$TEAM_ID"
 BUNDLE_ID="$BUNDLE_ID"
-DEVICE="$DEVICE"
+DEVICES="$DEVICES"
 CONF
 
 # 4. Zeitplan: montags und donnerstags um 20:00 (verpasste Termine holt macOS beim Aufwachen nach)
