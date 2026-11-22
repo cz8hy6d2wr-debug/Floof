@@ -385,13 +385,13 @@ struct StatTiles: View {
             tile("Möhren", value: "\(store.game.carrots)", unit: nil)
             tile("Serie", value: "\(store.streak)", unit: store.streak == 1 ? "Tag" : "Tage")
             if let grams = pet?.latestWeight?.grams {
-                tile(store.pets.count > 1 ? "Gewicht \(pet?.name ?? "")" : "Gewicht",
-                     value: (Double(grams) / 1000).formatted(.number.precision(.fractionLength(2))), unit: "kg")
+                tile("Gewicht", value: (Double(grams) / 1000).formatted(.number.precision(.fractionLength(2))), unit: "kg",
+                     caption: store.pets.count > 1 ? pet?.name : nil)
             }
         }
     }
 
-    private func tile(_ title: String, value: String, unit: String?) -> some View {
+    private func tile(_ title: String, value: String, unit: String?, caption: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title.uppercased())
                 .font(.caption2.weight(.semibold))
@@ -405,6 +405,9 @@ struct StatTiles: View {
                 }
             }
             .lineLimit(1).minimumScaleFactor(0.7)
+            if let caption {
+                Text(caption).font(.caption2).foregroundStyle(Theme.inkSoft).lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14).padding(.vertical, 12)

@@ -29,21 +29,24 @@ extension PetStore {
             // Fällige oder nie erledigte Pflege-Routinen
             for routine in pet.careRoutines {
                 let days = pet.daysUntilDue(routine)
+                // Nur wirklich Fälliges. Noch nie eingetragene Routinen stehen unter Tiere → Pflege
+                // (Ausnahme: Wiegen, wenn es gar kein Gewicht gibt).
                 let neverDone = pet.lastDone(routine) == nil
+                if neverDone && routine.kind != .weigh { continue }
                 guard neverDone || (days ?? 1) <= 0 else { continue }
 
                 let detail: String
                 if let last = pet.lastDone(routine) {
                     let ago = Calendar.current.dateComponents([.day], from: last, to: .now).day ?? 0
-                    detail = "Zuletzt vor \(ago) Tag\(ago == 1 ? "" : "en")"
+                    detail = "\(pet.name) · zuletzt vor \(ago) Tag\(ago == 1 ? "" : "en")"
                 } else {
-                    detail = "Noch nie eingetragen"
+                    detail = "\(pet.name) · noch nie gewogen"
                 }
                 let isWeigh = routine.kind == .weigh
                 hints.append(TodayHint(
                     id: "routine-\(pet.id)-\(routine.kind.rawValue)",
                     symbol: routine.kind.symbol,
-                    title: "\(routine.kind.title): \(pet.name)",
+                    title: routine.kind.title,
                     detail: detail,
                     urgent: (days ?? 0) < -routine.intervalDays,
                     action: isWeigh ? .weigh(pet.id) : .routine(routine.kind, pet.id),
@@ -58,8 +61,8 @@ extension PetStore {
                 hints.append(TodayHint(
                     id: "vacc-\(vaccination.id)",
                     symbol: "syringe",
-                    title: "\(vaccination.title): \(pet.name)",
-                    detail: days < 0 ? "Impfung überfällig" : "Impfung in \(days) Tagen fällig",
+                    title: "Impfung \(vaccination.title)",
+                    detail: days < 0 ? "\(pet.name) · überfällig" : "\(pet.name) · in \(days) Tagen fällig",
                     urgent: days < 0,
                     action: .diary(pet.id),
                     actionTitle: "Notieren"))

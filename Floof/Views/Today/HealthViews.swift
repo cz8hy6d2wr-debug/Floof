@@ -55,7 +55,7 @@ struct HealthCheckCard: View {
             PetAvatar(pet: pet, size: 32)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Kurz-Check").font(.headline)
-                Text(subtitle).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                Text(subtitle).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
             }
             Spacer()
             if check?.isComplete != true {
@@ -66,10 +66,14 @@ struct HealthCheckCard: View {
                 .buttonStyle(.glassProminent)
                 .tint(Theme.leaf)
                 .controlSize(.small)
+                .lineLimit(1)
+                .fixedSize()
             } else if check?.need == .green && !editing {
                 Label("Alles normal", systemImage: "checkmark.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.leaf)
+                    .lineLimit(1)
+                    .fixedSize()
                 Button("Ändern") { withAnimation(.snappy) { editing = true } }
                     .font(.subheadline)
                     .buttonStyle(.borderless)
@@ -179,7 +183,7 @@ struct TodayHintsCard: View {
                             .frame(width: 34, height: 34)
                             .glassEffect(.regular, in: .circle)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(hint.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(hint.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                             Text(hint.detail).font(.caption).foregroundStyle(hint.urgent ? Theme.berry : Theme.inkSoft)
                                 .lineLimit(2)
                         }

@@ -50,16 +50,18 @@ struct AmbientBackground: View {
             ZStack {
                 base
 
-                // Licht wird EINMAL gezeichnet (drawingGroup) und beim Neigen nur verschoben –
-                // das übernimmt die Grafikkarte, ohne den Weichzeichner neu zu berechnen.
-                MovingLight {
+                // Licht wird EINMAL gezeichnet (drawingGroup) und beim Neigen nur verschoben.
+                // Die Lichtfläche ist deutlich breiter als der Bildschirm, damit beim
+                // Verschieben nie ihr Rand sichtbar wird.
+                MovingLight(width: w, height: h) {
+                    let lw = w * 1.8   // Breite der Lichtfläche
                     ZStack {
                         // Lichtkegel: oben schmal, nach unten breiter und schwächer.
                         Path { path in
-                            path.move(to: CGPoint(x: w * 0.36, y: -h * 0.05))
-                            path.addLine(to: CGPoint(x: w * 0.64, y: -h * 0.05))
-                            path.addLine(to: CGPoint(x: w * 1.15, y: h * 0.85))
-                            path.addLine(to: CGPoint(x: -w * 0.15, y: h * 0.85))
+                            path.move(to: CGPoint(x: lw / 2 - w * 0.14, y: -h * 0.05))
+                            path.addLine(to: CGPoint(x: lw / 2 + w * 0.14, y: -h * 0.05))
+                            path.addLine(to: CGPoint(x: lw / 2 + w * 0.65, y: h * 0.85))
+                            path.addLine(to: CGPoint(x: lw / 2 - w * 0.65, y: h * 0.85))
                             path.closeSubpath()
                         }
                         .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
@@ -76,7 +78,7 @@ struct AmbientBackground: View {
                                        center: UnitPoint(x: 0.5, y: 0.0),
                                        startRadius: 0, endRadius: min(w, h) * 0.9)
                     }
-                    .frame(width: w, height: h)
+                    .frame(width: lw, height: h)
                     .drawingGroup()
                 }
 
@@ -95,14 +97,16 @@ struct AmbientBackground: View {
 /// Nur diese kleine Ansicht hängt am Bewegungssensor – nicht der ganze Bildschirm.
 private struct MovingLight<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let width: CGFloat
+    let height: CGFloat
     @ViewBuilder var content: Content
 
     var body: some View {
-        GeometryReader { proxy in
-            let tilt = reduceMotion ? .zero : LightSource.shared.offset
-            content
-                .offset(x: tilt.x * proxy.size.width * 0.16, y: tilt.y * proxy.size.height * 0.03)
-        }
+        let tilt = reduceMotion ? .zero : LightSource.shared.offset
+        content
+            .position(x: width / 2 + tilt.x * width * 0.16, y: height / 2 + tilt.y * height * 0.03)
+            .frame(width: width, height: height)
+            .clipped()
     }
 }
 
