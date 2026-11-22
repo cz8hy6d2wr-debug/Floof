@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Medikamentenschrank: was ist da, wie lange reicht es, was läuft ab.
+/// Wird aus "Mehr" heraus geöffnet (der NavigationStack liegt dort).
 struct CabinetView: View {
     @Environment(PetStore.self) private var store
     @Environment(\.devicePosture) private var posture
@@ -24,7 +25,6 @@ struct CabinetView: View {
     }
 
     var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
@@ -70,7 +70,8 @@ struct CabinetView: View {
             .sheet(isPresented: $showsNewItem) {
                 CabinetItemEditor(item: CabinetItem(name: "", stock: 0, packageSize: 10), isNew: true)
             }
-        }
+            .navigationTitle("Medikamentenschrank")
+            .navigationBarTitleDisplayMode(.inline)
     }
 
     /// Aufgeklappt zwei gleich breite Spalten – der Spaltenabstand liegt auf dem Falz.

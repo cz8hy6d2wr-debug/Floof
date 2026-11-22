@@ -18,14 +18,13 @@ struct CompactDashboardView: View {
 
                 WeekStrip(selection: $selection)
                 DoseList(selection: selection)
-                StatTiles(petID: selection.petID)
 
                 ForEach(checkPets) { pet in
                     HealthCheckCard(pet: pet, day: selection.day)
                         .id("\(pet.id)-\(DoseKey.day(selection.day))")
                 }
                 if selection.isToday {
-                    TodayHintsCard(petID: selection.petID)
+                    TodayHintsCard(petID: selection.petID, limit: 2)
                     AsNeededSection(pet: selection.petID.flatMap(store.pet))
                 }
             }

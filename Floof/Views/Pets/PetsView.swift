@@ -13,7 +13,6 @@ struct PetsView: View {
     @State private var path: [Pet.ID] = []
     @State private var selection: Pet.ID?
     @State private var showsNewPet = false
-    @State private var showsSettings = false
     @State private var sheets = PetSheets()
 
     var body: some View {
@@ -41,11 +40,10 @@ struct PetsView: View {
             .navigationDestination(for: Pet.ID.self) { PetDetailView(petID: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Einstellungen", systemImage: "gearshape") { showsSettings = true }
+                    Button("Tier hinzufügen", systemImage: "plus") { showsNewPet = true }
                 }
             }
             .sheet(isPresented: $showsNewPet) { PetEditor(pet: .new()) }
-            .sheet(isPresented: $showsSettings) { SettingsView() }
             .sheet(item: $sheets.editPet) { PetEditor(pet: $0) }
             .sheet(item: $sheets.weigh) { WeightSheet(pet: $0) }
             .sheet(item: $sheets.care) { CareEntryEditor(entry: $0.entry, petID: $0.petID) }
@@ -80,10 +78,6 @@ struct PetsView: View {
                             .buttonStyle(.plain)
                     }
                 }
-                Button("Tier hinzufügen", systemImage: "plus") { showsNewPet = true }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
-                    .padding(.top, 4)
             }
             .padding(.bottom, 24)
         }

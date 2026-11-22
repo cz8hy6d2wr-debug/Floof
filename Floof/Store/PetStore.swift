@@ -15,6 +15,8 @@ final class PetStore {
     var toast: String?
     /// Der aktuelle Kalendertag. Ändert er sich, baut die Oberfläche neu auf.
     private(set) var currentDay = Calendar.current.startOfDay(for: .now)
+    /// Wird erhöht, wenn der Verlauf gelesen wurde (für das "Neu"-Zeichen am Tab).
+    var activityRevision = 0
     /// Gerade abgehakte Dosis – nur für die kurze "+10"-Animation, wird nicht gespeichert.
     var recentlyAwardedDoseID: String?
     /// Per AirDrop o. Ä. empfangene Datei, die auf Bestätigung wartet.
@@ -65,7 +67,8 @@ final class PetStore {
     /// (ohne neu zu stempeln – die Zeitstempel kommen aus der Zusammenführung).
     func applySynced(_ merged: AppData) {
         guard merged.pets != data.pets || merged.diary != data.diary || merged.cabinet != data.cabinet
-                || merged.takenDoses != data.takenDoses || merged.sync != data.sync else { return }
+                || merged.takenDoses != data.takenDoses || merged.sync != data.sync
+                || merged.activity != data.activity else { return }
         data = merged
         if let id = selectedPetID, pet(id) == nil { selectedPetID = pets.first?.id }
         scheduleSave()

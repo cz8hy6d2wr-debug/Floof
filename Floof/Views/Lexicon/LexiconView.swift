@@ -27,6 +27,7 @@ struct LexiconView: View {
     @Environment(\.devicePosture) private var posture
     @State private var navigator = LexiconNavigator()
     @State private var search = ""
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         @Bindable var navigator = navigator
@@ -50,6 +51,11 @@ struct LexiconView: View {
             .ambientBackground()
             .navigationDestination(for: LexiconRoute.self) { LexiconDestination(route: $0) }
             .searchable(text: $search, prompt: "Suchen, z. B. EC, Heu, Krallen")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fertig", role: .close) { dismiss() }
+                }
+            }
         }
         .environment(self.navigator)
         .onChange(of: posture, initial: true) { _, new in

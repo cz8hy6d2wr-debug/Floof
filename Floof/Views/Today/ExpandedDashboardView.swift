@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Innendisplay (7,6", 4:3): zwei gleich breite Spalten, der Zwischenraum liegt auf dem Falz.
 /// Links: Tag, Wochenkalender, Gaben, Wenn nötig, Tages-Check.
-/// Rechts: Kacheln, Hinweise, Gewicht, Impfungen, Abzeichen.
+/// Rechts: Für heute, Gewicht und die letzten Einträge aus dem Verlauf.
 /// Navigation, Toolbar und Sheets liegen in `TodayView`, damit sie das Falten überstehen.
 struct ExpandedDashboardView: View {
     @Environment(PetStore.self) private var store
@@ -30,16 +30,13 @@ struct ExpandedDashboardView: View {
             }
         } trailing: {
             column {
-                StatTiles(petID: pet?.id)
                 if selection.isToday {
                     TodayHintsCard(petID: selection.petID)
                 }
                 if let pet {
                     WeightChartView(pet: pet)
-                    VaccinationCalendarView(pet: pet)
-                    PetProfileCard(pet: pet)
                 }
-                BadgeShelf()
+                RecentActivityCard(petID: selection.petID)
             }
         }
         .animation(.smooth, value: selection.petID)

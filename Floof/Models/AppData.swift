@@ -17,6 +17,8 @@ struct AppData: Codable {
     var sync = SyncMeta()
     /// Name, der beim gemeinsamen Nutzen angezeigt wird ("Anna hat … gegeben").
     var userName = ""
+    /// Protokoll: wer hat wann was eingetragen (wird mit dem anderen iPhone abgeglichen).
+    var activity: [ActivityEntry] = []
 }
 
 extension AppData {
@@ -36,6 +38,7 @@ extension AppData {
         lexiconBookmarks = try c.decodeIfPresent(Set<String>.self, forKey: .lexiconBookmarks) ?? []
         sync = try c.decodeIfPresent(SyncMeta.self, forKey: .sync) ?? SyncMeta()
         userName = try c.decodeIfPresent(String.self, forKey: .userName) ?? ""
+        activity = try c.decodeIfPresent([ActivityEntry].self, forKey: .activity) ?? []
     }
 }
 

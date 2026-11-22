@@ -151,6 +151,7 @@ struct HealthCheckCard: View {
 struct TodayHintsCard: View {
     @Environment(PetStore.self) private var store
     let petID: Pet.ID?
+    var limit = 3
 
     @State private var sheet: HintSheet?
 
@@ -171,7 +172,7 @@ struct TodayHintsCard: View {
     }
 
     var body: some View {
-        let hints = store.todayHints(petID: petID)
+        let hints = store.todayHints(petID: petID, limit: limit)
         if !hints.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Für heute").font(.headline)

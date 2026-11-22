@@ -41,6 +41,7 @@ enum SyncEngine {
         result.diary = mergeRecords("diary", local.diary, remote.diary, lm, rm, combine: { newer, _ in newer })
         result.cabinet = mergeRecords("cab", local.cabinet, remote.cabinet, lm, rm, combine: combineCabinet)
         result.customBreeds = Array(Set(local.customBreeds).union(remote.customBreeds)).sorted()
+        result.activity = mergeActivity(local.activity, remote.activity ?? [])
 
         // Gaben: je Schlüssel gewinnt die neuere Aktion (abgehakt oder zurückgenommen).
         var taken = local.takenDoses
@@ -119,6 +120,16 @@ enum SyncEngine {
         }
         item.history.sort { $0.date > $1.date }
         return item
+    }
+
+    /// Protokoll: beide Seiten vereinen; bei gleicher ID gewinnt der neuere Eintrag.
+    static func mergeActivity(_ a: [ActivityEntry], _ b: [ActivityEntry]) -> [ActivityEntry] {
+        var byID: [String: ActivityEntry] = [:]
+        for entry in a + b {
+            if let existing = byID[entry.id], existing.date >= entry.date { continue }
+            byID[entry.id] = entry
+        }
+        return Array(byID.values.sorted { $0.date > $1.date }.prefix(800))
     }
 
     private static func union<T: Identifiable>(_ preferred: [T], _ other: [T]) -> [T] where T.ID == String {

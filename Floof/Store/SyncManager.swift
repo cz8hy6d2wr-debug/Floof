@@ -140,7 +140,8 @@ final class SyncManager {
 
         // Zurückschreiben
         let snapshot = SyncSnapshot(savedBy: me, pets: merged.pets, diary: merged.diary, cabinet: merged.cabinet,
-                                    customBreeds: merged.customBreeds, takenDoses: merged.takenDoses, meta: merged.sync)
+                                    customBreeds: merged.customBreeds, takenDoses: merged.takenDoses, meta: merged.sync,
+                                    activity: merged.activity)
         let allPhotos = Set(merged.pets.compactMap(\.photoFilename) + merged.diary.compactMap(\.photoFilename))
         let writeError: String? = await Task.detached(priority: .utility) {
             let accessing = folder.startAccessingSecurityScopedResource()

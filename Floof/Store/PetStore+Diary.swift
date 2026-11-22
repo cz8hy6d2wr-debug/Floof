@@ -3,6 +3,13 @@ import Foundation
 /// Tagebuch: Einträge und Zeitleiste.
 extension PetStore {
     func upsertDiary(_ entry: DiaryEntry) {
+        let isNew = !diary.contains { $0.id == entry.id }
+        defer {
+            if isNew && !entry.isAutomatic {
+                let title = entry.title.isEmpty ? String(entry.text.prefix(40)) : entry.title
+                log(.diary, "Tagebuch: \(title.isEmpty ? entry.mood.label : title)", petID: entry.petIDs.first, date: entry.date)
+            }
+        }
         update { data in
             if let i = data.diary.firstIndex(where: { $0.id == entry.id }) { data.diary[i] = entry }
             else { data.diary.append(entry) }

@@ -78,6 +78,7 @@ extension PetStore {
             if let newExpiry { data.cabinet[i].expiryDate = newExpiry }
             data.cabinet[i].history.insert(StockEvent(delta: added, kind: .refill), at: 0)
         }
+        log(.cabinet, "\(item.name) nachgefüllt (+\(item.formatted(added)))")
         showToast("\(item.name): +\(item.formatted(added))")
     }
 

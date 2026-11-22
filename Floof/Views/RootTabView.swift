@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: String, Hashable {
-    case today, diary, cabinet, pets, lexicon
+    case today, history, pets, more
 }
 
 /// Hauptnavigation.
@@ -27,19 +27,17 @@ struct RootTabView: View {
             Tab("Heute", systemImage: "sun.horizon", value: AppTab.today) {
                 TodayView()
             }
-            Tab("Tagebuch", systemImage: "book.closed", value: AppTab.diary) {
-                DiaryView()
+            Tab("Verlauf", systemImage: "clock", value: AppTab.history) {
+                HistoryView()
             }
-            Tab("Schrank", systemImage: "cross.case", value: AppTab.cabinet) {
-                CabinetView()
-            }
-            .badge(store.cabinetAlerts.count)
+            .badge(store.newActivityCount)
             Tab("Tiere", systemImage: "pawprint", value: AppTab.pets) {
                 PetsView()
             }
-            Tab("Lexikon", systemImage: "books.vertical", value: AppTab.lexicon) {
-                LexiconView()
+            Tab("Mehr", systemImage: "ellipsis.circle", value: AppTab.more) {
+                MoreView()
             }
+            .badge(store.cabinetAlerts.count)
         }
         // Neuer Tag → alles, was vom heutigen Datum abhängt, neu aufbauen
         // (Tagesplan, Datum, Wochenpunkte, Serie, Reichweiten im Schrank).

@@ -22,4 +22,6 @@ struct SyncSnapshot: Codable {
     var customBreeds: [String]
     var takenDoses: Set<String>
     var meta: SyncMeta
+    /// Protokoll (ab Floof mit Verlauf; ältere Dateien haben es nicht).
+    var activity: [ActivityEntry]?
 }

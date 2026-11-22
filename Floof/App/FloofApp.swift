@@ -45,7 +45,7 @@ struct FloofApp: App {
 }
 
 /// Demo-Modus für automatische Screenshots (Startparameter `-FloofDemo YES`,
-/// optional `-FloofTab diary|cabinet|pets|lexicon`). Lädt Beispieldaten,
+/// optional `-FloofTab history|pets|more`). Lädt Beispieldaten,
 /// speichert nichts und fragt nicht nach Mitteilungen.
 enum DemoMode {
     static var isActive: Bool { UserDefaults.standard.bool(forKey: "FloofDemo") }

@@ -37,12 +37,16 @@ extension PetStore {
                 if data.game.perfectDays.remove(DoseKey.day(dose.day)) != nil { data.game.carrots -= 20 }
             }
             restock(forDose: dose.id)
+            log(.doseUndo, "\(dose.medication.title) für \(dose.pet.name) zurückgenommen (\(dose.time.label))",
+                petID: dose.pet.id, id: "dose-\(dose.id)")
         } else {
             update { $0.takenDoses.insert(dose.id) }
             award(dose)
             if let itemID = dose.medication.cabinetItemID, let amount = dose.medication.effectiveDoseAmount {
                 consume(itemID: itemID, amount: amount, kind: .dose, note: "\(dose.medication.title) · \(dose.pet.name)", doseID: dose.id)
             }
+            log(.dose, "\(dose.medication.title) für \(dose.pet.name) gegeben (\(dose.time.label))",
+                petID: dose.pet.id, id: "dose-\(dose.id)")
         }
     }
 
@@ -53,6 +57,7 @@ extension PetStore {
         }
         upsertDiary(DiaryEntry(petIDs: [pet.id], mood: .okay, title: "\(med.title) gegeben",
                                text: med.details, tags: [.health], isAutomatic: true))
+        log(.dose, "\(med.title) für \(pet.name) gegeben (bei Bedarf)", petID: pet.id)
         showToast("\(med.title) für \(pet.name) eingetragen")
     }
 

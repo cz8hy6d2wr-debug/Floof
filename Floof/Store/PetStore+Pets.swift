@@ -24,6 +24,7 @@ extension PetStore {
             guard let i = data.pets.firstIndex(where: { $0.id == petID }) else { return }
             data.pets[i].weights.append(WeightEntry(id: UUID().uuidString, date: date, grams: grams, note: note))
         }
+        if let pet = pet(petID) { log(.weight, "\(pet.name) gewogen: \(grams.formatted()) g", petID: petID, date: date) }
     }
 
     func deleteWeight(_ entry: WeightEntry, from petID: Pet.ID) {
@@ -34,6 +35,12 @@ extension PetStore {
     }
 
     func upsertCare(_ entry: CareEntry, for petID: Pet.ID) {
+        let isNew = !(pet(petID)?.care.contains { $0.id == entry.id } ?? false)
+        defer {
+            if isNew, let pet = pet(petID) {
+                log(entry.careKind == .medication ? .care : .pet, "Neu bei \(pet.name): \(entry.title)", petID: petID)
+            }
+        }
         update { data in
             guard let p = data.pets.firstIndex(where: { $0.id == petID }) else { return }
             if let c = data.pets[p].care.firstIndex(where: { $0.id == entry.id }) { data.pets[p].care[c] = entry }
@@ -59,6 +66,11 @@ extension PetStore {
             check.set(aspect, level)
             data.pets[p].dailyChecks.removeAll { $0.id == key }
             data.pets[p].dailyChecks.append(check)
+        }
+        // Protokoll erst, wenn der Check vollständig ist; Änderungen am selben Tag ersetzen den Eintrag.
+        if let pet = pet(petID), let check = pet.check(on: day), check.isComplete {
+            log(.check, "Kurz-Check \(pet.name): \(check.findings ?? "alles normal")",
+                petID: petID, id: "check-\(petID)-\(key)", date: Calendar.current.isDateInToday(day) ? .now : day)
         }
     }
 
@@ -90,6 +102,7 @@ extension PetStore {
         }
         upsertDiary(DiaryEntry(date: date, petIDs: [petID], mood: .good, title: kind.doneTitle,
                                tags: [.grooming], isAutomatic: true))
+        log(.care, "\(kind.doneTitle) – \(pet.name)", petID: petID)
         showToast("\(kind.doneTitle) – \(pet.name)")
     }
 
