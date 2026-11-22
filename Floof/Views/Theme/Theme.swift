@@ -104,7 +104,9 @@ private struct MovingLight<Content: View>: View {
     var body: some View {
         let tilt = reduceMotion ? .zero : LightSource.shared.offset
         content
-            .position(x: width / 2 + tilt.x * width * 0.16, y: height / 2 + tilt.y * height * 0.03)
+            // Nur seitlich verschieben: nach oben/unten würde die obere Kante der Lichtfläche
+            // sichtbar (schwarzer Streifen). Seitlich ist die Fläche breit genug.
+            .position(x: width / 2 + tilt.x * width * 0.16, y: height / 2)
             .frame(width: width, height: height)
             .clipped()
     }
