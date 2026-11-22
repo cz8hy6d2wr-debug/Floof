@@ -66,6 +66,17 @@ Floof/
 - **Empfangen:** Floof registriert das Format `.floof` – per AirDrop empfangene Dateien öffnen sich direkt in Floof mit Vorschau. Standard ist *Zusammenführen* (gleiche Tiere/Einträge werden aktualisiert, Neues ergänzt), optional *Alles ersetzen*.
 - Ein einzelnes Tier enthält sein Tagebuch und die verknüpften Schrank-Artikel – ideal für Tiersitter.
 
+## Automatisch aktualisieren (kostenloser Apple-Account)
+
+Mit kostenlosem Account läuft die Signatur nach 7 Tagen ab. Der Mac kann Floof
+zweimal pro Woche selbst neu bauen und aufs iPhone installieren – Daten bleiben erhalten.
+
+1. iPhone einmal per Kabel verbinden, in Xcode unter *Window → Devices and Simulators*
+   „Connect via network“ aktivieren.
+2. Im Terminal: `bash scripts/install-auto-update.sh` und den Fragen folgen.
+3. Fertig – Protokoll unter `~/Library/Logs/Floof-Update.log`.
+   Abschalten: `bash scripts/uninstall-auto-update.sh`.
+
 ## Daten
 
 Alles liegt lokal in `Documents/floof-data.json` (+ `Documents/Photos`), mit
