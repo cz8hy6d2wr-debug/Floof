@@ -26,6 +26,8 @@ fail() {
 # shellcheck source=/dev/null
 source "$CONFIG"
 : "${REPO_DIR:?}" "${TEAM_ID:?}" "${BUNDLE_ID:?}"
+# Versehentlich mitkopiertes "OU=" (aus dem Zertifikat) und Leerzeichen entfernen.
+TEAM_ID="$(echo "${TEAM_ID#OU=}" | tr -d '[:space:]')"
 # Mehrere iPhones, getrennt durch "|" (ältere Einstellungen mit nur DEVICE gehen weiter).
 DEVICES="${DEVICES:-${DEVICE:-}}"
 [ -n "$DEVICES" ] || fail "Kein iPhone eingetragen."

@@ -36,6 +36,7 @@ if [ -n "$OLD_DIR" ] && [ -f "$OLD_DIR/Floof.xcodeproj/project.pbxproj" ]; then
 fi
 read -r -p "Team-ID [${TEAM_GUESS:-z. B. AB12CD34EF}]: " TEAM_ID
 TEAM_ID="${TEAM_ID:-$TEAM_GUESS}"
+TEAM_ID="$(echo "${TEAM_ID#OU=}" | tr -d '[:space:]')"   # "OU=" aus dem Zertifikat weglassen
 read -r -p "Bundle-ID [${BUNDLE_GUESS:-app.floof.diary}]: " BUNDLE_ID
 BUNDLE_ID="${BUNDLE_ID:-${BUNDLE_GUESS:-app.floof.diary}}"
 [ -n "$TEAM_ID" ] || { echo "Team-ID fehlt."; exit 1; }
