@@ -34,6 +34,9 @@ final class PetStore {
         self.selectedPetID = data.pets.first?.id
     }
 
+    /// Die eine Instanz der App – auch für Widget-Knöpfe, die die App im Hintergrund starten.
+    static let shared: PetStore = DemoMode.isActive ? .preview : .load()
+
     /// Lädt gespeicherte Daten; beim allerersten Start leer.
     static func load() -> PetStore {
         PetStore(data: DiskStore.load() ?? AppData())
@@ -83,8 +86,18 @@ final class PetStore {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             await Task.detached(priority: .utility) { DiskStore.write(snapshot) }.value
+            WidgetBridge.refresh(from: self)
             await ReminderScheduler.reschedule(for: snapshot)
         }
+    }
+
+    /// Sofort speichern (ohne Verzögerung) – für Widget-Knöpfe im Hintergrund.
+    func saveNow() async {
+        guard persists else { return }
+        saveTask?.cancel()
+        let snapshot = data
+        await Task.detached(priority: .userInitiated) { DiskStore.write(snapshot) }.value
+        await ReminderScheduler.reschedule(for: snapshot)
     }
 
     // MARK: Fotos
@@ -116,6 +129,7 @@ final class PetStore {
     func refreshDay() {
         let today = Calendar.current.startOfDay(for: .now)
         if today != currentDay { currentDay = today }
+        WidgetBridge.refresh(from: self)
     }
 
     /// Leert den Foto-Cache (z. B. nach einem Import mit neuen Dateien).

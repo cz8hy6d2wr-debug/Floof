@@ -6,17 +6,55 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F200F200F200F200F2000011 /* FloofWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F200F200F200F200F2000001 /* FloofWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F200F200F200F200F2000013 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F100F100F100F100F100000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F200F200F200F200F2000006;
+			remoteInfo = FloofWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F200F200F200F200F2000010 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F200F200F200F200F2000011 /* FloofWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		F100F100F100F100F1000001 /* Floof.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Floof.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F200F200F200F200F2000001 /* FloofWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FloofWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		F100F100F100F100F1000010 /* Exceptions for "Floof" folder in "Floof" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Floof.entitlements,
 				Info.plist,
 			);
 			target = F100F100F100F100F1000006 /* Floof */;
+		};
+		F200F200F200F200F2000014 /* Exceptions for "FloofWidgets" folder in "FloofWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				FloofWidgets.entitlements,
+				Info.plist,
+			);
+			target = F200F200F200F200F2000006 /* FloofWidgets */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -29,10 +67,30 @@
 			path = Floof;
 			sourceTree = "<group>";
 		};
+		F200F200F200F200F2000002 /* FloofWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F200F200F200F200F2000014 /* Exceptions for "FloofWidgets" folder in "FloofWidgets" target */,
+			);
+			path = FloofWidgets;
+			sourceTree = "<group>";
+		};
+		F200F200F200F200F2000003 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		F100F100F100F100F1000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F200F200F200F200F2000004 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -46,6 +104,8 @@
 			isa = PBXGroup;
 			children = (
 				F100F100F100F100F1000002 /* Floof */,
+				F200F200F200F200F2000003 /* Shared */,
+				F200F200F200F200F2000002 /* FloofWidgets */,
 				F100F100F100F100F1000005 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +114,7 @@
 			isa = PBXGroup;
 			children = (
 				F100F100F100F100F1000001 /* Floof.app */,
+				F200F200F200F200F2000001 /* FloofWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,13 +129,16 @@
 				F100F100F100F100F1000008 /* Sources */,
 				F100F100F100F100F1000003 /* Frameworks */,
 				F100F100F100F100F1000009 /* Resources */,
+				F200F200F200F200F2000010 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				F200F200F200F200F2000012 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				F100F100F100F100F1000002 /* Floof */,
+				F200F200F200F200F2000003 /* Shared */,
 			);
 			name = Floof;
 			packageProductDependencies = (
@@ -82,6 +146,29 @@
 			productName = Floof;
 			productReference = F100F100F100F100F1000001 /* Floof.app */;
 			productType = "com.apple.product-type.application";
+		};
+		F200F200F200F200F2000006 /* FloofWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F200F200F200F200F2000007 /* Build configuration list for PBXNativeTarget "FloofWidgets" */;
+			buildPhases = (
+				F200F200F200F200F2000008 /* Sources */,
+				F200F200F200F200F2000004 /* Frameworks */,
+				F200F200F200F200F2000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F200F200F200F200F2000002 /* FloofWidgets */,
+				F200F200F200F200F2000003 /* Shared */,
+			);
+			name = FloofWidgets;
+			packageProductDependencies = (
+			);
+			productName = FloofWidgets;
+			productReference = F200F200F200F200F2000001 /* FloofWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -94,6 +181,9 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					F100F100F100F100F1000006 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					F200F200F200F200F2000006 = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -113,12 +203,20 @@
 			projectRoot = "";
 			targets = (
 				F100F100F100F100F1000006 /* Floof */,
+				F200F200F200F200F2000006 /* FloofWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F100F100F100F100F1000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F200F200F200F200F2000009 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +233,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F200F200F200F200F2000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F200F200F200F200F2000012 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F200F200F200F200F2000006 /* FloofWidgets */;
+			targetProxy = F200F200F200F200F2000013 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F100F100F100F100F100000C /* Debug */ = {
@@ -146,6 +259,8 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				FLOOF_APP_GROUP = "group.$(FLOOF_BUNDLE_ID)";
+				FLOOF_BUNDLE_ID = app.floof.diary;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -172,6 +287,8 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				FLOOF_APP_GROUP = "group.$(FLOOF_BUNDLE_ID)";
+				FLOOF_BUNDLE_ID = app.floof.diary;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -188,11 +305,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Floof/Floof.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Floof/Info.plist;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Floof;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -205,7 +324,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.floof.diary;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(FLOOF_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -217,11 +336,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Floof/Floof.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Floof/Info.plist;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Floof;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -234,8 +355,62 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.floof.diary;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(FLOOF_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		F200F200F200F200F200000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = FloofWidgets/FloofWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FloofWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Floof;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(FLOOF_BUNDLE_ID).widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "WIDGET_EXTENSION $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F200F200F200F200F200000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = FloofWidgets/FloofWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FloofWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Floof;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(FLOOF_BUNDLE_ID).widgets";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "WIDGET_EXTENSION $(inherited)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -259,6 +434,15 @@
 			buildConfigurations = (
 				F100F100F100F100F100000C /* Debug */,
 				F100F100F100F100F100000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F200F200F200F200F2000007 /* Build configuration list for PBXNativeTarget "FloofWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F200F200F200F200F200000E /* Debug */,
+				F200F200F200F200F200000F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -6,7 +6,7 @@ struct FloofApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        let store = DemoMode.isActive ? PetStore.preview : PetStore.load()
+        let store = PetStore.shared
         _store = State(initialValue: store)
         if !DemoMode.isActive { SyncManager.shared.attach(store) }
         Self.styleNavigationTitles()

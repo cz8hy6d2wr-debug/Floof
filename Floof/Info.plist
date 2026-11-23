@@ -67,6 +67,8 @@
 	<array>
 		<string>fetch</string>
 	</array>
+	<key>FloofAppGroup</key>
+	<string>$(FLOOF_APP_GROUP)</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<false/>
 </dict>
