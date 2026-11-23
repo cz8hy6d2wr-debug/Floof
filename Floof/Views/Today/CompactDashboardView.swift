@@ -2,8 +2,7 @@ import SwiftUI
 
 /// Außendisplay (5,4"): Einhand-Layout.
 /// Oben Tag und Fortschritt, darunter der Wochenkalender, die Gaben als Glas-Liste
-/// und ein paar ruhige Kacheln. "Gegeben" für die nächste Gabe liegt in der
-/// gläsernen Leiste über den Tabs – im Daumenbereich.
+/// und der Kurz-Check.
 struct CompactDashboardView: View {
     @Environment(PetStore.self) private var store
     @Binding var selection: TodaySelection

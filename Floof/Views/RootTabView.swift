@@ -6,9 +6,9 @@ enum AppTab: String, Hashable {
 
 /// Hauptnavigation.
 ///
-/// Liquid Glass: Die Tab-Leiste ist systemseitig aus Glas, schrumpft beim Scrollen
-/// (`tabBarMinimizeBehavior`) und trägt darüber eine gläserne Zusatzleiste mit der
-/// nächsten fälligen Gabe (`tabViewBottomAccessory`).
+/// Liquid Glass: Die Tab-Leiste ist systemseitig aus Glas und schrumpft beim Scrollen
+/// (`tabBarMinimizeBehavior`). Abgehakt wird direkt in der Liste auf "Heute",
+/// in den Widgets oder in der Live-Aktivität – eine Extra-Leiste braucht es nicht.
 ///
 /// Faltzustand: Die Größe wird hier einmal gemessen und als `devicePosture` an alle
 /// Tabs weitergegeben. Jeder Tab hat genau einen NavigationStack, dessen Inhalt beim
@@ -44,9 +44,6 @@ struct RootTabView: View {
         .id(store.currentDay)
         .tabViewStyle(.sidebarAdaptable)
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory {
-            NextDoseAccessory()
-        }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
         .environment(\.devicePosture, posture)
         .animation(.smooth(duration: 0.35), value: posture)
@@ -73,50 +70,6 @@ struct RootTabView: View {
             ImportReviewSheet(pending: $0)
         }
         .animation(.spring(duration: 0.35), value: store.toast)
-    }
-}
-
-/// Gläserne Leiste über den Tabs: nächste offene Gabe mit einem Tipp erledigen.
-/// Eingeklappt (beim Scrollen) zeigt sie nur das Nötigste.
-private struct NextDoseAccessory: View {
-    @Environment(PetStore.self) private var store
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
-
-    var body: some View {
-        if let dose = store.nextOpenDose {
-            HStack(spacing: 10) {
-                PetAvatar(pet: dose.pet, size: 28)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("\(dose.medication.title) · \(dose.pet.name)")
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                    if placement != .inline {
-                        (dose.isOverdue ? Text("seit \(dose.time.label) Uhr fällig")
-                                        : Text("in \(dose.dueDate, style: .relative) · \(dose.time.label) Uhr"))
-                            .font(.caption)
-                            .foregroundStyle(dose.isOverdue ? Theme.berry : Theme.inkSoft)
-                    }
-                }
-                Spacer(minLength: 4)
-                Button {
-                    store.toggle(dose)
-                } label: {
-                    Label("Gegeben", systemImage: "checkmark")
-                        .labelStyle(.titleAndIcon)
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.glassProminent)
-                .tint(Theme.carrot)
-            }
-            .padding(.horizontal, 12)
-            .accessibilityElement(children: .contain)
-        } else {
-            Label(store.todaysDoses().isEmpty ? "Heute keine Medikamente" : "Alles gegeben für heute",
-                  systemImage: "checkmark.seal")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.leaf)
-                .frame(maxWidth: .infinity)
-        }
     }
 }
 

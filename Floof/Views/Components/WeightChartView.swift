@@ -51,9 +51,11 @@ struct WeightChartView: View {
                     PointMark(x: .value("Datum", entry.date, unit: .day),
                               y: .value("Gramm", entry.grams))
                         .foregroundStyle(pet.tint)
-                        .annotation(position: .top) {
+                        // Am Rand nicht abschneiden ("1.82" statt "1.820"): Beschriftung in den Diagrammbereich schieben.
+                        .annotation(position: .top, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
                             if entries.count <= 6 {
-                                Text("\(entry.grams)").font(Theme.number(.caption2)).foregroundStyle(Theme.inkSoft)
+                                Text(entry.grams.formatted()).font(Theme.number(.caption2)).foregroundStyle(Theme.inkSoft)
+                                    .fixedSize()
                             }
                         }
                 }

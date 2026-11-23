@@ -187,7 +187,7 @@ struct TodayHintsCard: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(hint.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                             Text(hint.detail).font(.caption).foregroundStyle(hint.urgent ? Theme.berry : Theme.inkSoft)
-                                .lineLimit(2)
+                                .lineLimit(1).minimumScaleFactor(0.85)
                         }
                         Spacer(minLength: 6)
                         Button(hint.actionTitle) { perform(hint.action) }

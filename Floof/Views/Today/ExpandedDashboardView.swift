@@ -50,7 +50,7 @@ struct ExpandedDashboardView: View {
         .scrollIndicators(.hidden)
         // Glas-Schatten nicht an den Spaltenrändern abschneiden.
         .scrollClipDisabled()
-        // Unten genug Platz, damit nichts unter der Tab-Leiste und der Glas-Leiste verschwindet.
-        .contentMargins(.bottom, 140, for: .scrollContent)
+        // Unten genug Platz, damit nichts unter der Tab-Leiste verschwindet.
+        .contentMargins(.bottom, 90, for: .scrollContent)
     }
 }

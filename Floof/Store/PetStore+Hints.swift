@@ -38,7 +38,7 @@ extension PetStore {
                 let detail: String
                 if let last = pet.lastDone(routine) {
                     let ago = Calendar.current.dateComponents([.day], from: last, to: .now).day ?? 0
-                    detail = "\(pet.name) · zuletzt vor \(ago) Tag\(ago == 1 ? "" : "en")"
+                    detail = "\(pet.name) · vor \(ago) Tag\(ago == 1 ? "" : "en")"
                 } else {
                     detail = "\(pet.name) · noch nie gewogen"
                 }
