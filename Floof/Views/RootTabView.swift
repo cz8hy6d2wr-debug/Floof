@@ -51,6 +51,7 @@ struct RootTabView: View {
         .environment(\.devicePosture, posture)
         .animation(.smooth(duration: 0.35), value: posture)
         .celebrations(store)
+        .overlay { EasterEggOverlay() }
         .overlay(alignment: .top) { ToastView() }
         // Tageswechsel erkennen: um Mitternacht (App offen) und beim Zurückkehren in die App.
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in

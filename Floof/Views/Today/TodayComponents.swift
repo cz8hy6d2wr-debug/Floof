@@ -43,6 +43,23 @@ struct TodayHeader: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
                 .accessibilityAddTraits(.isHeader)
+                // Fünfmal schnell tippen …
+                .onTapGesture { EasterEggs.shared.tap("headline", needed: 5, then: .binky) }
+
+            if selection.isToday, let special = EasterEggs.specialLine(pets: store.pets) {
+                Label {
+                    Text(special.text)
+                } icon: {
+                    FloofIcon(symbol: special.symbol, size: 18, tile: false)
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.carrot)
+                .onAppear {
+                    if !special.birthdayPets.isEmpty {
+                        EasterEggs.shared.celebrateBirthdayOnce(petIDs: special.birthdayPets.map(\.id))
+                    }
+                }
+            }
 
             if !doses.isEmpty {
                 if selection.isToday, !open.isEmpty {

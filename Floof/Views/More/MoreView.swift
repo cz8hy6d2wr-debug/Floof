@@ -46,6 +46,9 @@ struct MoreView: View {
                     }
                     .buttonStyle(.plain)
                     .glassPanel()
+
+                    signature
+                        .padding(.top, 28)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
@@ -62,6 +65,28 @@ struct MoreView: View {
             .sheet(isPresented: $showsLexicon) { LexiconView() }
             .sheet(isPresented: $showsSettings) { SettingsView() }
         }
+    }
+
+    /// Unterschrift unten – das Zeichen verrät bei jedem Tipp einen Kaninchen-Fakt.
+    private var signature: some View {
+        VStack(spacing: 8) {
+            Button { EasterEggs.shared.nextFact() } label: {
+                Image("FloofMark")
+                    .resizable().scaledToFit()
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(Theme.inkSoft.opacity(0.7))
+                    .padding(6)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Kaninchen-Fakt")
+            Text("floof").font(Theme.title(17)).foregroundStyle(Theme.inkSoft)
+            if !store.pets.isEmpty {
+                Text("Gemacht für \(store.pets.map(\.name).formatted(.list(type: .and)))")
+                    .font(.caption).foregroundStyle(Theme.inkSoft.opacity(0.8))
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var cabinetDetail: String {
