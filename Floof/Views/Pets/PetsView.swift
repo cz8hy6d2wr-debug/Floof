@@ -217,7 +217,7 @@ private struct DuoColumn: View {
     }
 
     private var medications: some View {
-        let meds = pet.medications
+        let meds = pet.medications.sorted { !$0.isAsNeeded && $1.isAsNeeded }
         let today = store.doses(for: pet)
         return VStack(alignment: .leading, spacing: 10) {
             Text("Medikamente").sectionLabel()

@@ -51,8 +51,10 @@ struct WeightChartView: View {
                     PointMark(x: .value("Datum", entry.date, unit: .day),
                               y: .value("Gramm", entry.grams))
                         .foregroundStyle(pet.tint)
-                        // Am Rand nicht abschneiden ("1.82" statt "1.820"): Beschriftung in den Diagrammbereich schieben.
-                        .annotation(position: .top, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                        // Letzter Punkt liegt am rechten Rand: Beschriftung links daneben,
+                        // sonst schneidet der Diagrammrand sie ab ("1.82" statt "1.820").
+                        .annotation(position: entry.id == entries.last?.id ? .topLeading : .top,
+                                    alignment: entry.id == entries.last?.id ? .trailing : .center) {
                             if entries.count <= 6 {
                                 Text(entry.grams.formatted()).font(Theme.number(.caption2)).foregroundStyle(Theme.inkSoft)
                                     .fixedSize()
