@@ -4,7 +4,7 @@ import SwiftUI
 /// Auf einen Blick sieht man, seit wann sich etwas verändert hat.
 struct PetHealthHistory: View {
     let pet: Pet
-    private let dayCount = 14
+    var dayCount = 14
 
     private var days: [Date] {
         let cal = Calendar.current
@@ -17,7 +17,7 @@ struct PetHealthHistory: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Gesundheitsverlauf").sectionLabel()
                 Spacer()
-                Text("14 Tage").font(.caption).foregroundStyle(Theme.inkSoft)
+                Text("\(dayCount) Tage").font(.caption).foregroundStyle(Theme.inkSoft)
             }
 
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 8) {

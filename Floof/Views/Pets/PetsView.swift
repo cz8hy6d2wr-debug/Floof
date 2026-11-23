@@ -14,12 +14,18 @@ struct PetsView: View {
     @State private var selection: Pet.ID?
     @State private var showsNewPet = false
     @State private var sheets = PetSheets()
+    /// Aufgeklappt mit zwei oder mehr Tieren: nebeneinander vergleichen statt Liste | Detail.
+    @AppStorage("floof.pets.duo") private var duo = true
+
+    private var showsDuo: Bool { posture == .unfolded && duo && store.pets.count >= 2 }
 
     var body: some View {
         @Bindable var sheets = sheets
         NavigationStack(path: $path) {
             Group {
-                if posture == .unfolded {
+                if showsDuo {
+                    DuoView()
+                } else if posture == .unfolded {
                     FoldColumns {
                         list
                     } trailing: {
@@ -39,6 +45,16 @@ struct PetsView: View {
             .ambientBackground()
             .navigationDestination(for: Pet.ID.self) { PetDetailView(petID: $0) }
             .toolbar {
+                if posture == .unfolded && store.pets.count >= 2 {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Picker("Ansicht", selection: $duo.animation(.smooth)) {
+                            Text("Liste").tag(false)
+                            Text("Duo").tag(true)
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Tier hinzufügen", systemImage: "plus") { showsNewPet = true }
                 }
@@ -114,5 +130,132 @@ private struct PetRow: View {
         .card()
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
             .strokeBorder(isSelected ? pet.tint : .clear, lineWidth: 2))
+    }
+}
+
+// MARK: - Duo-Ansicht
+
+/// Aufgeklappt: zwei Tiere nebeneinander, links und rechts vom Falz –
+/// auf beiden Seiten dieselbe Reihenfolge, damit man direkt vergleichen kann.
+private struct DuoView: View {
+    @Environment(PetStore.self) private var store
+    @AppStorage("floof.pets.duo.left") private var leftID = ""
+    @AppStorage("floof.pets.duo.right") private var rightID = ""
+
+    var body: some View {
+        let (left, right) = pair
+        FoldColumns {
+            if let left { DuoColumn(pet: left, choose: { leftID = $0 }, excluded: right?.id) }
+        } trailing: {
+            if let right { DuoColumn(pet: right, choose: { rightID = $0 }, excluded: left?.id) }
+        }
+    }
+
+    /// Gewählte Tiere – sonst die ersten beiden. Nie zweimal dasselbe.
+    private var pair: (Pet?, Pet?) {
+        let pets = store.pets
+        let left = store.pet(leftID) ?? pets.first
+        let right = store.pet(rightID).flatMap { $0.id == left?.id ? nil : $0 }
+            ?? pets.first { $0.id != left?.id }
+        return (left, right)
+    }
+}
+
+private struct DuoColumn: View {
+    @Environment(PetStore.self) private var store
+    @Environment(PetSheets.self) private var sheets
+    let pet: Pet
+    let choose: (Pet.ID) -> Void
+    let excluded: Pet.ID?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                WeightChartView(pet: pet) { sheets.weigh = pet }
+                PetHealthHistory(pet: pet, dayCount: 7)
+                medications
+                PetRoutinesCard(pet: pet)
+            }
+            .padding(.vertical, 12)
+        }
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+        .contentMargins(.bottom, 90, for: .scrollContent)
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            NavigationLink(value: pet.id) {
+                HStack(spacing: 12) {
+                    PetAvatar(pet: pet, size: 50)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pet.name).font(Theme.title(24)).foregroundStyle(Theme.ink)
+                        Text("\(pet.breed.isEmpty ? pet.animalType : pet.breed) · \(pet.ageDescription)")
+                            .font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 0)
+            // Mehr als zwei Tiere: hier tauschen.
+            if store.pets.count > 2 {
+                Menu {
+                    ForEach(store.pets.filter { $0.id != pet.id && $0.id != excluded }) { other in
+                        Button(other.name) { withAnimation(.smooth) { choose(other.id) } }
+                    }
+                } label: {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 34, height: 34)
+                        .glassEffect(.regular.interactive(), in: .circle)
+                }
+                .accessibilityLabel("Anderes Tier zeigen")
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var medications: some View {
+        let meds = pet.medications
+        let today = store.doses(for: pet)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Medikamente").sectionLabel()
+            if meds.isEmpty {
+                Text("Keine Medikamente – gesund und munter.")
+                    .font(.subheadline).foregroundStyle(Theme.inkSoft)
+            } else {
+                ForEach(meds) { med in
+                    let doses = today.filter { $0.medication.id == med.id }
+                    HStack(spacing: 12) {
+                        FloofIcon(symbol: store.cabinetItem(med.cabinetItemID)?.form.symbol ?? "drop.fill", size: 22)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(med.title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                            Text(detail(med, doses: doses)).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
+                        if !doses.isEmpty {
+                            let given = doses.filter(store.isTaken).count
+                            Text("\(given)/\(doses.count)")
+                                .font(.caption.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(given == doses.count ? Theme.leaf : Theme.inkSoft)
+                        }
+                    }
+                }
+            }
+        }
+        .card()
+    }
+
+    private func detail(_ med: CareEntry, doses: [ScheduledDose]) -> String {
+        let amount: String
+        if let item = store.cabinetItem(med.cabinetItemID), let value = med.effectiveDoseAmount {
+            amount = item.formatted(value)
+        } else {
+            amount = med.details.split(separator: "\n").first.map(String.init) ?? ""
+        }
+        if med.isAsNeeded { return amount.isEmpty ? "bei Bedarf" : "\(amount) · bei Bedarf" }
+        let times = doses.map(\.time.label).joined(separator: " & ")
+        return [amount, times].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }
