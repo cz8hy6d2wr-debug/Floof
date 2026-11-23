@@ -110,7 +110,7 @@ struct HistoryView: View {
     private var list: some View {
         let grouped = Dictionary(grouping: items) { Calendar.current.startOfDay(for: $0.date) }
         return ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12, pinnedViews: .sectionHeaders) {
+            LazyVStack(alignment: .leading, spacing: 12) {
                 filterBar
                     .padding(.top, 8)
                 if store.pets.count > 1 {
@@ -128,11 +128,9 @@ struct HistoryView: View {
                         dayBlock(grouped[day] ?? [])
                     } header: {
                         Text(dayTitle(day))
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Theme.inkSoft)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .glassEffect(.regular, in: .capsule)
-                            .padding(.vertical, 4)
+                            .sectionLabel()
+                            .padding(.horizontal, 4)
+                            .padding(.top, 12)
                     }
                 }
             }
@@ -175,7 +173,7 @@ struct HistoryView: View {
                 HStack(spacing: 8) {
                     ForEach(Filter.allCases) { f in
                         let selected = filter == f
-                        Button(f.rawValue) { withAnimation(.bouncy) { filter = f } }
+                        Button(f.rawValue) { withAnimation(.snappy) { filter = f } }
                             .font(.subheadline.weight(selected ? .semibold : .regular))
                             .foregroundStyle(selected ? Theme.ink : Theme.inkSoft)
                             .padding(.horizontal, 14).padding(.vertical, 8)

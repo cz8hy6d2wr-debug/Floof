@@ -461,8 +461,8 @@ struct StatTiles: View {
 
     private func tile(_ title: String, value: String, unit: String?, caption: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
+            Text(title)
+                .font(.caption.weight(.medium))
                 .foregroundStyle(Theme.inkSoft)
                 .lineLimit(1).minimumScaleFactor(0.8)
             HStack(alignment: .lastTextBaseline, spacing: 4) {

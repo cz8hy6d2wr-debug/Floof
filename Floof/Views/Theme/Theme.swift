@@ -67,17 +67,17 @@ struct AmbientBackground: View {
                             path.addLine(to: CGPoint(x: lw / 2 - w * 0.65, y: h * 0.85))
                             path.closeSubpath()
                         }
-                        .fill(LinearGradient(colors: [light.opacity(dark ? 0.30 : 0.95), light.opacity(0)],
+                        .fill(LinearGradient(colors: [light.opacity(dark ? 0.15 : 0.8), light.opacity(0)],
                                              startPoint: .top, endPoint: .bottom))
                         .blur(radius: 50)
 
                         // Die "Lampe": heller Punkt oben mittig mit weichem Hof.
-                        RadialGradient(colors: [light.opacity(dark ? 0.55 : 1.0), light.opacity(0)],
+                        RadialGradient(colors: [light.opacity(dark ? 0.28 : 0.9), light.opacity(0)],
                                        center: UnitPoint(x: 0.5, y: -0.03),
                                        startRadius: 0, endRadius: min(w, h) * 0.75)
 
                         // Wärme im Licht (auch im Hellen ein Hauch Bernstein).
-                        RadialGradient(colors: [Theme.glow.opacity(dark ? 0.22 : 0.16), .clear],
+                        RadialGradient(colors: [Theme.glow.opacity(dark ? 0.11 : 0.08), .clear],
                                        center: UnitPoint(x: 0.5, y: 0.0),
                                        startRadius: 0, endRadius: min(w, h) * 0.9)
                     }
@@ -139,12 +139,13 @@ private struct LitGlass: ViewModifier {
             .overlay {
                 // Feste Lichtkante oben – hängt bewusst nicht am Bewegungssensor (flüssiger).
                 shape.strokeBorder(
-                    LinearGradient(colors: [.white.opacity(scheme == .dark ? 0.28 : 0.85), .white.opacity(0)],
+                    LinearGradient(colors: [.white.opacity(scheme == .dark ? 0.12 : 0.5), .white.opacity(0)],
                                    startPoint: .top, endPoint: .center),
                     lineWidth: 1)
                 .allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(scheme == .dark ? 0.45 : 0.08), radius: 12, x: 0, y: 8)
+            // Dunkel: Tiefe nur über Fläche und Kante. Hell: kleiner, weicher Schatten.
+            .shadow(color: .black.opacity(scheme == .dark ? 0 : 0.06), radius: 12, x: 0, y: 6)
     }
 }
 
@@ -178,12 +179,10 @@ struct HandTitle: View {
 // MARK: - Abschnitts-Titel
 
 extension View {
-    /// Kleiner Abschnitts-Titel in Versalien, z. B. "MEDIKAMENTE".
+    /// Kleiner Abschnitts-Titel, z. B. "Medikamente" – normale Schreibweise, ruhig und gedämpft.
     func sectionLabel() -> some View {
         self
-            .font(.caption.weight(.semibold))
-            .tracking(1.1)
-            .textCase(.uppercase)
+            .font(.footnote.weight(.medium))
             .foregroundStyle(Theme.inkSoft)
     }
 }

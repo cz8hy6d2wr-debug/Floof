@@ -69,7 +69,7 @@ struct ArticleView: View {
                     Label("Teilen", systemImage: "square.and.arrow.up")
                 }
                 Button {
-                    withAnimation(.bouncy) { store.toggleBookmark(article.id) }
+                    withAnimation(.snappy) { store.toggleBookmark(article.id) }
                 } label: {
                     Label(store.isBookmarked(article.id) ? "Gemerkt" : "Merken",
                           systemImage: store.isBookmarked(article.id) ? "bookmark.fill" : "bookmark")

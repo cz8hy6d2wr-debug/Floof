@@ -51,9 +51,7 @@ struct WCaption: View {
         HStack(spacing: 5) {
             if let symbol { WIcon(symbol: symbol, size: 13) }
             Text(text)
-                .font(.system(size: 10.5, weight: .semibold))
-                .tracking(0.9)
-                .textCase(.uppercase)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(color)
                 .lineLimit(1)
         }

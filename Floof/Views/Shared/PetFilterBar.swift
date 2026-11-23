@@ -36,7 +36,7 @@ struct PetFilterBar: View {
                                      @ViewBuilder label: () -> Content) -> some View {
         let selected = selection == id
         return Button {
-            withAnimation(.bouncy) { selection = id }
+            withAnimation(.snappy) { selection = id }
         } label: {
             label()
                 .font(.subheadline.weight(selected ? .semibold : .regular))

@@ -29,7 +29,7 @@ private struct VaccinationRow: View {
         HStack(spacing: 12) {
             VStack(spacing: 0) {
                 Text(vaccination.date, format: .dateTime.month(.abbreviated))
-                    .font(.caption2.bold()).textCase(.uppercase).foregroundStyle(Theme.carrot)
+                    .font(.caption2.weight(.semibold)).foregroundStyle(Theme.carrot)
                 Text(vaccination.date, format: .dateTime.day())
                     .font(Theme.number(.title3))
             }

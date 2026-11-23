@@ -388,7 +388,7 @@ struct OverviewView: View {
                 HStack(spacing: 8) {
                     if let w = s.weight {
                         tile(caption: "Gewicht", symbol: "scalemass",
-                             value: (Double(w.grams) / 1000).formatted(.number.precision(.fractionLength(2))) + " kg",
+                             value: "\(w.grams.formatted()) g",
                              detail: "\(w.petName) · \(w.date.formatted(.relative(presentation: .named)))", warn: false)
                     }
                     if let a = s.cabinetAlert {

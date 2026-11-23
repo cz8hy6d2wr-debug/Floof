@@ -115,7 +115,7 @@ struct DiaryEditor: View {
                 ForEach(DiaryEntry.Mood.allCases) { mood in
                     let selected = entry.mood == mood
                     Button {
-                        withAnimation(.bouncy) { entry.mood = mood }
+                        withAnimation(.snappy) { entry.mood = mood }
                     } label: {
                         VStack(spacing: 4) {
                             Image(systemName: mood.symbol)

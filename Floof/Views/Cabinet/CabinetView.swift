@@ -102,7 +102,7 @@ private struct FilterChips: View {
             HStack(spacing: 8) {
                 ForEach(CabinetView.Filter.allCases) { filter in
                     Button(filter.rawValue) {
-                        withAnimation(.bouncy) { selection = filter }
+                        withAnimation(.snappy) { selection = filter }
                     }
                     .font(.subheadline.weight(selection == filter ? .semibold : .regular))
                     .foregroundStyle(selection == filter ? Theme.ink : Theme.inkSoft)

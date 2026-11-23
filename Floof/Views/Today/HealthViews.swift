@@ -102,7 +102,7 @@ struct HealthCheckCard: View {
                     ForEach(DailyCheck.Level.allCases) { level in
                         let selected = current == level
                         Button {
-                            withAnimation(.bouncy) { store.setCheck(aspect, level, for: pet.id, on: day) }
+                            withAnimation(.snappy) { store.setCheck(aspect, level, for: pet.id, on: day) }
                         } label: {
                             Text(aspect.label(level))
                                 .font(.subheadline.weight(selected ? .semibold : .regular))

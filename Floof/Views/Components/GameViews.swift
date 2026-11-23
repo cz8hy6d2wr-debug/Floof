@@ -86,7 +86,7 @@ struct CelebrationOverlay: View {
             VStack(spacing: 10) {
                 FloofIcon(symbol: symbol, size: 56, tile: false)
                     .scaleEffect(dropped ? 1 : 0.6)
-                    .animation(.bouncy(duration: 0.5), value: dropped)
+                    .animation(.snappy(duration: 0.4), value: dropped)
                 Text(title).font(Theme.title(24)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
                 Text(message).font(.subheadline).foregroundStyle(Theme.inkSoft).multilineTextAlignment(.center)
             }

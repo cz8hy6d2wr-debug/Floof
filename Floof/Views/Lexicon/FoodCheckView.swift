@@ -85,7 +85,7 @@ struct FoodCheckView: View {
     private func chip(_ verdict: FoodItem.Verdict?, label: String, color: Color) -> some View {
         let selected = filter == verdict
         return Button {
-            withAnimation(.bouncy) { filter = verdict }
+            withAnimation(.snappy) { filter = verdict }
         } label: {
             Text(label)
                 .font(.subheadline.weight(selected ? .semibold : .regular))

@@ -114,10 +114,7 @@ struct DiaryView: View {
                         }
                     } header: {
                         Text(month, format: .dateTime.month(.wide).year())
-                            .font(.footnote.weight(.bold))
-                            .textCase(.uppercase)
-                            .kerning(1.2)
-                            .foregroundStyle(Theme.inkSoft)
+                            .sectionLabel()
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .glassEffect(.regular, in: .capsule)
                             .padding(.vertical, 4)
@@ -177,7 +174,7 @@ struct DiaryEntryCard: View {
                 Text(entry.date, format: .dateTime.day())
                     .font(Theme.title(26))
                 Text(entry.date, format: .dateTime.weekday(.abbreviated))
-                    .font(.caption2.weight(.bold)).textCase(.uppercase)
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Theme.inkSoft)
             }
             .frame(width: 40)
