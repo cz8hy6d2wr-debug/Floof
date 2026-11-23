@@ -156,11 +156,7 @@ struct TimelineRow: View {
 
     private func eventRow(pet: Pet, symbol: String, date: Date, text: LocalizedStringKey) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(pet.tint)
-                .frame(width: 28, height: 28)
-                .background(pet.tint.opacity(0.12), in: Circle())
+            FloofIcon(symbol: symbol, size: 20, fallbackTint: pet.tint)
             Text(text).font(.subheadline).foregroundStyle(Theme.ink)
             Spacer()
             Text(date, format: .dateTime.day().month(.abbreviated))

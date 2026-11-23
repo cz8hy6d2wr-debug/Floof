@@ -64,11 +64,7 @@ struct CabinetItemCard: View {
 
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: item.form.symbol)
-                    .font(.title3)
-                    .foregroundStyle(Theme.carrot)
-                    .frame(width: 42, height: 42)
-                    .background(Theme.carrot.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                FloofIcon(symbol: item.form.symbol, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name).font(Theme.title(18)).foregroundStyle(Theme.ink)
                     Text(linked.isEmpty ? item.form.label

@@ -15,7 +15,7 @@ struct PetHealthHistory: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Gesundheitsverlauf").font(.headline)
+                Text("Gesundheitsverlauf").sectionLabel()
                 Spacer()
                 Text("14 Tage").font(.caption).foregroundStyle(Theme.inkSoft)
             }
@@ -23,7 +23,11 @@ struct PetHealthHistory: View {
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 8) {
                 ForEach(DailyCheck.Aspect.allCases) { aspect in
                     GridRow {
-                        Label(aspect.title, systemImage: aspect.symbol)
+                        Label {
+                            Text(aspect.title)
+                        } icon: {
+                            FloofIcon(symbol: aspect.symbol, size: 16, tile: false)
+                        }
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Theme.inkSoft)
                             .lineLimit(1)
@@ -84,13 +88,10 @@ struct PetRoutinesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Pflege").font(.headline)
+            Text("Pflege").sectionLabel()
             ForEach(pet.careRoutines) { routine in
                 HStack(spacing: 12) {
-                    Image(systemName: routine.kind.symbol)
-                        .foregroundStyle(Theme.carrot)
-                        .frame(width: 32, height: 32)
-                        .glassEffect(.regular, in: .circle)
+                    FloofIcon(symbol: routine.kind.symbol, size: 24)
                     Button { editing = routine } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(routine.kind.title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)

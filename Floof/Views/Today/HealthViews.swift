@@ -54,7 +54,7 @@ struct HealthCheckCard: View {
         HStack(spacing: 10) {
             PetAvatar(pet: pet, size: 32)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Kurz-Check").font(.headline)
+                Text("Kurz-Check").font(Theme.title(18))
                 Text(subtitle).font(.caption).foregroundStyle(Theme.inkSoft).lineLimit(2)
             }
             Spacer()
@@ -90,9 +90,13 @@ struct HealthCheckCard: View {
     private func aspectRow(_ aspect: DailyCheck.Aspect) -> some View {
         let current = check?.level(aspect)
         return VStack(alignment: .leading, spacing: 6) {
-            Label(aspect.title, systemImage: aspect.symbol)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.inkSoft)
+            Label {
+                Text(aspect.title)
+            } icon: {
+                FloofIcon(symbol: aspect.symbol, size: 18, tile: false)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.inkSoft)
             GlassEffectContainer(spacing: 6) {
                 HStack(spacing: 6) {
                     ForEach(DailyCheck.Level.allCases) { level in
@@ -175,14 +179,11 @@ struct TodayHintsCard: View {
         let hints = store.todayHints(petID: petID, limit: limit)
         if !hints.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Für heute").font(.headline)
+                Text("Für heute").sectionLabel()
                 ForEach(hints) { hint in
                     HStack(spacing: 12) {
-                        Image(systemName: hint.symbol)
-                            .font(.body)
-                            .foregroundStyle(hint.urgent ? Theme.berry : Theme.carrot)
-                            .frame(width: 34, height: 34)
-                            .glassEffect(.regular, in: .circle)
+                        FloofIcon(symbol: hint.symbol, size: 24,
+                                  fallbackTint: hint.urgent ? Theme.berry : Theme.carrot)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(hint.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                             Text(hint.detail).font(.caption).foregroundStyle(hint.urgent ? Theme.berry : Theme.inkSoft)

@@ -84,9 +84,9 @@ struct CelebrationOverlay: View {
             }
 
             VStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .font(.system(size: 44)).foregroundStyle(Theme.carrot)
-                    .symbolEffect(.bounce, value: dropped)
+                FloofIcon(symbol: symbol, size: 56, tile: false)
+                    .scaleEffect(dropped ? 1 : 0.6)
+                    .animation(.bouncy(duration: 0.5), value: dropped)
                 Text(title).font(Theme.title(24)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
                 Text(message).font(.subheadline).foregroundStyle(Theme.inkSoft).multilineTextAlignment(.center)
             }

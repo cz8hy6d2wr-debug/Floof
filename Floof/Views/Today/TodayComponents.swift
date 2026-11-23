@@ -31,63 +31,75 @@ struct TodayHeader: View {
         let given = doses.filter(store.isTaken).count
         let open = doses.filter { !store.isTaken($0) }
 
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(dayTitle)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.inkSoft)
+                .sectionLabel()
 
-            // Ohne Medikamente nur das Datum – der Hinweis steht darunter in der Liste.
+            // Ein Satz statt einer Zahl – wie ihn ein Mensch sagen würde.
+            Text(headline(doses: doses, open: open))
+                .font(Theme.display(32))
+                .tracking(-0.6)
+                .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .accessibilityAddTraits(.isHeader)
+
             if !doses.isEmpty {
-                HStack(alignment: .lastTextBaseline) {
-                    HStack(alignment: .lastTextBaseline, spacing: 8) {
-                        Text("\(given)")
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .contentTransition(.numericText(value: Double(given)))
-                        Text("von \(doses.count)")
-                            .font(.system(size: 22, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Theme.inkSoft)
-                    }
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Gaben").foregroundStyle(Theme.inkSoft)
-                        statusLine(doses: doses, open: open)
-                    }
-                    .font(.subheadline)
-                    .multilineTextAlignment(.trailing)
-                }
-
-                ProgressBar(value: Double(given) / Double(doses.count))
-                    .padding(.top, 8)
-
-                if selection.isToday {
-                    NextDoseCountdown(open: open)
+                if selection.isToday, !open.isEmpty {
+                    NextDoseCountdown(open: open, progress: Double(given) / Double(doses.count))
                         .padding(.top, 10)
+                } else {
+                    HStack(spacing: 10) {
+                        ProgressBar(value: Double(given) / Double(doses.count))
+                        Text("\(given) von \(doses.count)")
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Theme.inkSoft)
+                            .fixedSize()
+                    }
+                    .padding(.top, 6)
                 }
             }
         }
         .animation(.smooth, value: given)
     }
 
-    private var dayTitle: String {
-        let date = selection.day.formatted(.dateTime.weekday(.wide).day().month(.wide))
-        if selection.isToday { return "Heute, \(date)" }
-        if Calendar.current.isDateInYesterday(selection.day) { return "Gestern, \(date)" }
-        if Calendar.current.isDateInTomorrow(selection.day) { return "Morgen, \(date)" }
-        return date
+    /// "Noch zwei Gaben für Brownie." / "Alles gegeben." – kurz und freundlich.
+    private func headline(doses: [ScheduledDose], open: [ScheduledDose]) -> AttributedString {
+        func plain(_ s: String) -> AttributedString { AttributedString(s) }
+        func accent(_ s: String) -> AttributedString {
+            var a = AttributedString(s); a.foregroundColor = Theme.carrot; return a
+        }
+        if doses.isEmpty {
+            return plain(selection.isToday ? "Heute ein freier Tag." : "Keine Medikamente.")
+        }
+        if open.isEmpty {
+            if selection.isFuture { return plain("\(countWord(doses.count)) \(doses.count == 1 ? "Gabe" : "Gaben") geplant.") }
+            return plain("Alles gegeben.")
+        }
+        if selection.isFuture {
+            return plain("\(countWord(open.count)) \(open.count == 1 ? "Gabe" : "Gaben") geplant.")
+        }
+        if !selection.isToday {
+            return plain("\(countWord(open.count)) \(open.count == 1 ? "Gabe" : "Gaben") nicht abgehakt.")
+        }
+        let names = Array(Set(open.map(\.pet.name))).sorted()
+        let lead = open.count == 1 ? "Noch eine Gabe" : "Noch \(countWord(open.count).lowercased()) Gaben"
+        if names.count == 1 {
+            return plain("\(lead) für ") + accent(names[0]) + plain(".")
+        }
+        return plain("\(lead) für deine Tiere.")
     }
 
-    @ViewBuilder
-    private func statusLine(doses: [ScheduledDose], open: [ScheduledDose]) -> some View {
-        if doses.isEmpty {
-            EmptyView()
-        } else if open.isEmpty {
-            Text("Alles gegeben").fontWeight(.semibold).foregroundStyle(Theme.leaf)
-        } else if let late = open.first(where: \.isOverdue), !selection.isFuture {
-            Text(selection.isToday ? "\(late.medication.title) überfällig" : "\(open.count) nicht gegeben")
-                .fontWeight(.semibold).foregroundStyle(Theme.berry)
-        } else if let next = open.first {
-            Text("Nächste um \(next.time.label)").fontWeight(.semibold).foregroundStyle(Theme.ink)
-        }
+    private func countWord(_ n: Int) -> String {
+        let words = ["Keine", "Eine", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn", "Elf", "Zwölf"]
+        return n < words.count ? words[n] : "\(n)"
+    }
+
+    private var dayTitle: String {
+        let date = selection.day.formatted(.dateTime.weekday(.wide).day().month(.wide))
+        if Calendar.current.isDateInYesterday(selection.day) { return "Gestern · \(date)" }
+        if Calendar.current.isDateInTomorrow(selection.day) { return "Morgen · \(date)" }
+        return date
     }
 }
 
@@ -95,6 +107,8 @@ struct TodayHeader: View {
 /// Das Herunterzählen übernimmt das System (Text mit Timer) – kein Ruckeln, kein Mehraufwand.
 struct NextDoseCountdown: View {
     let open: [ScheduledDose]
+    /// Anteil der heute schon gegebenen Dosen – für den Ring.
+    var progress: Double = 0
 
     var body: some View {
         // Alle 30 Sekunden neu prüfen, damit eine fällig gewordene Gabe weiterrückt.
@@ -103,26 +117,44 @@ struct NextDoseCountdown: View {
             if let next = upcoming.first {
                 let sameTime = upcoming.filter { $0.dueDate == next.dueDate }
                 let names = Array(Set(sameTime.map(\.medication.title))).sorted().joined(separator: " & ")
-                HStack(spacing: 10) {
-                    Image(systemName: "timer")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.carrot)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Nächste Gabe").font(.caption2.weight(.semibold)).foregroundStyle(Theme.inkSoft)
-                        Text(names).font(.subheadline.weight(.semibold)).lineLimit(1)
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle().stroke(Theme.ink.opacity(0.1), lineWidth: 5)
+                        Circle().trim(from: 0, to: max(0.02, min(progress, 1)))
+                            .stroke(Theme.carrot, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        FloofIcon(symbol: "drop.fill", size: 28, tile: false)
                     }
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 1) {
+                    .frame(width: 64, height: 64)
+                    .animation(.smooth, value: progress)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Nächste Gabe in").font(.caption).foregroundStyle(Theme.inkSoft)
                         Text(timerInterval: context.date...next.dueDate, countsDown: true)
-                            .font(.system(.title3, design: .rounded).weight(.bold).monospacedDigit())
-                            .multilineTextAlignment(.trailing)
-                        Text("um \(next.time.label) Uhr").font(.caption2).foregroundStyle(Theme.inkSoft)
+                            .font(Theme.display(28).monospacedDigit())
+                            .foregroundStyle(Theme.ink)
+                        Text("\(names) · \(next.time.label) Uhr")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1).minimumScaleFactor(0.8)
                     }
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .glassEffect(.regular, in: .capsule)
+                .padding(16)
+                .glassPanel(cornerRadius: 24)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Nächste Gabe \(names) um \(next.time.label) Uhr")
+            } else if let late = open.first {
+                HStack(spacing: 14) {
+                    FloofIcon(symbol: "drop.fill", size: 26)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Seit \(late.time.label) Uhr fällig").font(.caption.weight(.semibold)).foregroundStyle(Theme.berry)
+                        Text(late.medication.title).font(Theme.title(20)).foregroundStyle(Theme.ink)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(16)
+                .glassPanel(cornerRadius: 24)
             }
         }
     }
@@ -209,7 +241,7 @@ struct WeekStrip: View {
                     .font(.caption2.weight(.semibold))
                     .opacity(0.6)
                 Text(day, format: .dateTime.day())
-                    .font(.system(size: 17, weight: today ? .bold : .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: today ? .bold : .medium, design: .serif))
                 Circle().fill(dotColor(day)).frame(width: 5, height: 5)
             }
             .foregroundStyle(selected ? Theme.paper : Theme.ink)
@@ -266,7 +298,7 @@ struct DoseList: View {
                 ForEach(Array(doses.enumerated()), id: \.element.id) { index, dose in
                     DoseRow(dose: dose, showsPet: showsPet, isFuture: selection.isFuture)
                     if index < doses.count - 1 {
-                        Divider().padding(.leading, 18)
+                        Divider().padding(.leading, 64)
                     }
                 }
             }
@@ -288,6 +320,7 @@ struct DoseRow: View {
             store.toggle(dose)
         } label: {
             HStack(spacing: 14) {
+                FloofIcon(symbol: formSymbol, size: 24)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dose.medication.title)
                         .font(.body.weight(.semibold))
@@ -305,7 +338,7 @@ struct DoseRow: View {
                     .foregroundStyle(timeColor)
                 checkmark
             }
-            .padding(.horizontal, 18).padding(.vertical, 15)
+            .padding(.horizontal, 14).padding(.vertical, 12)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -332,6 +365,10 @@ struct DoseRow: View {
             dosage = firstLine
         }
         return showsPet ? "\(dose.pet.name) · \(dosage)" : dosage
+    }
+
+    private var formSymbol: String {
+        store.cabinetItem(dose.medication.cabinetItemID)?.form.symbol ?? "drop.fill"
     }
 
     private var timeColor: Color {
@@ -398,7 +435,7 @@ struct StatTiles: View {
                 .foregroundStyle(Theme.inkSoft)
                 .lineLimit(1).minimumScaleFactor(0.8)
             HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(value).font(.system(size: 26, weight: .bold, design: .rounded))
+                Text(value).font(Theme.display(26))
                     .contentTransition(.numericText())
                 if let unit {
                     Text(unit).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.inkSoft)

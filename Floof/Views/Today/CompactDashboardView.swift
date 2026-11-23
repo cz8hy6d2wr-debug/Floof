@@ -66,7 +66,7 @@ struct AsNeededSection: View {
 
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Wenn nötig").font(.headline)
+                Text("Wenn nötig").sectionLabel()
                 ForEach(items, id: \.1.id) { item in
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 2) {

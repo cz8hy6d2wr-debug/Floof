@@ -20,7 +20,7 @@ struct MoreView: View {
                             row("Medikamentenschrank", symbol: "cross.case.fill",
                                 detail: cabinetDetail, alert: !store.cabinetAlerts.isEmpty)
                         }
-                        Divider().padding(.leading, 60)
+                        Divider().padding(.leading, 66)
                         Button { showsLexicon = true } label: {
                             row("Lexikon", symbol: "books.vertical.fill",
                                 detail: "Notfall, Krankheiten, Futter-Check, RodiCare")
@@ -33,12 +33,12 @@ struct MoreView: View {
                         Button { showsSettings = true } label: {
                             row("Gemeinsam nutzen", symbol: "person.2.fill", detail: syncDetail)
                         }
-                        Divider().padding(.leading, 60)
+                        Divider().padding(.leading, 66)
                         Button { showsSettings = true } label: {
                             row("Einstellungen & Teilen", symbol: "gearshape.fill",
                                 detail: "Erinnerungen, AirDrop, Import & Export")
                         }
-                        Divider().padding(.leading, 60)
+                        Divider().padding(.leading, 66)
                         NavigationLink(value: Route.progress) {
                             row("Möhren & Abzeichen", symbol: "carrot.fill",
                                 detail: "\(store.game.carrots) Möhren · \(store.streak) Tage am Stück")
@@ -79,11 +79,7 @@ struct MoreView: View {
 
     private func row(_ title: String, symbol: String, detail: String, alert: Bool = false) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: symbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Theme.carrot)
-                .frame(width: 34, height: 34)
-                .glassEffect(.regular, in: .circle)
+            FloofIcon(symbol: symbol, size: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.body.weight(.semibold)).foregroundStyle(Theme.ink)
                 Text(detail).font(.caption).foregroundStyle(alert ? Theme.berry : Theme.inkSoft).lineLimit(1)

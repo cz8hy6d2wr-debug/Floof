@@ -207,10 +207,7 @@ struct ActivityRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: entry.kind.symbol)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
-                .frame(width: 28, height: 28)
+            FloofIcon(symbol: entry.kind.symbol, size: 20, fallbackTint: color)
             VStack(alignment: .leading, spacing: 2) {
                 Text(store.displayAuthor(entry))
                     .font(.caption.weight(.semibold))
@@ -259,7 +256,7 @@ struct RecentActivityCard: View {
             .prefix(limit)
         if !entries.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Zuletzt").font(.headline).padding(.horizontal, 14).padding(.top, 12)
+                Text("Zuletzt").sectionLabel().padding(.horizontal, 14).padding(.top, 12)
                 ForEach(Array(entries)) { entry in
                     ActivityRow(entry: entry)
                 }

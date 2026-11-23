@@ -24,17 +24,17 @@ struct RootTabView: View {
         let posture = DevicePosture.resolve(size: size, horizontalSizeClass: horizontalSizeClass)
 
         TabView(selection: $tab) {
-            Tab("Heute", systemImage: "sun.horizon", value: AppTab.today) {
+            Tab("Heute", image: "tab.heute", value: AppTab.today) {
                 TodayView()
             }
-            Tab("Verlauf", systemImage: "clock", value: AppTab.history) {
+            Tab("Verlauf", image: "tab.verlauf", value: AppTab.history) {
                 HistoryView()
             }
             .badge(store.newActivityCount)
-            Tab("Tiere", systemImage: "pawprint", value: AppTab.pets) {
+            Tab("Tiere", image: "tab.tiere", value: AppTab.pets) {
                 PetsView()
             }
-            Tab("Mehr", systemImage: "ellipsis.circle", value: AppTab.more) {
+            Tab("Mehr", image: "tab.mehr", value: AppTab.more) {
                 MoreView()
             }
             .badge(store.cabinetAlerts.count)

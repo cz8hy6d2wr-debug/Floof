@@ -7,25 +7,28 @@ import UIKit
 enum Theme {
     // Flächen – Dunkel = echtes OLED-Schwarz (Pixel aus, spart Akku),
     // Karten heben sich nur minimal und warm davon ab.
-    static let paper   = Color(light: 0xF6F1E8, dark: 0x000000)   // Hintergrund
-    static let card    = Color(light: 0xFFFCF6, dark: 0x141210)   // Karten
-    static let sunken  = Color(light: 0xEDE5D8, dark: 0x221F1C)   // Badges, Ringspur
-    static let hairline = Color(light: 0xE4DACB, dark: 0x2B2723)
+    static let paper   = Color(light: 0xF4EDE3, dark: 0x000000)   // Hintergrund
+    static let card    = Color(light: 0xFFFBF5, dark: 0x1B1714)   // Karten
+    static let sunken  = Color(light: 0xEAE0D2, dark: 0x241E1A)   // Badges, Ringspur
+    static let hairline = Color(light: 0xE2D6C6, dark: 0x2B2420)
 
-    // Text
-    static let ink     = Color(light: 0x2B2622, dark: 0xF1EADF)
-    static let inkSoft = Color(light: 0x7A6F64, dark: 0xA89D90)
+    // Text – Espresso auf Creme, Creme auf Schwarz (kein reines Weiß).
+    static let ink     = Color(light: 0x2A1D15, dark: 0xF3E9DC)
+    static let inkSoft = Color(light: 0x7D6B5B, dark: 0xA89886)
 
-    // Akzente
-    static let carrot  = Color(light: 0xD9682B, dark: 0xF08A4B)   // Hauptakzent, Möhren-Punkte
-    static let leaf    = Color(light: 0x4F7D3A, dark: 0x8BBF6E)   // erledigt
-    static let leafWash = Color(light: 0xE6EEDB, dark: 0x16200F)
-    static let berry   = Color(light: 0xB8434E, dark: 0xE77C86)   // Erkrankungen, überfällig
-    static let honey   = Color(light: 0xC99A2E, dark: 0xE8C064)   // beobachten, Serie
+    // Akzente – sparsam: Orange nur, wo es etwas bedeutet; Grün nur für "erledigt".
+    static let carrot  = Color(light: 0xC9642A, dark: 0xE0864A)   // Hauptakzent, Möhren-Punkte
+    static let leaf    = Color(light: 0x5E7F48, dark: 0x9DB58A)   // erledigt
+    static let leafWash = Color(light: 0xE4EBD9, dark: 0x18200F)
+    static let berry   = Color(light: 0xB0434B, dark: 0xE27C82)   // Erkrankungen, überfällig
+    static let honey   = Color(light: 0xB98A2A, dark: 0xE3BC6A)   // beobachten, Serie
+    static let espresso = Color(light: 0x2A1D15, dark: 0x2A1D15)
 
-    // Schrift: modern und klar (SF Pro), Zahlen gerundet.
-    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .bold) }
-    static func number(_ style: Font.TextStyle) -> Font { .system(style, design: .rounded).weight(.bold).monospacedDigit() }
+    // Schrift: Überschriften und große Zahlen in einer feinen Serifenschrift (New York),
+    // alles andere in SF Pro. Gibt der App eine eigene Handschrift.
+    static func title(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .serif) }
+    static func number(_ style: Font.TextStyle) -> Font { .system(style, design: .serif).weight(.semibold).monospacedDigit() }
+    static func display(_ size: CGFloat) -> Font { .system(size: size, weight: .medium, design: .serif) }
 
     /// Warmer Schimmer hinter dem Glas – eine einzige Farbe, nicht bunt.
     static let glow = Color(light: 0xEE8C50, dark: 0xF08A4B)
@@ -165,9 +168,22 @@ struct HandTitle: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: size, weight: .bold))
-            .tracking(-0.4)
+            .font(Theme.title(size))
+            .tracking(-0.5)
             .foregroundStyle(Theme.ink)
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+// MARK: - Abschnitts-Titel
+
+extension View {
+    /// Kleiner Abschnitts-Titel in Versalien, z. B. "MEDIKAMENTE".
+    func sectionLabel() -> some View {
+        self
+            .font(.caption.weight(.semibold))
+            .tracking(1.1)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.inkSoft)
     }
 }

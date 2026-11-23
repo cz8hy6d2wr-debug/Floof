@@ -150,9 +150,7 @@ private struct CareRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: entry.careKind.symbol)
-                .foregroundStyle(Theme.carrot)
-                .frame(width: 24)
+            FloofIcon(symbol: entry.careKind.symbol, size: 20)
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.title).font(.body.weight(.semibold))
                 if !entry.details.isEmpty {

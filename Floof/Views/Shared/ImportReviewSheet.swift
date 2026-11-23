@@ -17,7 +17,7 @@ struct ImportReviewSheet: View {
                         Image("FloofLogo")
                             .resizable().scaledToFit()
                             .frame(width: 64, height: 64)
-                            .rotationEffect(.degrees(-6))
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                         VStack(alignment: .leading, spacing: 4) {
                             HandTitle(text: "Floof-Daten empfangen", size: 24)
                             Text("Schau kurz drüber, bevor du sie übernimmst.")

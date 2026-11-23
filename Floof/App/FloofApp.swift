@@ -9,6 +9,19 @@ struct FloofApp: App {
         let store = DemoMode.isActive ? PetStore.preview : PetStore.load()
         _store = State(initialValue: store)
         if !DemoMode.isActive { SyncManager.shared.attach(store) }
+        Self.styleNavigationTitles()
+    }
+
+    /// Seitentitel in der Serifenschrift der App (New York) statt im System-Standard.
+    private static func styleNavigationTitles() {
+        func serif(_ size: CGFloat, _ weight: UIFont.Weight) -> UIFont {
+            let base = UIFont.systemFont(ofSize: size, weight: weight)
+            guard let descriptor = base.fontDescriptor.withDesign(.serif) else { return base }
+            return UIFont(descriptor: descriptor, size: size)
+        }
+        let bar = UINavigationBar.appearance()
+        bar.largeTitleTextAttributes = [.font: serif(34, .semibold)]
+        bar.titleTextAttributes = [.font: serif(17, .semibold)]
     }
 
     var body: some Scene {
