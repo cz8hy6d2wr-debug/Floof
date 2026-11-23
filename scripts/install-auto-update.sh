@@ -32,7 +32,9 @@ OLD_DIR="${OLD_DIR%/}"; OLD_DIR="${OLD_DIR//\\ / }"
 TEAM_GUESS=""; BUNDLE_GUESS=""
 if [ -n "$OLD_DIR" ] && [ -f "$OLD_DIR/Floof.xcodeproj/project.pbxproj" ]; then
     TEAM_GUESS=$(grep -m1 -o 'DEVELOPMENT_TEAM = [A-Z0-9]*' "$OLD_DIR/Floof.xcodeproj/project.pbxproj" | awk '{print $3}' || true)
-    BUNDLE_GUESS=$(grep -m1 -o 'PRODUCT_BUNDLE_IDENTIFIER = [^;]*' "$OLD_DIR/Floof.xcodeproj/project.pbxproj" | awk '{print $3}' || true)
+    PBX="$OLD_DIR/Floof.xcodeproj/project.pbxproj"
+    BUNDLE_GUESS=$(grep -m1 -o 'FLOOF_BUNDLE_ID = [^;]*' "$PBX" | awk '{print $3}' || true)
+    [ -n "$BUNDLE_GUESS" ] || BUNDLE_GUESS=$(grep -m1 -o 'PRODUCT_BUNDLE_IDENTIFIER = [^;$]*;' "$PBX" | awk '{print $3}' | tr -d ';' || true)
 fi
 read -r -p "Team-ID [${TEAM_GUESS:-z. B. AB12CD34EF}]: " TEAM_ID
 TEAM_ID="${TEAM_ID:-$TEAM_GUESS}"

@@ -35,19 +35,36 @@ DEVICES="${DEVICES:-${DEVICE:-}}"
 cd "$REPO_DIR" || fail "Projektordner $REPO_DIR nicht gefunden."
 
 echo "→ Neueste Version holen"
+BEFORE="$(git hash-object "$0" 2>/dev/null || true)"
 git pull --ff-only || fail "Code konnte nicht aktualisiert werden (git pull)."
+# Hat sich dieses Skript selbst geändert? Dann gleich mit der neuen Fassung weitermachen.
+if [ -z "${FLOOF_REEXEC:-}" ] && [ "$BEFORE" != "$(git hash-object "$0" 2>/dev/null || true)" ]; then
+    echo "→ Update-Skript wurde erneuert, starte neu"
+    FLOOF_REEXEC=1 exec /bin/bash "$0" "$@"
+fi
 
-echo "→ App bauen und signieren"
-xcodebuild \
-    -project Floof.xcodeproj \
-    -target Floof \
-    -sdk iphoneos \
-    -configuration Release \
-    DEVELOPMENT_TEAM="$TEAM_ID" \
-    PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-    CODE_SIGN_STYLE=Automatic \
-    -allowProvisioningUpdates \
-    build -quiet || fail "Die App konnte nicht gebaut werden."
+build() {  # $@ zusätzliche Build-Einstellungen
+    xcodebuild \
+        -project Floof.xcodeproj \
+        -target Floof \
+        -sdk iphoneos \
+        -configuration Release \
+        DEVELOPMENT_TEAM="$TEAM_ID" \
+        FLOOF_BUNDLE_ID="$BUNDLE_ID" \
+        CODE_SIGN_STYLE=Automatic \
+        -allowProvisioningUpdates \
+        "$@" \
+        build -quiet
+}
+
+echo "→ App bauen und signieren (mit Widgets)"
+if ! build; then
+    # Kostenlose Apple-Accounts erlauben die App-Gruppe nicht immer. Dann ohne sie bauen:
+    # Die App läuft normal, die Widgets zeigen nur "Floof öffnen".
+    echo "→ Zweiter Versuch ohne App-Gruppe"
+    build CODE_SIGN_ENTITLEMENTS= || fail "Die App konnte nicht gebaut werden."
+    notify "Floof: Widgets eingeschränkt" "Dein Apple-Account erlaubt keine App-Gruppe – die App läuft, Widgets zeigen keine Daten."
+fi
 
 APP="$REPO_DIR/build/Release-iphoneos/Floof.app"
 [ -d "$APP" ] || fail "Gebaute App nicht gefunden."
