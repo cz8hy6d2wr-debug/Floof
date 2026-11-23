@@ -136,7 +136,7 @@ struct WCheck: View {
 struct WOpenApp: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Image("FloofMark").resizable().scaledToFit().frame(width: 30, height: 30)
+            Image("FloofMark").resizable().scaledToFit().frame(width: 30, height: 30).foregroundStyle(WStyle.ink)
             Spacer(minLength: 0)
             Text("Floof öffnen").font(WStyle.serif(17, .semibold)).foregroundStyle(WStyle.ink)
             Text("Dann erscheint hier dein Tag.").font(.caption).foregroundStyle(WStyle.soft)
