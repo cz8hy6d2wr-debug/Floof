@@ -5,6 +5,8 @@ import UIKit
 ///
 /// - **Binky:** Überschrift auf "Heute" fünfmal schnell antippen – ein Kaninchen hüpft
 ///   mit Luftsprung-Drehung über den Bildschirm (so springen Kaninchen vor Freude).
+///   Aufgeklappt springt es mit dem großen Satz genau über den Falz.
+/// - **Kuckuck:** Beim Aufklappen schaut ab und zu ein Kaninchen aus dem Falz.
 /// - **Möhrenregen:** iPhone schütteln.
 /// - **Wusstest du?:** Im "Mehr"-Tab unten auf das Floof-Zeichen tippen – jedes Mal ein Kaninchen-Fakt.
 /// - **Besondere Tage:** Ostern, Tag des Kaninchens (4. Samstag im September),
@@ -17,6 +19,8 @@ final class EasterEggs {
     enum Effect: Equatable {
         case binky
         case carrotRain
+        /// Aufgeklappt: Ein Kaninchen schaut kurz aus dem Falz.
+        case peek
         case fact(String)
     }
 
@@ -33,6 +37,7 @@ final class EasterEggs {
         let duration: Double = switch effect {
         case .binky: 2.4
         case .carrotRain: 3.6
+        case .peek: 2.6
         case .fact: 7
         }
         Task {
@@ -54,6 +59,21 @@ final class EasterEggs {
         } else {
             taps[key] = list
             if list.count >= 2 { UISelectionFeedbackGenerator().selectionChanged() }
+        }
+    }
+
+    /// Beim Aufklappen: höchstens einmal am Tag, und nur jedes dritte Mal – damit es eine Überraschung bleibt.
+    func didUnfold() {
+        let key = "floof.egg.peek"
+        let today = DoseKey.day(.now)
+        guard UserDefaults.standard.string(forKey: key) != today else { return }
+        let count = UserDefaults.standard.integer(forKey: key + ".count") + 1
+        UserDefaults.standard.set(count, forKey: key + ".count")
+        guard count % 3 == 1 else { return }
+        UserDefaults.standard.set(today, forKey: key)
+        Task {
+            try? await Task.sleep(for: .seconds(0.6))   // erst die Umstellung auf zwei Spalten abwarten
+            play(.peek)
         }
     }
 
@@ -167,7 +187,8 @@ struct EasterEggOverlay: View {
     var body: some View {
         ZStack {
             switch eggs.effect {
-            case .binky: BinkyView().id(eggs.effectID)
+            case .binky: BinkyView(acrossFold: posture == .unfolded).id(eggs.effectID)
+            case .peek: FoldPeek().id(eggs.effectID)
             case .carrotRain: CarrotRain().id(eggs.effectID)
             case .fact(let text): FactCard(text: text, posture: posture).id(eggs.effectID)
             case nil: EmptyView()
@@ -182,6 +203,8 @@ struct EasterEggOverlay: View {
 
 /// Ein Kaninchen hüpft von links nach rechts, beim dritten Sprung mit Drehung (Binky).
 private struct BinkyView: View {
+    /// Aufgeklappt: drei Sprünge, der große genau über dem Falz.
+    var acrossFold = false
     @State private var start = Date.now
     private let duration = 2.2
 
@@ -189,14 +212,15 @@ private struct BinkyView: View {
         GeometryReader { proxy in
             TimelineView(.animation) { context in
                 let t = min(1, context.date.timeIntervalSince(start) / duration)
-                let hops = 4.0
+                let hops = acrossFold ? 3.0 : 4.0
+                let bigHop = acrossFold ? 1 : 2
                 let phase = t * hops
                 let hop = phase.truncatingRemainder(dividingBy: 1)
                 let hopIndex = Int(phase)
-                let height: CGFloat = hopIndex == 2 ? 170 : 70
+                let height: CGFloat = hopIndex == bigHop ? (acrossFold ? 220 : 170) : 70
                 let x = -70 + (proxy.size.width + 140) * t
                 let y = proxy.size.height * 0.62 - sin(hop * .pi) * height
-                let spin = hopIndex == 2 ? hop * 360 : 0
+                let spin = hopIndex == bigHop ? hop * 360 : 0
                 ZStack {
                     Image("FloofMark")
                         .resizable()
@@ -207,14 +231,55 @@ private struct BinkyView: View {
                         .scaleEffect(x: 1, y: hop < 0.12 || hop > 0.88 ? 0.86 : 1, anchor: .bottom)
                         .shadow(color: .black.opacity(0.3), radius: 6, y: 4)
                         .position(x: x, y: y)
-                    if hopIndex == 2 {
-                        Text("Binky!")
+                    if hopIndex == bigHop {
+                        Text(acrossFold ? "Über den Falz!" : "Binky!")
                             .font(Theme.title(28))
                             .foregroundStyle(Theme.carrot)
                             .position(x: x, y: y - 70)
                             .opacity(sin(hop * .pi))
                     }
                 }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Aufgeklappt: Ein Kaninchen taucht unten aus dem Falz auf, schaut, wackelt mit den Ohren und verschwindet.
+private struct FoldPeek: View {
+    @State private var start = Date.now
+    private let duration = 2.4
+
+    var body: some View {
+        GeometryReader { proxy in
+            TimelineView(.animation) { context in
+                let t = min(1, context.date.timeIntervalSince(start) / duration)
+                // 0–0.25 hoch, 0.25–0.75 schauen, 0.75–1 runter
+                let rise: Double = t < 0.25 ? t / 0.25 : (t > 0.75 ? (1 - t) / 0.25 : 1)
+                let eased = 1 - pow(1 - rise, 3)
+                let wiggle = (t > 0.3 && t < 0.7) ? sin(t * 40) * 6 : 0
+                let size: CGFloat = 92
+                ZStack {
+                    Image("FloofMark")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: size, height: size)
+                        .rotationEffect(.degrees(wiggle), anchor: .bottom)
+                        .offset(y: (1 - eased) * size * 1.1)
+                        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                    Text("Kuckuck!")
+                        .font(Theme.title(20))
+                        .foregroundStyle(Theme.carrot)
+                        .offset(y: -size * 0.85)
+                        .opacity(t > 0.3 && t < 0.72 ? 1 : 0)
+                        .animation(.easeOut(duration: 0.2), value: t > 0.3 && t < 0.72)
+                }
+                .frame(width: size * 2, height: size * 2.4, alignment: .bottom)
+                .clipped()
+                // Genau auf dem Falz, knapp über der Tab-Leiste.
+                .position(x: proxy.size.width / 2, y: proxy.size.height - size * 1.2 - 110)
             }
         }
         .allowsHitTesting(false)

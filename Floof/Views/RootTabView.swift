@@ -50,6 +50,9 @@ struct RootTabView: View {
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
         .environment(\.devicePosture, posture)
         .animation(.smooth(duration: 0.35), value: posture)
+        .onChange(of: posture) { old, new in
+            if old == .folded, new == .unfolded { EasterEggs.shared.didUnfold() }
+        }
         .celebrations(store)
         .overlay { EasterEggOverlay(posture: posture) }
         .overlay(alignment: .top) { ToastView() }
