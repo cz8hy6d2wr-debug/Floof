@@ -9,6 +9,8 @@ struct TodayView: View {
     @Environment(PetStore.self) private var store
     @State private var newEntry: DiaryEntry?
     @State private var selection = TodaySelection()
+    @State private var effectRun = 0
+    private var weather: WeatherStore { WeatherStore.shared }
 
     var body: some View {
         NavigationStack {
@@ -27,6 +29,15 @@ struct TodayView: View {
                 }
             }
             .ambientBackground()
+            // Wetter rund um die Dynamic Island – 10 Sekunden beim Öffnen.
+            .overlay(alignment: .top) {
+                if !store.pets.isEmpty, let condition = weather.condition, let w = weather.current {
+                    WeatherIslandEffect(condition: condition, temperature: Int(w.temperature.rounded()))
+                        .id("\(condition.rawValue)-\(effectRun)")
+                }
+            }
+            .onAppear { effectRun += 1 }
+            .task { await weather.refreshIfNeeded() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !store.pets.isEmpty {

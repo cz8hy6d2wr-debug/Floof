@@ -50,7 +50,9 @@ enum WidgetBridge {
         }
         return WidgetSnapshot(day: .now, doses: doses, checks: checks,
                               weight: weightPet.map { .init(petName: $0.0.name, grams: $0.1.grams, date: $0.1.date) },
-                              cabinetAlert: alert, lastActivity: last, carrots: store.game.carrots)
+                              cabinetAlert: alert, lastActivity: last, carrots: store.game.carrots,
+                              weather: WeatherStore.shared.summary,
+                              weatherSymbol: WeatherStore.shared.condition.map(WeatherStore.symbol))
     }
 
     // MARK: Live-Aktivität

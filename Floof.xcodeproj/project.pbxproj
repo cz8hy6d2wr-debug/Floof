@@ -311,6 +311,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Floof/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Floof nutzt deinen ungefähren Standort nur für das Wetter – damit du an heißen Tagen rechtzeitig an kühle Plätze für deine Kaninchen denkst.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Floof;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
@@ -342,6 +343,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Floof/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Floof nutzt deinen ungefähren Standort nur für das Wetter – damit du an heißen Tagen rechtzeitig an kühle Plätze für deine Kaninchen denkst.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Floof;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";

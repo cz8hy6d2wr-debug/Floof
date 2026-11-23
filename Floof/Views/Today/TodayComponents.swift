@@ -46,6 +46,20 @@ struct TodayHeader: View {
                 // Fünfmal schnell tippen …
                 .onTapGesture { EasterEggs.shared.tap("headline", needed: 5, then: .binky) }
 
+            if selection.isToday, let summary = WeatherStore.shared.summary,
+               let condition = WeatherStore.shared.condition {
+                HStack(spacing: 6) {
+                    Image(systemName: WeatherStore.symbol(condition))
+                        .symbolRenderingMode(.multicolor)
+                    Text(condition == .storm && store.pets.count >= 1
+                         ? "\(summary) · \(store.pets.map(\.name).formatted(.list(type: .and))) \(store.pets.count == 1 ? "versteckt" : "verstecken") sich lieber im Häuschen."
+                         : summary)
+                        .lineLimit(2)
+                }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.inkSoft)
+            }
+
             if selection.isToday, let special = EasterEggs.specialLine(pets: store.pets) {
                 Label {
                     Text(special.text)

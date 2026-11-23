@@ -41,9 +41,12 @@ struct WidgetSnapshot: Codable, Equatable {
     var cabinetAlert: CabinetAlert?
     var lastActivity: String?
     var carrots: Int
+    /// "24° · sonnig · bis 29°" (optional, ältere Stände haben es nicht).
+    var weather: String?
+    var weatherSymbol: String?
 
     static let empty = WidgetSnapshot(day: .now, doses: [], checks: [], weight: nil,
-                                      cabinetAlert: nil, lastActivity: nil, carrots: 0)
+                                      cabinetAlert: nil, lastActivity: nil, carrots: 0, weather: nil, weatherSymbol: nil)
 
     // MARK: Ableitungen
 

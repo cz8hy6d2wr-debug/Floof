@@ -58,7 +58,7 @@ extension WidgetSnapshot {
             weight: .init(petName: "Brownie", grams: 1820, date: .now.addingTimeInterval(-3 * 86_400)),
             cabinetAlert: .init(name: "Panacur", text: "Noch 6 Tage"),
             lastActivity: "Anna · 07:02 · Gabapentin für Brownie gegeben",
-            carrots: 240)
+            carrots: 240, weather: "24° · sonnig · bis 29°", weatherSymbol: "sun.max.fill")
     }()
 
     /// "Noch zwei Gaben für Brownie." – derselbe Ton wie in der App.
@@ -360,7 +360,19 @@ struct OverviewView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 3) {
-                        WCaption(text: entry.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                        HStack(spacing: 6) {
+                            WCaption(text: entry.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                            if let weather = s.weather {
+                                HStack(spacing: 3) {
+                                    if let symbol = s.weatherSymbol {
+                                        Image(systemName: symbol).symbolRenderingMode(.multicolor)
+                                    }
+                                    Text(weather).lineLimit(1)
+                                }
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(WStyle.soft)
+                            }
+                        }
                         Text(s.headline)
                             .font(WStyle.serif(22))
                             .foregroundStyle(WStyle.ink)
