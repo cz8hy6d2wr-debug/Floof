@@ -162,13 +162,14 @@ extension UIWindow {
 
 struct EasterEggOverlay: View {
     let eggs = EasterEggs.shared
+    var posture: DevicePosture = .folded
 
     var body: some View {
         ZStack {
             switch eggs.effect {
             case .binky: BinkyView().id(eggs.effectID)
             case .carrotRain: CarrotRain().id(eggs.effectID)
-            case .fact(let text): FactCard(text: text).id(eggs.effectID)
+            case .fact(let text): FactCard(text: text, posture: posture).id(eggs.effectID)
             case nil: EmptyView()
             }
         }
@@ -264,8 +265,21 @@ private struct CarrotRain: View {
 /// "Wusstest du?" – Karte oben, Tipp schließt sie.
 private struct FactCard: View {
     let text: String
+    var posture: DevicePosture = .folded
 
     var body: some View {
+        GeometryReader { proxy in
+            card
+                // Aufgeklappt: nur in der linken Hälfte, nie über den Falz.
+                .frame(width: posture == .unfolded
+                       ? (proxy.size.width - FoldLayout.hingeGutter) / 2 - FoldLayout.outerMargin + 16
+                       : proxy.size.width,
+                       alignment: .leading)
+                .padding(.leading, posture == .unfolded ? FoldLayout.outerMargin - 16 : 0)
+        }
+    }
+
+    private var card: some View {
         VStack {
             HStack(alignment: .top, spacing: 12) {
                 FloofIcon(symbol: "lightbulb", size: 26)
