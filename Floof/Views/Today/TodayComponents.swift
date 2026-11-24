@@ -243,6 +243,7 @@ struct WeekStrip: View {
                     dayCell(day)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 12).padding(.bottom, 6).padding(.horizontal, 6)
         .glassPanel(cornerRadius: 26)
@@ -279,10 +280,12 @@ struct WeekStrip: View {
                         .foregroundStyle(tint.opacity(0.6))
                         .padding(.top, -3)
                 }
+                Spacer(minLength: 0)
                 Circle().fill(dotColor(day)).frame(width: 5, height: 5)
             }
             .foregroundStyle(selected ? Theme.paper : Theme.ink)
-            .frame(maxWidth: .infinity)
+            // Alle Tage gleich hoch und oben bündig – auch ohne Vorhersage (z. B. gestern).
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.vertical, 8)
             .background {
                 ZStack {

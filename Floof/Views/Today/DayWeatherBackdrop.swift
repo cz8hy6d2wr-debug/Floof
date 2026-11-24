@@ -61,9 +61,10 @@ struct DayWeatherBackdrop: View {
             var crystals = Path()
             for i in 0..<7 {
                 let top = i % 2 == 0
-                let origin = CGPoint(x: w * (0.1 + 0.8 * r(i, 1)), y: top ? 1 : h - 1)
+                let corner = r(i, 1)
+                let origin = CGPoint(x: w * (corner < 0.5 ? 0.06 + 0.2 * corner : 0.74 + 0.2 * (corner - 0.5)), y: top ? 1 : h - 1)
                 let inward = top ? Double.pi / 2 : -Double.pi / 2
-                let length = 4 + 6 * r(i, 2)
+                let length = 3 + 5 * r(i, 2)
                 for a in [-0.6, 0.0, 0.6] {
                     crystals.move(to: origin)
                     crystals.addLine(to: CGPoint(x: origin.x + cos(inward + a) * length, y: origin.y + sin(inward + a) * length))
@@ -105,7 +106,7 @@ struct DayWeatherBackdrop: View {
                     let y = y0 + sin(x * 0.28 + t * 5 + Double(i)) * 1.8
                     x == 0 ? wave.move(to: CGPoint(x: x, y: y)) : wave.addLine(to: CGPoint(x: x, y: y))
                 }
-                gc.stroke(wave, with: .color(warm.opacity(0.28 * sin(progress * .pi))), lineWidth: 0.9)
+                gc.stroke(wave, with: .color(warm.opacity(0.18 * sin(progress * .pi))), lineWidth: 0.8)
             }
             for i in 0..<4 {
                 let progress = ((t * 0.09 + r(i, 7)).truncatingRemainder(dividingBy: 1))
@@ -156,12 +157,13 @@ struct DayWeatherBackdrop: View {
             for i in 0..<3 {
                 let speed = 0.45 + 0.3 * r(i, 17)
                 let x = ((t * speed + r(i, 18)).truncatingRemainder(dividingBy: 1)) * (w + 30) - 20
-                let y = h * (0.22 + 0.28 * Double(i)) + sin(t * 2 + Double(i)) * 1.5
+                // Zwischen den Textzeilen, damit nichts wie durchgestrichen aussieht.
+                let y = h * [0.31, 0.49, 0.83][i] + sin(t * 2 + Double(i)) * 1.2
                 var streak = Path()
                 streak.move(to: CGPoint(x: x, y: y))
                 streak.addCurve(to: CGPoint(x: x + 16, y: y),
                                 control1: CGPoint(x: x + 5, y: y - 2), control2: CGPoint(x: x + 11, y: y + 2))
-                gc.stroke(streak, with: .color((onLight ? mist : .white).opacity(onLight ? 0.6 : 0.4)), lineWidth: 1)
+                gc.stroke(streak, with: .color((onLight ? mist : .white).opacity(onLight ? 0.5 : 0.3)), lineWidth: 0.9)
             }
 
         case .fog:
