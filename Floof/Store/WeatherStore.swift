@@ -6,8 +6,8 @@ import Observation
 /// Gefragt wird nur der ungefähre Standort; das Ergebnis wird eine Stunde zwischengespeichert.
 ///
 /// Cinnamon und Brownie wohnen drinnen: Wichtig ist vor allem Hitze – an heißen Tagen
-/// wird es auch in der Wohnung warm. Frost und Regen lösen keine Hinweise aus,
-/// sondern nur die Animation an der Dynamic Island.
+/// wird es auch in der Wohnung warm. Das Wetter erscheint in den Tagen des Wochenkalenders
+/// (Symbol, Temperatur, leichte Animation); einen Hinweis gibt es nur bei Hitze.
 @MainActor
 @Observable
 final class WeatherStore: NSObject {
@@ -23,6 +23,16 @@ final class WeatherStore: NSObject {
         var isDay: Bool
         /// Stunde (0–23), ab der es heute 25 °C oder mehr hat – für "ab 14 Uhr heiß".
         var hotFromHour: Int?
+        /// Vorhersage für die nächsten 7 Tage (ältere gespeicherte Stände haben sie nicht).
+        var daily: [Day]?
+
+        struct Day: Codable, Equatable {
+            var date: String      // "yyyy-MM-dd"
+            var hi: Double
+            var lo: Double
+            var code: Int
+            var wind: Double
+        }
     }
 
     enum Condition: String, Equatable {
@@ -43,6 +53,21 @@ final class WeatherStore: NSObject {
            let cached = try? JSONDecoder().decode(Weather.self, from: data) {
             weather = cached
         }
+        if DemoMode.isActive { weather = Self.demoWeather() }
+    }
+
+    /// Beispielwetter für Screenshots (Demo-Modus): alle Lagen einmal in der Woche.
+    private static func demoWeather() -> Weather {
+        let rows: [(Double, Double, Int, Double)] = [
+            (27, 19, 0, 10), (21, 15, 3, 14), (15, 11, 63, 18), (11, 6, 2, 41),
+            (3, -1, 73, 12), (1, -4, 45, 6), (8, 2, 95, 22),
+        ]
+        let days: [Weather.Day] = rows.enumerated().map { i, r in
+            let date = Calendar.current.date(byAdding: .day, value: i, to: .now) ?? .now
+            return Weather.Day(date: DoseKey.day(date), hi: r.0, lo: r.1, code: r.2, wind: r.3)
+        }
+        return Weather(fetched: .now, temperature: 24, high: 27, low: 19, code: 0, wind: 10, isDay: true,
+                       hotFromHour: 13, daily: days)
     }
 
     /// Aktuelles Wetter, nur wenn es von heute und höchstens drei Stunden alt ist.
@@ -91,10 +116,56 @@ final class WeatherStore: NSObject {
         return result
     }
 
+    /// Vorhersage für einen Tag (heute und die nächsten 6 Tage), sonst `nil`.
+    func forecast(on day: Date) -> Weather.Day? {
+        guard let weather, Date.now.timeIntervalSince(weather.fetched) < 24 * 3600 else { return nil }
+        let key = DoseKey.day(day)
+        return weather.daily?.first { $0.date == key }
+    }
+
+    /// Lagen eines Tages (für Symbol und Animation im Kalender).
+    static func conditions(for day: Weather.Day) -> [Condition] {
+        var result: [Condition] = []
+        switch day.code {
+        case 95...99: result.append(.storm)
+        case 71...77, 85, 86: result.append(.snow)
+        case 51...67, 80...82: result.append(.rain)
+        case 45, 48: result.append(.fog)
+        default: break
+        }
+        if day.wind >= 35 { result.append(.wind) }
+        if day.lo <= 0 { result.append(.frost) }
+        if day.hi >= 25 { result.append(.heat) }
+        if result.isEmpty || result == [.wind] || result == [.frost] {
+            result.append(day.code >= 2 ? .clouds : .clear)
+        }
+        return result
+    }
+
+    /// Wichtigste Lage eines Tages – bestimmt das Symbol.
+    static func condition(for day: Weather.Day) -> Condition {
+        conditions(for: day).min { priority.firstIndex(of: $0)! < priority.firstIndex(of: $1)! } ?? .clear
+    }
+
+    /// Schlichtes Linien-Symbol für den Kalender.
+    static func lineSymbol(_ c: Condition) -> String {
+        switch c {
+        case .clear, .heat: "sun.max"
+        case .night: "moon.stars"
+        case .clouds: "cloud"
+        case .fog: "cloud.fog"
+        case .rain: "cloud.rain"
+        case .snow: "cloud.snow"
+        case .storm: "cloud.bolt"
+        case .wind: "wind"
+        case .frost: "thermometer.snowflake"
+        }
+    }
+
     /// Lädt neu, wenn der letzte Stand älter als eine Stunde ist.
     func refreshIfNeeded() async {
         guard !DemoMode.isActive, !loading else { return }
-        if let weather, Date.now.timeIntervalSince(weather.fetched) < 3600 { return }
+        if let weather, weather.daily != nil, Date.now.timeIntervalSince(weather.fetched) < 3600 { return }
         loading = true
         defer { loading = false }
         guard let location = await requestLocation() else { return }
@@ -108,14 +179,21 @@ final class WeatherStore: NSObject {
             .init(name: "longitude", value: String(format: "%.2f", c.longitude)),
             .init(name: "current", value: "temperature_2m,weather_code,wind_speed_10m,is_day"),
             .init(name: "hourly", value: "temperature_2m"),
-            .init(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
-            .init(name: "forecast_days", value: "1"),
+            .init(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max"),
+            .init(name: "forecast_days", value: "7"),
             .init(name: "timezone", value: "auto"),
         ]
         guard let url = parts.url,
               let (data, _) = try? await URLSession.shared.data(from: url),
               let response = try? JSONDecoder().decode(OpenMeteo.self, from: data) else { return }
-        let hot = response.hourly.temperature_2m.firstIndex { $0 >= 25 }
+        let hot = response.hourly.temperature_2m.prefix(24).firstIndex { $0 >= 25 }   // nur heute
+        let d = response.daily
+        let days: [Weather.Day] = d.time.indices.compactMap { i in
+            guard i < d.temperature_2m_max.count, i < d.temperature_2m_min.count,
+                  i < d.weather_code.count, i < d.wind_speed_10m_max.count else { return nil }
+            return Weather.Day(date: d.time[i], hi: d.temperature_2m_max[i], lo: d.temperature_2m_min[i],
+                               code: d.weather_code[i], wind: d.wind_speed_10m_max[i])
+        }
         let w = Weather(fetched: .now,
                         temperature: response.current.temperature_2m,
                         high: response.daily.temperature_2m_max.first ?? response.current.temperature_2m,
@@ -123,7 +201,8 @@ final class WeatherStore: NSObject {
                         code: response.current.weather_code,
                         wind: response.current.wind_speed_10m,
                         isDay: response.current.is_day == 1,
-                        hotFromHour: hot)
+                        hotFromHour: hot,
+                        daily: days)
         weather = w
         if let encoded = try? JSONEncoder().encode(w) { UserDefaults.standard.set(encoded, forKey: Self.cacheKey) }
         WidgetBridge.refresh(from: PetStore.shared)
@@ -132,7 +211,13 @@ final class WeatherStore: NSObject {
     private struct OpenMeteo: Decodable {
         struct Current: Decodable { let temperature_2m: Double; let weather_code: Int; let wind_speed_10m: Double; let is_day: Int }
         struct Hourly: Decodable { let temperature_2m: [Double] }
-        struct Daily: Decodable { let temperature_2m_max: [Double]; let temperature_2m_min: [Double] }
+        struct Daily: Decodable {
+            let time: [String]
+            let weather_code: [Int]
+            let temperature_2m_max: [Double]
+            let temperature_2m_min: [Double]
+            let wind_speed_10m_max: [Double]
+        }
         let current: Current
         let hourly: Hourly
         let daily: Daily

@@ -46,20 +46,6 @@ struct TodayHeader: View {
                 // Fünfmal schnell tippen …
                 .onTapGesture { EasterEggs.shared.tap("headline", needed: 5, then: .binky) }
 
-            if selection.isToday, let summary = WeatherStore.shared.summary,
-               let condition = WeatherStore.shared.condition {
-                HStack(spacing: 6) {
-                    Image(systemName: WeatherStore.symbol(condition))
-                        .symbolRenderingMode(.multicolor)
-                    Text(condition == .storm && store.pets.count >= 1
-                         ? "\(summary) · \(store.pets.map(\.name).formatted(.list(type: .and))) \(store.pets.count == 1 ? "versteckt" : "verstecken") sich lieber im Häuschen."
-                         : summary)
-                        .lineLimit(2)
-                }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Theme.inkSoft)
-            }
-
             if selection.isToday, let special = EasterEggs.specialLine(pets: store.pets) {
                 Label {
                     Text(special.text)
@@ -219,6 +205,8 @@ struct WeekStrip: View {
     @Environment(PetStore.self) private var store
     @Binding var selection: TodaySelection
     @Namespace private var glass
+    @Environment(\.colorScheme) private var scheme
+    private var weather: WeatherStore { WeatherStore.shared }
 
     private var cal: Calendar {
         var c = Calendar.current
@@ -264,33 +252,69 @@ struct WeekStrip: View {
     private func dayCell(_ day: Date) -> some View {
         let selected = cal.isDate(day, inSameDayAs: selection.day)
         let today = cal.isDateInToday(day)
+        let forecast = weather.forecast(on: day)
+        // Heller Untergrund? Gewählter Tag: Creme im Dunkeln. Sonst: das helle Glas im hellen Modus.
+        let onLight = selected ? scheme == .dark : scheme == .light
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
         return Button {
             move(to: day)
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 5) {
                 Text(day, format: .dateTime.weekday(.narrow))
                     .font(.caption2.weight(.semibold))
                     .opacity(0.6)
                 Text(day, format: .dateTime.day())
                     .font(.system(size: 17, weight: today ? .bold : .medium, design: .serif))
+                if let forecast {
+                    let tint = tempColor(hi: forecast.hi, onLight: onLight)
+                    Image(systemName: WeatherStore.lineSymbol(WeatherStore.condition(for: forecast)))
+                        .font(.system(size: 13))
+                        .foregroundStyle(tint)
+                        .frame(height: 16)
+                    Text("\(Int(forecast.hi.rounded()))°")
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(tint)
+                    Text("\(Int(forecast.lo.rounded()))°")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(tint.opacity(0.6))
+                        .padding(.top, -3)
+                }
                 Circle().fill(dotColor(day)).frame(width: 5, height: 5)
             }
             .foregroundStyle(selected ? Theme.paper : Theme.ink)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Theme.ink)
-                        .matchedGeometryEffect(id: "selected", in: glass)
+                ZStack {
+                    if selected {
+                        shape.fill(Theme.ink)
+                            .matchedGeometryEffect(id: "selected", in: glass)
+                    }
+                    if let forecast {
+                        DayWeatherBackdrop(conditions: WeatherStore.conditions(for: forecast), onLight: onLight)
+                            .clipShape(shape)
+                    }
                 }
             }
-            .opacity(day > cal.startOfDay(for: .now) && !selected ? 0.45 : 1)
+            .opacity(day > cal.startOfDay(for: .now) && !selected ? (forecast == nil ? 0.45 : 0.85) : 1)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(day.formatted(date: .complete, time: .omitted))
+        .accessibilityLabel(accessibilityText(day, forecast: forecast))
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Warm = Orange, kalt = Blau, sonst die normale Schriftfarbe – je nach Untergrund etwas dunkler oder heller.
+    private func tempColor(hi: Double, onLight: Bool) -> Color {
+        if hi >= 25 { return onLight ? Color(hex: 0xC25A22) : Color(hex: 0xE0864A) }
+        if hi <= 2 { return onLight ? Color(hex: 0x2F6F9F) : Color(hex: 0x8FC1E8) }
+        return onLight ? Color(hex: 0x2A1D15) : Color(hex: 0xF3E9DC)
+    }
+
+    private func accessibilityText(_ day: Date, forecast: WeatherStore.Weather.Day?) -> String {
+        let date = day.formatted(date: .complete, time: .omitted)
+        guard let forecast else { return date }
+        return "\(date), \(WeatherStore.label(WeatherStore.condition(for: forecast))), \(Int(forecast.hi.rounded())) Grad, nachts \(Int(forecast.lo.rounded())) Grad"
     }
 
     private func dotColor(_ day: Date) -> Color {

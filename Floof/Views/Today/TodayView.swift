@@ -9,7 +9,6 @@ struct TodayView: View {
     @Environment(PetStore.self) private var store
     @State private var newEntry: DiaryEntry?
     @State private var selection = TodaySelection()
-    @State private var effectRun = 0
     private var weather: WeatherStore { WeatherStore.shared }
 
     var body: some View {
@@ -28,16 +27,7 @@ struct TodayView: View {
                     }
                 }
             }
-            // Wetter als Hintergrund – 10 Sekunden beim Öffnen. Liegt hinter dem Inhalt
-            // und vor dem Hintergrundlicht (die Reihenfolge der Modifier ist Absicht).
-            .background {
-                if !store.pets.isEmpty, !weather.conditions.isEmpty {
-                    WeatherBackgroundEffect(conditions: weather.conditions)
-                        .id("\(weather.conditions.map(\.rawValue).joined(separator: "+"))-\(effectRun)")
-                }
-            }
             .ambientBackground()
-            .onAppear { effectRun += 1 }
             .task { await weather.refreshIfNeeded() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
