@@ -6,8 +6,8 @@ import Observation
 /// Gefragt wird nur der ungefähre Standort; das Ergebnis wird eine Stunde zwischengespeichert.
 ///
 /// Cinnamon und Brownie wohnen drinnen: Wichtig ist vor allem Hitze – an heißen Tagen
-/// wird es auch in der Wohnung warm. Das Wetter erscheint in den Tagen des Wochenkalenders
-/// (Symbol, Temperatur, leichte Animation); einen Hinweis gibt es nur bei Hitze.
+/// wird es auch in der Wohnung warm. Das Wetter erscheint im Wochenkalender (Symbol, Temperatur,
+/// leichte Animation). Hinweise richten sich nach der Haltung der Tiere (drinnen, gemischt, draußen).
 @MainActor
 @Observable
 final class WeatherStore: NSObject {
@@ -314,23 +314,105 @@ extension WeatherStore: CLLocationManagerDelegate {
     }
 }
 
-// MARK: - Hinweise für Wohnungskaninchen
+// MARK: - Wetter-Hinweise je nach Haltung
 
 extension PetStore {
-    /// Hitze-Hinweis: ab 25 °C draußen wird es auch drinnen warm, ab 28 °C kritisch.
-    var weatherHint: TodayHint? {
-        guard let w = WeatherStore.shared.current, w.high >= 25 else { return nil }
-        let names = pets.count == 2 ? "\(pets[0].name) & \(pets[1].name)" : "deine Kaninchen"
-        let from = w.hotFromHour.map { " ab \($0) Uhr" } ?? ""
-        if w.high >= 28 {
-            return TodayHint(id: "weather-heat", symbol: "thermometer.sun.fill",
-                             title: "Heute bis \(Int(w.high.rounded())) °C\(from)",
-                             detail: "Morgens lüften, dann Fenster & Rollos zu. Fliese oder Kühlakku (eingewickelt) für \(names), Wasser öfter frisch.",
-                             urgent: true, action: .article("not-hitze"), actionTitle: "Tipps")
+    /// Bis zu zwei Wetter-Hinweise für heute, passend zur Haltung der gewählten Tiere.
+    /// Maßgeblich ist das Tier, das dem Wetter am meisten ausgesetzt ist (draußen vor gemischt vor drinnen).
+    func weatherHints(for chosen: [Pet]) -> [TodayHint] {
+        let weather = WeatherStore.shared
+        guard let current = weather.current, let housing = chosen.map(\.housingOrDefault).max(by: { $0.exposure < $1.exposure })
+        else { return [] }
+        let day = weather.forecast(on: .now)
+        let hi = day?.hi ?? current.high
+        let lo = day?.lo ?? current.low
+        let code = day?.code ?? current.code
+        let wind = max(day?.wind ?? 0, current.wind)
+        let exposed = chosen.filter { $0.housingOrDefault == housing }
+        let names = exposed.count == 1 ? exposed[0].name
+            : exposed.count == 2 ? "\(exposed[0].name) & \(exposed[1].name)" : "deine Kaninchen"
+        let from = current.hotFromHour.map { " ab \($0) Uhr" } ?? ""
+        let high = Int(hi.rounded()), low = Int(lo.rounded())
+        let rain = (51...67).contains(code) || (80...82).contains(code)
+        let snow = (71...77).contains(code) || code == 85 || code == 86
+        let storm = (95...99).contains(code)
+        var hints: [TodayHint] = []
+
+        // Hitze – betrifft alle, draußen am stärksten.
+        switch housing {
+        case .indoor where hi >= 28:
+            hints.append(TodayHint(id: "weather-heat", symbol: "thermometer.sun.fill", title: "Heute bis \(high) °C\(from)",
+                                   detail: "Morgens lüften, dann Fenster & Rollos zu. Fliese oder Kühlakku (eingewickelt) für \(names), Wasser öfter frisch.",
+                                   urgent: true, action: .article("not-hitze"), actionTitle: "Tipps"))
+        case .indoor where hi >= 25:
+            hints.append(TodayHint(id: "weather-warm", symbol: "sun.max.fill", title: "Warm heute, bis \(high) °C",
+                                   detail: "Mittags abdunkeln und einen kühlen Liegeplatz anbieten.",
+                                   action: .article("not-hitze"), actionTitle: "Tipps"))
+        case .mixed where hi >= 25:
+            hints.append(TodayHint(id: "weather-heat", symbol: "thermometer.sun.fill", title: "Heute bis \(high) °C\(from)",
+                                   detail: "Auslauf nur morgens und abends im Schatten. Drinnen Rollos zu, kühler Liegeplatz für \(names).",
+                                   urgent: hi >= 28, action: .article("not-hitze"), actionTitle: "Tipps"))
+        case .outdoor where hi >= 25:
+            hints.append(TodayHint(id: "weather-heat", symbol: "thermometer.sun.fill",
+                                   title: hi >= 30 ? "Gefährlich heiß: \(high) °C\(from)" : "Heute bis \(high) °C\(from)",
+                                   detail: "Gehege den ganzen Tag beschatten – die Sonne wandert mit. Mehrere Näpfe, Fliese oder Kühlakku. Po von \(names) auf Fliegenmaden prüfen.",
+                                   urgent: true, action: .article("not-hitze"), actionTitle: "Tipps"))
+        default:
+            break
         }
-        return TodayHint(id: "weather-warm", symbol: "sun.max.fill",
-                         title: "Warm heute, bis \(Int(w.high.rounded())) °C",
-                         detail: "Mittags abdunkeln und einen kühlen Liegeplatz anbieten.",
-                         action: .article("not-hitze"), actionTitle: "Tipps")
+
+        // Frost
+        if lo <= 0 {
+            switch housing {
+            case .mixed:
+                hints.append(TodayHint(id: "weather-frost", symbol: "thermometer.snowflake", title: "Frost, bis \(low) °C",
+                                       detail: "Auslauf heute kurz halten – Wohnungskaninchen haben kein dichtes Winterfell.",
+                                       urgent: lo <= -5, action: .article("hal-draussen"), actionTitle: "Tipps"))
+            case .outdoor:
+                hints.append(TodayHint(id: "weather-frost", symbol: "thermometer.snowflake",
+                                       title: lo <= -8 ? "Strenger Frost, bis \(low) °C" : "Frost, bis \(low) °C",
+                                       detail: lo <= -8
+                                           ? "Schutzhaus zusätzlich dämmen, viel Stroh. Wasser mehrmals auf Eis prüfen. Kranke oder alte Tiere reinholen."
+                                           : "Wasser mehrmals auf Eis prüfen, frisches Stroh ins Schutzhaus.",
+                                       urgent: lo <= -8, action: .article("hal-draussen"), actionTitle: "Tipps"))
+            case .indoor:
+                break
+            }
+        }
+
+        // Gewitter, Sturm, Regen, Schnee, Wind
+        switch housing {
+        case .outdoor:
+            if storm || wind >= 50 {
+                hints.append(TodayHint(id: "weather-storm", symbol: storm ? "cloud.bolt.rain.fill" : "wind",
+                                       title: storm ? "Gewitter heute" : "Sturm, bis \(Int(wind.rounded())) km/h",
+                                       detail: "Gehege sichern, Schutzhaus windgeschützt und trocken halten.",
+                                       urgent: true, action: .article("hal-draussen"), actionTitle: "Tipps"))
+            } else if snow {
+                hints.append(TodayHint(id: "weather-snow", symbol: "cloud.snow.fill", title: "Schnee heute",
+                                       detail: "Eingang zum Schutzhaus freihalten, Wasser nicht einfrieren lassen.",
+                                       action: .article("hal-draussen"), actionTitle: "Tipps"))
+            } else if rain {
+                hints.append(TodayHint(id: "weather-rain", symbol: "cloud.rain.fill", title: "Regen heute",
+                                       detail: "Überdachter, trockener Platz für \(names)? Nasse Einstreu wechseln.",
+                                       action: .article("hal-draussen"), actionTitle: "Tipps"))
+            } else if wind >= 35 {
+                hints.append(TodayHint(id: "weather-wind", symbol: "wind", title: "Windig, bis \(Int(wind.rounded())) km/h",
+                                       detail: "Liegt das Schutzhaus zugfrei?",
+                                       action: .article("hal-draussen"), actionTitle: "Tipps"))
+            }
+        case .mixed:
+            if storm || rain || snow || wind >= 50 {
+                let what = storm ? "Gewitter" : snow ? "Schnee" : rain ? "Regen" : "Sturm"
+                hints.append(TodayHint(id: "weather-wet", symbol: storm ? "cloud.bolt.rain.fill" : snow ? "cloud.snow.fill" : rain ? "cloud.rain.fill" : "wind",
+                                       title: "\(what) heute",
+                                       detail: "Auslauf lieber drinnen – oder nur kurz, mit trockenem Unterschlupf.",
+                                       action: .article("hal-draussen"), actionTitle: "Tipps"))
+            }
+        case .indoor:
+            break
+        }
+
+        return Array(hints.sorted { $0.urgent && !$1.urgent }.prefix(2))
     }
 }

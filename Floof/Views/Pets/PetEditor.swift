@@ -43,6 +43,17 @@ struct PetEditor: View {
                     DatePicker("Geburtstag", selection: $pet.birthday, in: ...Date.now, displayedComponents: .date)
                 }
 
+                Section {
+                    Picker("Haltung", selection: Binding(get: { pet.housingOrDefault }, set: { pet.housing = $0 })) {
+                        ForEach(Housing.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("Haltung")
+                } footer: {
+                    Text("Gemischt heißt: drinnen mit Auslauf draußen, z. B. Balkon oder Garten. Danach richten sich die Wetter-Hinweise – drinnen nur Hitze, draußen auch Frost, Regen und Sturm.")
+                }
+
                 Section("Farbe") {
                     colorPicker
                 }

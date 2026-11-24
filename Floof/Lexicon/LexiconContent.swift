@@ -559,7 +559,37 @@ enum Lexicon {
                 """),
             ],
             keywords: ["Gehege", "Platzbedarf", "Kaninchensicher", "Temperatur"],
-            related: ["not-hitze", "ver-vg"]),
+            related: ["not-hitze", "ver-vg", "hal-draussen"]),
+
+        LexiconArticle(
+            id: "hal-draussen",
+            title: "Draußen bei jedem Wetter",
+            category: .housing,
+            summary: "Außenkaninchen vertragen Kälte gut – Nässe, Zugluft und Hitze sind die eigentlichen Gefahren.",
+            sections: [
+                LexiconSection(heading: "Kälte & Frost", body: """
+                • Nur Tiere draußen halten, die **ab Herbst langsam daran gewöhnt** wurden – dann bildet sich ein dichtes Winterfell.
+                • Ein **isoliertes, zugfreies Schutzhaus** mit viel Stroh und Heu, etwas erhöht vom Boden.
+                • Nie allein: Kaninchen wärmen sich gegenseitig.
+                • **Wasser mehrmals täglich auf Eis prüfen**, bei Frost lauwarm nachfüllen.
+                • Kranke, alte oder geschwächte Tiere (z. B. bei EC) besser drinnen überwintern.
+                """),
+                LexiconSection(heading: "Nässe & Wind", body: """
+                • Nässe zusammen mit Kälte ist gefährlicher als Kälte allein: immer einen **überdachten, trockenen Bereich** anbieten.
+                • Nasse Einstreu zügig wechseln.
+                • Bei Sturm das Gehege sichern, das Schutzhaus mit der Öffnung weg vom Wind stellen.
+                """),
+                LexiconSection(heading: "Hitze draußen", body: """
+                • **Ganztags Schatten** – die Sonne wandert, also morgens und nachmittags prüfen.
+                • Mehrere Wassernäpfe, Fliesen oder Kühlakkus zum Liegen.
+                • Im Sommer **täglich den Po kontrollieren** – Fliegen legen Eier in verschmutztes Fell.
+                """),
+                LexiconSection(heading: "Drinnen mit Auslauf", body: """
+                Wohnungskaninchen haben kein dichtes Winterfell. Bei Frost den Auslauf kurz halten und nicht ständig zwischen warmer Wohnung und Kälte wechseln. Bei Regen lieber drinnen bleiben oder einen trockenen Unterschlupf anbieten.
+                """),
+            ],
+            keywords: ["Außenhaltung", "Winter", "Frost", "Kälte", "Regen", "Sturm", "Auslauf", "Garten", "Balkon"],
+            related: ["not-hitze", "not-fliegen", "hal-platz"]),
     ]
 
     // MARK: - Futter-Check

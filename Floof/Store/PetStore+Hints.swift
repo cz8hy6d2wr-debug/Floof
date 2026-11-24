@@ -96,7 +96,7 @@ extension PetStore {
                 actionTitle: "Schreiben"))
         }
 
-        if let weather = weatherHint { hints.insert(weather, at: 0) }
+        hints.insert(contentsOf: weatherHints(for: chosen), at: 0)
         hints.sort { $0.urgent && !$1.urgent }
         if hints.isEmpty, let tip = tipOfTheDay {
             hints.append(TodayHint(id: "tip-\(tip.id)", symbol: "lightbulb", title: tip.title,

@@ -52,6 +52,10 @@ struct Pet: Codable, Identifiable, Hashable {
     var weighReminder: Bool?
     /// Pflege-Routinen; `nil` bei älteren Daten → Standard-Routinen.
     var routines: [CareRoutine]?
+    /// Wo das Tier lebt – steuert die Wetter-Hinweise. `nil` bei älteren Daten → drinnen.
+    var housing: Housing?
+
+    var housingOrDefault: Housing { housing ?? .indoor }
 
     var careRoutines: [CareRoutine] { routines ?? CareRoutine.defaults }
 
@@ -394,5 +398,29 @@ enum DoseKey {
     /// "yyyy-MM-dd" → Mittag dieses Tages (für Zeitleisten).
     static func date(_ key: String) -> Date? {
         formatter.date(from: key).flatMap { Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: $0) }
+    }
+}
+
+/// Haltung: bestimmt, welche Wetter-Hinweise sinnvoll sind.
+enum Housing: String, Codable, CaseIterable, Identifiable {
+    case indoor, mixed, outdoor
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .indoor: "Drinnen"
+        case .mixed: "Gemischt"
+        case .outdoor: "Draußen"
+        }
+    }
+
+    /// Je höher, desto mehr ist das Tier dem Wetter ausgesetzt.
+    var exposure: Int {
+        switch self {
+        case .indoor: 0
+        case .mixed: 1
+        case .outdoor: 2
+        }
     }
 }
