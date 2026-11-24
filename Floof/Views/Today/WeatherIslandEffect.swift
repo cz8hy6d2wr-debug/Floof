@@ -24,6 +24,7 @@ struct WeatherIslandEffect: View {
     @State private var region: CGRect = .zero
     @State private var hasIsland = false
     @State private var finished = false
+    @State private var shown = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -35,6 +36,7 @@ struct WeatherIslandEffect: View {
                 }
             }
             .mask { fade }
+            .opacity(shown ? 1 : 0)
             .onAppear {
                 guard !reduceMotion else { return }
                 let island = Self.islandRect(width: proxy.size.width, posture: posture,
@@ -45,6 +47,8 @@ struct WeatherIslandEffect: View {
                 sim = WeatherSim(condition: condition, temperature: temperature,
                                  size: proxy.size, island: island, region: area)
                 finished = false
+                // Kurz warten, dann weich einblenden – so springt nichts ins Bild.
+                withAnimation(.easeInOut(duration: 1.4).delay(0.25)) { shown = true }
                 Task {
                     try? await Task.sleep(for: .seconds(WeatherSim.duration + 0.1))
                     finished = true
@@ -124,7 +128,7 @@ final class WeatherSim {
     private var flash = 0.0
     private var bolt: [CGPoint] = []
     private var boltLife = 0.0
-    private var nextBolt = 0.8
+    private var nextBolt = 1.8
 
     /// Senkrechte Pille (Duo außen)?
     private var vertical: Bool { island.map { $0.height > $0.width } ?? false }
@@ -145,8 +149,11 @@ final class WeatherSim {
         }
     }
 
-    /// Stärke der Effekte: läuft am Ende sanft aus.
-    private var intensity: Double { max(0, min(1, (Self.duration - t) / 1.5)) }
+    /// Dichte baut sich in 1,5 s auf (0…1, weich).
+    private var ramp: Double { let x = max(0, min(1, (t - 0.2) / 1.5)); return x * x * (3 - 2 * x) }
+
+    /// Stärke der Effekte: blendet am Anfang weich ein und am Ende sanft aus.
+    private var intensity: Double { min(ramp, max(0, min(1, (Self.duration - t) / 1.5))) }
     private var spawning: Bool { t < Self.duration - 2 }
 
     func advance(to date: Date) {
@@ -179,11 +186,11 @@ final class WeatherSim {
 
     private func stepSnow(_ dt: Double) {
         if spawning {
-            for _ in 0..<2 where Double.random(in: 0...1) < 0.7 {
+            for _ in 0..<2 where Double.random(in: 0...1) < 0.7 * ramp {
                 particles.append(P(x: .random(in: region.minX...region.maxX), y: -5, vx: 0, vy: .random(in: 16...30),
                                    r: .random(in: 0.7...2), phase: .random(in: 0...6), life: 1))
             }
-            if let island, Double.random(in: 0...1) < 0.5 {
+            if let island, Double.random(in: 0...1) < 0.5 * ramp {
                 particles.append(P(x: .random(in: (island.minX + 8)...(island.maxX - 8)), y: -4, vx: 0,
                                    vy: .random(in: 16...26), r: .random(in: 0.8...1.8), phase: .random(in: 0...6), life: 1))
             }
@@ -218,7 +225,7 @@ final class WeatherSim {
 
     private func stepRain(_ dt: Double, heavy: Bool) {
         if spawning {
-            for _ in 0..<(heavy ? 4 : 6) {
+            for _ in 0..<(heavy ? 4 : 6) where Double.random(in: 0...1) < ramp {
                 particles.append(P(x: .random(in: region.minX...(region.maxX + 20)), y: -20, vx: heavy ? -40 : -20,
                                    vy: heavy ? 300 : .random(in: 260...340), r: 1, phase: 0, life: 1))
             }
@@ -309,7 +316,7 @@ final class WeatherSim {
     }
 
     private func stepWind(_ dt: Double) {
-        if spawning, Double.random(in: 0...1) < 0.2 {
+        if spawning, Double.random(in: 0...1) < 0.2 * ramp {
             particles.append(P(x: region.minX - 10, y: .random(in: 0...max(20, region.maxY - 10)), vx: .random(in: 110...190), vy: 0,
                                r: .random(in: 0...6), phase: .random(in: -4...4), life: 1, kind: Int.random(in: 0...4)))
         }
@@ -335,7 +342,7 @@ final class WeatherSim {
     }
 
     private func stepMotes(_ dt: Double) {
-        guard let island, spawning, Double.random(in: 0...1) < 0.4 else {
+        guard let island, spawning, Double.random(in: 0...1) < 0.4 * ramp else {
             for i in particles.indices { particles[i].y += particles[i].vy * dt; particles[i].life -= dt }
             particles.removeAll { $0.life <= 0 }
             return
