@@ -2,7 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct SettingsView: View {
-    @AppStorage(IslandShape.storageKey) private var islandShape = IslandShape.horizontal.rawValue
     @Environment(PetStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var isImporting = false
@@ -24,16 +23,6 @@ struct SettingsView: View {
                         set: { value in store.update { $0.notificationsEnabled = value } }))
                 } footer: {
                     Text("Mitteilungen zu den Uhrzeiten aus dem Medikamentenplan und wenn im Schrank etwas knapp wird.")
-                }
-
-                Section {
-                    Picker("Aussparung am Außendisplay", selection: $islandShape) {
-                        ForEach(IslandShape.allCases) { Text($0.title).tag($0.rawValue) }
-                    }
-                } header: {
-                    Text("Anzeige")
-                } footer: {
-                    Text("Wohin das Wetter fällt: Auf dem iPhone ist die Dynamic Island waagerecht, auf dem Außendisplay des Duo senkrecht. Gilt nur für dieses Gerät. Innen läuft das Wetter von der Oberkante.")
                 }
 
                 Section {
