@@ -2,8 +2,8 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// Live-Aktivität: nächste Gabe mit Countdown und "Gegeben"-Knopf
-/// auf dem Sperrbildschirm und in der Dynamic Island.
+/// Live-Aktivität: nächste Gabe mit einem Kreis, der sich bis zur Gabe füllt (ohne Uhrzeit
+/// und ohne Countdown), und "Gegeben"-Knopf – auf dem Sperrbildschirm und in der Dynamic Island.
 struct DoseLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DoseActivityAttributes.self) { context in
@@ -14,7 +14,7 @@ struct DoseLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    WIcon(symbol: context.state.symbol, size: 34).padding(.leading, 4)
+                    DoseRing(due: context.state.due, symbol: context.state.symbol, size: 44).padding(.leading, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(alignment: .leading, spacing: 1) {
@@ -23,33 +23,17 @@ struct DoseLiveActivity: Widget {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                DynamicIslandExpandedRegion(.trailing) {
-                    countdown(context.state).font(.title3.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(LiveColors.carrot)
-                        .frame(maxWidth: 80)
-                }
                 DynamicIslandExpandedRegion(.bottom) {
                     GiveButton(ids: context.state.doseIDs).padding(.top, 4)
                 }
             } compactLeading: {
                 WIcon(symbol: context.state.symbol, size: 20)
             } compactTrailing: {
-                countdown(context.state).font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(LiveColors.carrot)
-                    .frame(maxWidth: 52)
+                DoseRing(due: context.state.due, symbol: nil, size: 20)
             } minimal: {
-                WIcon(symbol: context.state.symbol, size: 18)
+                DoseRing(due: context.state.due, symbol: nil, size: 20)
             }
             .keylineTint(LiveColors.carrot)
-        }
-    }
-
-    @ViewBuilder
-    private func countdown(_ state: DoseActivityAttributes.ContentState) -> some View {
-        if state.due > .now {
-            Text(timerInterval: Date.now...state.due, countsDown: true).multilineTextAlignment(.trailing)
-        } else {
-            Text("fällig")
         }
     }
 }
@@ -65,17 +49,11 @@ private struct LockScreenDoseView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            WIcon(symbol: state.symbol, size: 38)
+            DoseRing(due: state.due, symbol: state.symbol, size: 48)
             VStack(alignment: .leading, spacing: 2) {
                 Text(state.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(LiveColors.cream).lineLimit(1)
-                Group {
-                    if state.due > .now {
-                        Text("\(state.detail) · in \(Text(timerInterval: Date.now...state.due, countsDown: true))")
-                    } else {
-                        Text("\(state.detail) · jetzt fällig")
-                    }
-                }
-                .font(.caption.monospacedDigit())
+                Text(state.detail)
+                .font(.caption)
                 .foregroundStyle(LiveColors.soft)
                 .lineLimit(1)
             }
@@ -99,5 +77,34 @@ private struct GiveButton: View {
                 .background(Capsule().fill(LiveColors.cream))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Kreis, der sich in den letzten drei Stunden bis zur Gabe füllt – ohne Zeitangabe.
+/// iOS lässt ihn selbst weiterlaufen (auch ohne App). Ist die Gabe fällig, ist er voll.
+private struct DoseRing: View {
+    let due: Date
+    let symbol: String?
+    var size: CGFloat = 44
+
+    var body: some View {
+        ZStack {
+            if due > .now {
+                ProgressView(timerInterval: due.addingTimeInterval(-3 * 3600)...due, countsDown: false) {
+                    EmptyView()
+                } currentValueLabel: {
+                    EmptyView()
+                }
+                .progressViewStyle(.circular)
+                .tint(LiveColors.carrot)
+            } else {
+                Circle().stroke(LiveColors.carrot, lineWidth: max(2, size / 14))
+            }
+            if let symbol {
+                WIcon(symbol: symbol, size: size * 0.52)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel(due > .now ? "Gabe bald fällig" : "Gabe jetzt fällig")
     }
 }
