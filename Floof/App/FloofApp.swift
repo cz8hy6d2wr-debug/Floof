@@ -63,6 +63,14 @@ struct FloofApp: App {
 enum DemoMode {
     static var isActive: Bool { UserDefaults.standard.bool(forKey: "FloofDemo") }
 
+    /// Gewählter Tag im Kalender für Screenshots (`-FloofDay 2` = übermorgen).
+    static var selectedDay: Date {
+        let today = Calendar.current.startOfDay(for: .now)
+        guard isActive else { return today }
+        let offset = UserDefaults.standard.integer(forKey: "FloofDay")
+        return Calendar.current.date(byAdding: .day, value: offset, to: today) ?? today
+    }
+
     static var startTab: AppTab? {
         guard isActive else { return nil }
         return UserDefaults.standard.string(forKey: "FloofTab").flatMap(AppTab.init(rawValue:))

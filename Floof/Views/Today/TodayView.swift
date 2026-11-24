@@ -8,7 +8,7 @@ struct TodayView: View {
     @Environment(\.devicePosture) private var posture
     @Environment(PetStore.self) private var store
     @State private var newEntry: DiaryEntry?
-    @State private var selection = TodaySelection()
+    @State private var selection = TodaySelection(day: DemoMode.selectedDay)
     private var weather: WeatherStore { WeatherStore.shared }
 
     var body: some View {

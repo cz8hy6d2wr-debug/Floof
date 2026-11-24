@@ -41,10 +41,12 @@ jobs:
           print(devs[-1]['udid'] if devs else '')" "$1"
           }
 
-          shoot() {  # $1 Gerät-UDID, $2 Name, $3 Tab, $4 light|dark
+          shoot() {  # $1 Gerät-UDID, $2 Name, $3 Tab (optional "today_d2" = Kalender auf übermorgen), $4 light|dark
+            local tab="${3%%_d*}" day=0
+            [[ "$3" == *_d* ]] && day="${3##*_d}"
             xcrun simctl ui "$1" appearance "$4"
             xcrun simctl terminate "$1" "$BUNDLE" 2>/dev/null || true
-            xcrun simctl launch "$1" "$BUNDLE" -FloofDemo YES -FloofTab "$3" -AppleLanguages "(de)" -AppleLocale de_DE >/dev/null
+            xcrun simctl launch "$1" "$BUNDLE" -FloofDemo YES -FloofTab "$tab" -FloofDay "$day" -AppleLanguages "(de)" -AppleLocale de_DE >/dev/null
             sleep 6
             xcrun simctl io "$1" screenshot "shots/$2-$3-$4.png" >/dev/null
             echo "📸 $2-$3-$4"
@@ -65,7 +67,7 @@ jobs:
           }
 
           xcrun simctl list devices available | grep -E "iPhone|iPad" | head -30
-          run_device "iPhone 17 Pro" "zugeklappt" today history pets more
+          run_device "iPhone 17 Pro" "zugeklappt" today today_d2 today_d4 today_d5 today_d6 history pets more
           run_device "iPad mini" "aufgeklappt" today history pets more
 
       - name: Auf Branch ci-screenshots ablegen

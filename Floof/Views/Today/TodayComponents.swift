@@ -246,6 +246,18 @@ struct WeekStrip: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 12).padding(.bottom, 6).padding(.horizontal, 6)
+        // Das Wetter des gewählten Tages läuft hinter dem ganzen Kasten (über dem Glas, hinter den Tagen).
+        .background {
+            ZStack {
+                if let forecast = weather.forecast(on: selection.day) {
+                    DayWeatherBackdrop(conditions: WeatherStore.conditions(for: forecast), onLight: scheme == .light)
+                        .id(DoseKey.day(selection.day))
+                        .transition(.opacity)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .animation(.smooth(duration: 0.6), value: DoseKey.day(selection.day))
+        }
         .glassPanel(cornerRadius: 26)
         .sensoryFeedback(.selection, trigger: selection.day)
     }
@@ -292,10 +304,6 @@ struct WeekStrip: View {
                     if selected {
                         shape.fill(Theme.ink)
                             .matchedGeometryEffect(id: "selected", in: glass)
-                    }
-                    if let forecast {
-                        DayWeatherBackdrop(conditions: WeatherStore.conditions(for: forecast), onLight: onLight)
-                            .clipShape(shape)
                     }
                 }
             }
