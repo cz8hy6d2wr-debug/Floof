@@ -52,21 +52,43 @@ final class WeatherStore: NSObject {
         return weather
     }
 
+    /// Wichtigste Lage (für Symbol und Hinweise).
     var condition: Condition? { current.map(Self.condition(for:)) }
+    /// Alle aktuellen Lagen zusammen, z. B. [Nebel, Frost] – für die Animation.
+    var conditions: [Condition] { current.map(Self.conditions(for:)) ?? [] }
+
+    private static let priority: [Condition] = [.storm, .snow, .rain, .fog, .wind, .frost, .heat, .night, .clouds, .clear]
 
     static func condition(for w: Weather) -> Condition {
+        conditions(for: w).min { priority.firstIndex(of: $0)! < priority.firstIndex(of: $1)! } ?? .clear
+    }
+
+    /// Mehrere Lagen können zusammen auftreten: Niederschlag oder Nebel, dazu Wind, Frost
+    /// oder Hitze, und der Himmel (Wolken, Sterne, Sonne).
+    static func conditions(for w: Weather) -> [Condition] {
+        var result: [Condition] = []
         switch w.code {
-        case 95...99: return .storm
-        case 71...77, 85, 86: return .snow
-        case 51...67, 80...82: return .rain
-        case 45, 48: return .fog
+        case 95...99: result.append(.storm)
+        case 71...77, 85, 86: result.append(.snow)
+        case 51...67, 80...82: result.append(.rain)
+        case 45, 48: result.append(.fog)
         default: break
         }
-        if w.wind >= 35 { return .wind }
-        if w.temperature <= 0 { return .frost }
-        if w.code >= 2 { return .clouds }
-        if !w.isDay { return .night }
-        return w.temperature >= 25 ? .heat : .clear
+        let covered = !result.isEmpty
+        if w.wind >= 35 { result.append(.wind) }
+        if w.temperature <= 0 { result.append(.frost) }
+        if !covered {
+            if w.code >= 2 {
+                result.append(.clouds)
+            } else if !w.isDay {
+                result.append(.night)
+            } else if w.temperature >= 25 {
+                result.append(.heat)
+            } else {
+                result.append(.clear)
+            }
+        }
+        return result
     }
 
     /// Lädt neu, wenn der letzte Stand älter als eine Stunde ist.
@@ -149,7 +171,10 @@ final class WeatherStore: NSObject {
     /// "24° · bis 29°" bzw. Kurzbeschreibung für die Kopfzeile und das Widget.
     var summary: String? {
         guard let w = current else { return nil }
-        return "\(Int(w.temperature.rounded()))° · \(Self.label(Self.condition(for: w))) · bis \(Int(w.high.rounded()))°"
+        let labels = Self.conditions(for: w)
+            .sorted { Self.priority.firstIndex(of: $0)! < Self.priority.firstIndex(of: $1)! }
+            .prefix(2).map(Self.label).joined(separator: ", ")
+        return "\(Int(w.temperature.rounded()))° · \(labels) · bis \(Int(w.high.rounded()))°"
     }
 
     static func label(_ c: Condition) -> String {

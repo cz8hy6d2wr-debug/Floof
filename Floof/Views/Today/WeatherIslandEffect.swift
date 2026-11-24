@@ -15,7 +15,7 @@ enum IslandShape: String, CaseIterable, Identifiable {
 /// Alles bleibt in einem schmalen Bereich um die Island. Ohne Aussparung (Innendisplay)
 /// fällt das Wetter in einem schmalen Streifen von der Oberkante.
 struct WeatherIslandEffect: View {
-    let condition: WeatherStore.Condition
+    let conditions: [WeatherStore.Condition]
     let temperature: Int
     var posture: DevicePosture = .folded
     @AppStorage(IslandShape.storageKey) private var shapeRaw = IslandShape.horizontal.rawValue
@@ -44,7 +44,7 @@ struct WeatherIslandEffect: View {
                 let area = Self.region(size: proxy.size, island: island)
                 hasIsland = island != nil
                 region = area
-                sim = WeatherSim(condition: condition, temperature: temperature,
+                sim = WeatherSim(conditions: conditions, temperature: temperature,
                                  size: proxy.size, island: island, region: area)
                 finished = false
                 // Kurz warten, dann weich einblenden – so springt nichts ins Bild.
@@ -106,9 +106,26 @@ struct WeatherIslandEffect: View {
 
 // MARK: - Simulation
 
-/// Kleine Partikel-Simulation. Referenztyp, damit die Canvas sie pro Bild weiterrechnen kann.
+/// Mehrere Wetterlagen gleichzeitig (z. B. Nebel + Frost): jede Lage ist eine eigene Ebene,
+/// von hinten nach vorn gezeichnet – Himmel, Nebel, Niederschlag, Wind, Frost.
 final class WeatherSim {
     static let duration: Double = 10
+    private let layers: [WeatherLayer]
+
+    init(conditions: [WeatherStore.Condition], temperature: Int, size: CGSize, island: CGRect?, region: CGRect) {
+        let order: [WeatherStore.Condition] = [.night, .clear, .heat, .clouds, .fog, .storm, .rain, .snow, .wind, .frost]
+        let sorted = Array(Set(conditions)).sorted { order.firstIndex(of: $0)! < order.firstIndex(of: $1)! }
+        layers = sorted.map {
+            WeatherLayer(condition: $0, temperature: temperature, size: size, island: island, region: region)
+        }
+    }
+
+    func advance(to date: Date) { for layer in layers { layer.advance(to: date) } }
+    func draw(in gc: inout GraphicsContext) { for layer in layers { layer.draw(in: &gc) } }
+}
+
+/// Partikel-Simulation für eine Lage. Referenztyp, damit die Canvas sie pro Bild weiterrechnen kann.
+final class WeatherLayer {
 
     let condition: WeatherStore.Condition
     let temperature: Int
@@ -153,8 +170,8 @@ final class WeatherSim {
     private var ramp: Double { let x = max(0, min(1, (t - 0.2) / 1.5)); return x * x * (3 - 2 * x) }
 
     /// Stärke der Effekte: blendet am Anfang weich ein und am Ende sanft aus.
-    private var intensity: Double { min(ramp, max(0, min(1, (Self.duration - t) / 1.5))) }
-    private var spawning: Bool { t < Self.duration - 2 }
+    private var intensity: Double { min(ramp, max(0, min(1, (WeatherSim.duration - t) / 1.5))) }
+    private var spawning: Bool { t < WeatherSim.duration - 2 }
 
     func advance(to date: Date) {
         if start == nil { start = date }
