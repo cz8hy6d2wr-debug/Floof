@@ -32,8 +32,8 @@ struct TodayView: View {
             // Wetter rund um die Dynamic Island – 10 Sekunden beim Öffnen.
             .overlay(alignment: .top) {
                 if !store.pets.isEmpty, let condition = weather.condition, let w = weather.current {
-                    WeatherIslandEffect(condition: condition, temperature: Int(w.temperature.rounded()))
-                        .id("\(condition.rawValue)-\(effectRun)")
+                    WeatherIslandEffect(condition: condition, temperature: Int(w.temperature.rounded()), posture: posture)
+                        .id("\(condition.rawValue)-\(effectRun)-\(posture == .folded)")
                 }
             }
             .onAppear { effectRun += 1 }

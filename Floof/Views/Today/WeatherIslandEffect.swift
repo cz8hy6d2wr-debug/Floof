@@ -1,14 +1,28 @@
 import SwiftUI
 import UIKit
 
+/// Form der Aussparung. Einstellbar unter Einstellungen → Anzeige (gilt je Gerät):
+/// iPhone mit Dynamic Island = waagerecht, Außendisplay des Duo = senkrecht.
+enum IslandShape: String, CaseIterable, Identifiable {
+    case horizontal, vertical
+    var id: Self { self }
+    var title: String { self == .horizontal ? "Waagerecht (iPhone)" : "Senkrecht (Duo außen)" }
+    static let storageKey = "floof.island.shape"
+}
+
 /// Wetter-Animation rund um die Dynamic Island – läuft beim Öffnen von "Heute" 10 Sekunden,
 /// danach bleibt nur, was liegen bleibt (Schneehaube, Eiszapfen).
-/// Ohne Island (Innendisplay) fällt das Wetter einfach von der Oberkante.
+/// Alles bleibt in einem schmalen Bereich um die Island. Ohne Aussparung (Innendisplay)
+/// fällt das Wetter in einem schmalen Streifen von der Oberkante.
 struct WeatherIslandEffect: View {
     let condition: WeatherStore.Condition
     let temperature: Int
+    var posture: DevicePosture = .folded
+    @AppStorage(IslandShape.storageKey) private var shapeRaw = IslandShape.horizontal.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sim: WeatherSim?
+    @State private var region: CGRect = .zero
+    @State private var hasIsland = false
     @State private var finished = false
 
     var body: some View {
@@ -20,10 +34,16 @@ struct WeatherIslandEffect: View {
                     sim.draw(in: &gc)
                 }
             }
+            .mask { fade }
             .onAppear {
                 guard !reduceMotion else { return }
+                let island = Self.islandRect(width: proxy.size.width, posture: posture,
+                                             shape: IslandShape(rawValue: shapeRaw) ?? .horizontal)
+                let area = Self.region(size: proxy.size, island: island)
+                hasIsland = island != nil
+                region = area
                 sim = WeatherSim(condition: condition, temperature: temperature,
-                                 size: proxy.size, island: Self.islandRect(width: proxy.size.width))
+                                 size: proxy.size, island: island, region: area)
                 finished = false
                 Task {
                     try? await Task.sleep(for: .seconds(WeatherSim.duration + 0.1))
@@ -36,13 +56,47 @@ struct WeatherIslandEffect: View {
         .accessibilityHidden(true)
     }
 
-    /// Lage der Dynamic Island (Geräte mit hohem oberen Sicherheitsabstand), sonst `nil`.
-    static func islandRect(width: CGFloat) -> CGRect? {
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
-        guard let top = window?.safeAreaInsets.top, top >= 55, width < 500 else { return nil }
-        let w: CGFloat = 125, h: CGFloat = 37
-        return CGRect(x: (width - w) / 2, y: 11, width: w, height: h)
+    /// Weicher Rand: nichts wird hart am Bereich abgeschnitten.
+    @ViewBuilder
+    private var fade: some View {
+        if hasIsland {
+            RoundedRectangle(cornerRadius: 36, style: .continuous)
+                .fill(.black)
+                .frame(width: region.width, height: region.height)
+                .blur(radius: 14)
+                .position(x: region.midX, y: region.midY)
+        } else {
+            LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.55),
+                                   .init(color: .clear, location: 1)],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: max(region.height, 1))
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    /// Lage der Aussparung auf dem Außendisplay bzw. iPhone, sonst `nil` (Innendisplay).
+    static func islandRect(width: CGFloat, posture: DevicePosture, shape: IslandShape) -> CGRect? {
+        guard posture == .folded, width < 500 else { return nil }
+        switch shape {
+        case .vertical:
+            // Senkrechte Pille, mittig oben (Annahme: 37 × 125 pt, 11 pt vom Rand).
+            let w: CGFloat = 37, h: CGFloat = 125
+            return CGRect(x: (width - w) / 2, y: 11, width: w, height: h)
+        case .horizontal:
+            let window = UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+            guard let top = window?.safeAreaInsets.top, top >= 55 else { return nil }
+            let w: CGFloat = 125, h: CGFloat = 37
+            return CGRect(x: (width - w) / 2, y: 11, width: w, height: h)
+        }
+    }
+
+    /// Bereich, in dem die Animation sichtbar sein darf.
+    static func region(size: CGSize, island: CGRect?) -> CGRect {
+        guard let island else { return CGRect(x: 0, y: 0, width: size.width, height: 110) }
+        return CGRect(x: max(0, island.minX - 64), y: 0,
+                      width: min(size.width, island.width + 128),
+                      height: island.maxY + (island.height > island.width ? 44 : 56))
     }
 }
 
@@ -56,6 +110,7 @@ final class WeatherSim {
     let temperature: Int
     let size: CGSize
     let island: CGRect?
+    let region: CGRect
     private var start: Date?
     private var last: Double = 0
     private var t: Double = 0
@@ -71,16 +126,20 @@ final class WeatherSim {
     private var boltLife = 0.0
     private var nextBolt = 0.8
 
-    init(condition: WeatherStore.Condition, temperature: Int, size: CGSize, island: CGRect?) {
+    /// Senkrechte Pille (Duo außen)?
+    private var vertical: Bool { island.map { $0.height > $0.width } ?? false }
+
+    init(condition: WeatherStore.Condition, temperature: Int, size: CGSize, island: CGRect?, region: CGRect) {
         self.condition = condition
         self.temperature = temperature
         self.size = size
         self.island = island
+        self.region = region
         pile = Array(repeating: 0, count: Int(size.width) + 2)
         if condition == .fog || condition == .clouds || condition == .night {
-            for _ in 0..<(condition == .night ? 40 : 12) {
-                particles.append(P(x: .random(in: 0...size.width), y: .random(in: 0...(condition == .night ? 160 : 220)),
-                                   vx: .random(in: 6...16), vy: 0, r: .random(in: 40...100),
+            for _ in 0..<(condition == .night ? 22 : 6) {
+                particles.append(P(x: .random(in: region.minX...region.maxX), y: .random(in: 0...max(20, region.maxY)),
+                                   vx: .random(in: 6...16), vy: 0, r: .random(in: 24...56),
                                    phase: .random(in: 0...6), life: 1, a: .random(in: 0.05...0.13)))
             }
         }
@@ -112,7 +171,7 @@ final class WeatherSim {
         case .fog, .clouds:
             for i in particles.indices {
                 particles[i].x += particles[i].vx * dt
-                if particles[i].x - particles[i].r > size.width { particles[i].x = -particles[i].r }
+                if particles[i].x - particles[i].r > region.maxX { particles[i].x = region.minX - particles[i].r }
             }
         case .night, .frost: break
         }
@@ -121,7 +180,7 @@ final class WeatherSim {
     private func stepSnow(_ dt: Double) {
         if spawning {
             for _ in 0..<2 where Double.random(in: 0...1) < 0.7 {
-                particles.append(P(x: .random(in: 0...size.width), y: -5, vx: 0, vy: .random(in: 16...30),
+                particles.append(P(x: .random(in: region.minX...region.maxX), y: -5, vx: 0, vy: .random(in: 16...30),
                                    r: .random(in: 0.7...2), phase: .random(in: 0...6), life: 1))
             }
             if let island, Double.random(in: 0...1) < 0.5 {
@@ -150,7 +209,7 @@ final class WeatherSim {
             }
             particles[i] = f
         }
-        particles.removeAll { $0.life <= 0 || $0.y > size.height * 0.45 }
+        particles.removeAll { $0.life <= 0 || $0.y > region.maxY }
         if let island {
             let a = Int(island.minX) + 5, b = Int(island.maxX) - 5
             if a < b { for j in a..<b { pile[j] = (pile[j - 1] + pile[j] * 2 + pile[j + 1]) / 4 } }
@@ -160,7 +219,7 @@ final class WeatherSim {
     private func stepRain(_ dt: Double, heavy: Bool) {
         if spawning {
             for _ in 0..<(heavy ? 4 : 6) {
-                particles.append(P(x: .random(in: 0...size.width + 40), y: -20, vx: heavy ? -40 : -20,
+                particles.append(P(x: .random(in: region.minX...(region.maxX + 20)), y: -20, vx: heavy ? -40 : -20,
                                    vy: heavy ? 300 : .random(in: 260...340), r: 1, phase: 0, life: 1))
             }
         }
@@ -182,22 +241,23 @@ final class WeatherSim {
                 }
             }
         }
-        particles.removeAll { $0.life <= 0 || $0.y > size.height * 0.5 }
+        particles.removeAll { $0.life <= 0 || $0.y > region.maxY }
         for i in sparks.indices where sparks[i].kind == 1 {
             sparks[i].x += sparks[i].vx * dt; sparks[i].y += sparks[i].vy * dt
             sparks[i].vy += 300 * dt; sparks[i].life -= dt
         }
         guard let island else { return }
-        let r = island.height / 2
+        let r = min(island.width, island.height) / 2
         for i in runners.indices {
             var run = runners[i]
+            if vertical, run.kind == 0 { run.kind = 1; run.a = 0 }
             switch run.kind {
             case 0:   // oben zur Seite
                 let end = run.side > 0 ? island.maxX - r : island.minX + r
                 run.x += run.side * run.vx * dt
                 if (run.x - end) * run.side >= 0 { run.kind = 1 }
             case 1:   // am Bogen herunter
-                run.a += dt * (0.5 + run.a * 1.5)
+                run.a += dt * (vertical ? 0.35 + run.a * 0.8 : 0.5 + run.a * 1.5)
                 if run.a >= 0.97 { run.kind = 2; run.phase = .random(in: 0.25...0.75) }
             default:  // sammeln, dann abtropfen
                 run.phase -= dt
@@ -212,7 +272,7 @@ final class WeatherSim {
         }
         runners.removeAll { $0.life <= 0 }
         for i in drips.indices { drips[i].vy += 500 * dt; drips[i].y += drips[i].vy * dt }
-        drips.removeAll { $0.y > size.height * 0.5 }
+        drips.removeAll { $0.y > region.maxY }
     }
 
     private func stepStorm(_ dt: Double) {
@@ -224,8 +284,8 @@ final class WeatherSim {
             nextBolt = .random(in: 1.6...2.8)
             flash = 1
             let target = island.map { CGPoint(x: $0.midX + .random(in: -40...40), y: $0.minY) }
-                ?? CGPoint(x: .random(in: size.width * 0.3...size.width * 0.7), y: 60)
-            var p = CGPoint(x: .random(in: 40...(size.width - 40)), y: -5)
+                ?? CGPoint(x: .random(in: region.midX - 60...region.midX + 60), y: 60)
+            var p = CGPoint(x: .random(in: region.minX...region.maxX), y: -5)
             bolt = [p]
             while p.y < target.y {
                 p.y = min(target.y, p.y + .random(in: 6...12))
@@ -250,7 +310,7 @@ final class WeatherSim {
 
     private func stepWind(_ dt: Double) {
         if spawning, Double.random(in: 0...1) < 0.2 {
-            particles.append(P(x: -10, y: .random(in: 0...110), vx: .random(in: 110...190), vy: 0,
+            particles.append(P(x: region.minX - 10, y: .random(in: 0...max(20, region.maxY - 10)), vx: .random(in: 110...190), vy: 0,
                                r: .random(in: 0...6), phase: .random(in: -4...4), life: 1, kind: Int.random(in: 0...4)))
         }
         for i in particles.indices {
@@ -271,7 +331,7 @@ final class WeatherSim {
             }
             particles[i] = l
         }
-        particles.removeAll { $0.x > size.width + 20 }
+        particles.removeAll { $0.x > region.maxX + 20 }
     }
 
     private func stepMotes(_ dt: Double) {
@@ -290,17 +350,51 @@ final class WeatherSim {
         particles.removeAll { $0.life <= 0 }
     }
 
+    /// Punkt am Rand der Island, an dem ein Tropfen entlangläuft (a: 0 = Anfang, 1 = Ende).
+    /// Waagerecht: über die Rundung an der Seite. Senkrecht: über die obere Rundung,
+    /// die gerade Seite hinunter und um die untere Rundung.
     private func sidePoint(_ island: CGRect, side: Double, a: Double) -> CGPoint {
-        let r = island.height / 2
+        let r = min(island.width, island.height) / 2
+        if island.height > island.width {
+            let l = island.height - 2 * r
+            let arc = Double.pi * r / 2
+            let d = a * (2 * arc + l)
+            let ro = r + 1.2
+            if d < arc {
+                let u = d / r
+                return CGPoint(x: island.midX + side * sin(u) * ro, y: island.minY + r - cos(u) * ro)
+            }
+            if d < arc + l { return CGPoint(x: island.midX + side * ro, y: island.minY + r + (d - arc)) }
+            let t = (d - arc - l) / r
+            return CGPoint(x: island.midX + side * cos(t) * ro, y: island.maxY - r + sin(t) * ro)
+        }
         let cx = side > 0 ? island.maxX - r : island.minX + r
         let ang = -Double.pi / 2 + a * .pi
         return CGPoint(x: cx + side * cos(ang) * (r + 1.2), y: island.minY + r + sin(ang) * (r + 1.2))
     }
 
+    /// Punkt auf dem Umfang (p: 0…1), für Funken beim Gewitter.
     private func perimeterPoint(_ island: CGRect, _ p: Double) -> CGPoint {
-        let r = island.height / 2, l = island.width - 2 * r
-        let per = 2 * l + 2 * .pi * r
-        var d = p * per
+        let r = min(island.width, island.height) / 2
+        if island.height > island.width {
+            let l = island.height - 2 * r
+            var d = p * (2 * l + 2 * .pi * r)
+            if d < .pi * r {
+                let th = Double.pi - d / r
+                return CGPoint(x: island.midX + r * cos(th), y: island.minY + r - r * sin(th))
+            }
+            d -= .pi * r
+            if d < l { return CGPoint(x: island.maxX, y: island.minY + r + d) }
+            d -= l
+            if d < .pi * r {
+                let th = -d / r
+                return CGPoint(x: island.midX + r * cos(th), y: island.maxY - r - r * sin(th))
+            }
+            d -= .pi * r
+            return CGPoint(x: island.minX, y: island.maxY - r - d)
+        }
+        let l = island.width - 2 * r
+        var d = p * (2 * l + 2 * .pi * r)
         if d < l { return CGPoint(x: island.minX + r + d, y: island.minY) }
         d -= l
         if d < .pi * r { let a = -Double.pi / 2 + d / r; return CGPoint(x: island.maxX - r + cos(a) * r, y: island.midY + sin(a) * r) }
@@ -320,7 +414,7 @@ final class WeatherSim {
 
     func draw(in gc: inout GraphicsContext) {
         let k = intensity
-        let islandPath = island.map { Path(roundedRect: $0, cornerRadius: $0.height / 2) }
+        let islandPath = island.map { Path(roundedRect: $0, cornerRadius: min($0.width, $0.height) / 2) }
 
         switch condition {
         case .snow:
@@ -329,9 +423,9 @@ final class WeatherSim {
             }
         case .rain, .storm:
             if condition == .storm {
-                gc.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: 140)),
+                gc.fill(Path(region),
                         with: .linearGradient(Gradient(colors: [Color(white: 0.08).opacity(0.75 * k), .clear]),
-                                              startPoint: .zero, endPoint: CGPoint(x: 0, y: 140)))
+                                              startPoint: .zero, endPoint: CGPoint(x: 0, y: region.maxY)))
             }
             var streaks = Path()
             for d in particles where d.life > 0 {
@@ -339,7 +433,7 @@ final class WeatherSim {
                 streaks.addLine(to: CGPoint(x: d.x + (condition == .storm ? 5 : 3), y: d.y - (condition == .storm ? 16 : 14)))
             }
             gc.stroke(streaks, with: .color(Self.water.opacity(0.5 * k)), lineWidth: 1)
-            if flash > 0 { gc.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(red: 0.86, green: 0.9, blue: 1).opacity(flash * 0.3))) }
+            if flash > 0 { gc.fill(Path(region), with: .color(Color(red: 0.86, green: 0.9, blue: 1).opacity(flash * 0.3))) }
             if bolt.count > 1 {
                 var p = Path(); p.addLines(bolt)
                 var glow = gc; glow.addFilter(.shadow(color: Color(red: 0.62, green: 0.76, blue: 1), radius: 8))
@@ -355,7 +449,7 @@ final class WeatherSim {
                 c.fill(Path(ellipseIn: CGRect(x: -6, y: -3, width: 12, height: 6)), with: .color(colors[l.kind % 5].opacity(k)))
             }
         case .clear, .heat:
-            let center = CGPoint(x: island?.midX ?? size.width / 2, y: (island?.midY ?? 0))
+            let center = CGPoint(x: island?.midX ?? size.width / 2, y: island?.midY ?? 0)
             var rays = gc
             rays.translateBy(x: center.x, y: center.y)
             rays.rotate(by: .radians(t * 0.15))
@@ -363,14 +457,14 @@ final class WeatherSim {
                 var r = rays
                 r.rotate(by: .radians(Double(i) * .pi * 2 / 14))
                 var p = Path()
-                p.move(to: CGPoint(x: -5, y: 0)); p.addLine(to: CGPoint(x: -16, y: -170))
-                p.addLine(to: CGPoint(x: 16, y: -170)); p.addLine(to: CGPoint(x: 5, y: 0))
+                p.move(to: CGPoint(x: -5, y: 0)); p.addLine(to: CGPoint(x: -12, y: -90))
+                p.addLine(to: CGPoint(x: 12, y: -90)); p.addLine(to: CGPoint(x: 5, y: 0))
                 r.fill(p, with: .linearGradient(Gradient(colors: [Self.warm.opacity(0.3 * k), .clear]),
-                                                startPoint: .zero, endPoint: CGPoint(x: 0, y: -170)))
+                                                startPoint: .zero, endPoint: CGPoint(x: 0, y: -90)))
             }
-            gc.fill(Path(ellipseIn: CGRect(x: center.x - 130, y: center.y - 130, width: 260, height: 260)),
+            gc.fill(Path(ellipseIn: CGRect(x: center.x - 90, y: center.y - 90, width: 180, height: 180)),
                     with: .radialGradient(Gradient(colors: [Self.warm.opacity(0.35 * k), .clear]),
-                                          center: center, startRadius: 10, endRadius: 130))
+                                          center: center, startRadius: 6, endRadius: 90))
             if let island, condition == .heat {
                 for row in 0..<4 {
                     var w = Path()
@@ -403,7 +497,7 @@ final class WeatherSim {
         case .night:
             for s in particles {
                 let twinkle = 0.35 + 0.65 * abs(sin(t * 1.7 + s.phase))
-                gc.fill(circle(s.x, s.y.truncatingRemainder(dividingBy: 150), 0.4 + s.a * 6), with: .color(Color(red: 1, green: 0.98, blue: 0.92).opacity(twinkle * k)))
+                gc.fill(circle(s.x, s.y.truncatingRemainder(dividingBy: max(40, region.maxY)), 0.4 + s.a * 6), with: .color(Color(red: 1, green: 0.98, blue: 0.92).opacity(twinkle * k)))
             }
             let anchor = island.map { CGPoint(x: $0.maxX - 10, y: $0.minY + 10) } ?? CGPoint(x: size.width - 60, y: 30)
             let m = CGPoint(x: anchor.x + min(1, t / 2.5) * 34, y: anchor.y - min(1, t / 2.5) * 2)
@@ -422,7 +516,8 @@ final class WeatherSim {
         }
 
         guard let island, let islandPath else { return }
-        let r = island.height / 2
+        let r = min(island.width, island.height) / 2
+        let narrow = island.height > island.width
 
         switch condition {
         case .snow:
@@ -460,26 +555,32 @@ final class WeatherSim {
         case .heat:
             var edge = gc; edge.addFilter(.shadow(color: Color(red: 1, green: 0.55, blue: 0.24), radius: 8))
             edge.stroke(islandPath, with: .color(Color(red: 1, green: 0.59, blue: 0.27).opacity((0.6 + 0.3 * sin(t * 3)) * k)), lineWidth: 1.6)
-            gc.draw(Text("\(temperature)°").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(red: 1, green: 0.84, blue: 0.66).opacity(k)),
-                    at: CGPoint(x: island.maxX - 22, y: island.midY))
+            if !narrow {
+                gc.draw(Text("\(temperature)°").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(red: 1, green: 0.84, blue: 0.66).opacity(k)),
+                        at: CGPoint(x: island.maxX - 22, y: island.midY))
+            }
         case .frost:
             // Eiskristalle oben und Eiszapfen unten – wachsen in 2 Sekunden und bleiben.
             let grow = min(1, t / 2.2)
             var edge = gc; edge.addFilter(.shadow(color: Self.ice, radius: 4))
             edge.stroke(islandPath, with: .color(Self.ice.opacity(0.5 * grow)), lineWidth: 1.2)
             var crystals = Path()
-            for i in 0..<10 {
-                let x = island.minX + r * 0.6 + Double(i) * (island.width - r * 1.2) / 9
+            let crystalCount = narrow ? 4 : 10
+            let crystalInset = narrow ? 8.0 : r * 0.6
+            for i in 0..<crystalCount {
+                let x = island.minX + crystalInset + Double(i) * (island.width - 2 * crystalInset) / Double(crystalCount - 1)
                 let s = 5 * grow * (0.6 + Double((i * 37) % 10) / 10)
                 for a in -1...1 {
                     let ang = -Double.pi / 2 + Double(a) * 0.9
-                    crystals.move(to: CGPoint(x: x, y: island.minY))
-                    crystals.addLine(to: CGPoint(x: x + cos(ang) * s, y: island.minY + sin(ang) * s))
+                    crystals.move(to: CGPoint(x: x, y: island.minY + (narrow ? 2 : 0)))
+                    crystals.addLine(to: CGPoint(x: x + cos(ang) * s, y: island.minY + (narrow ? 2 : 0) + sin(ang) * s))
                 }
             }
             gc.stroke(crystals, with: .color(Self.ice.opacity(0.9 * grow)), lineWidth: 0.8)
-            for i in 0..<9 {
-                let x = island.minX + r + 6 + Double(i) * (island.width - 2 * r - 12) / 8
+            let icicleCount = narrow ? 4 : 9
+            let icicleInset = narrow ? 9.0 : r + 6
+            for i in 0..<icicleCount {
+                let x = island.minX + icicleInset + Double(i) * (island.width - 2 * icicleInset) / Double(icicleCount - 1)
                 let length = (4 + Double((i * 53) % 9)) * min(1, grow * 1.4)
                 var icicle = Path()
                 icicle.move(to: CGPoint(x: x - 2.2, y: island.maxY - 0.5))
@@ -488,8 +589,10 @@ final class WeatherSim {
                 gc.fill(icicle, with: .linearGradient(Gradient(colors: [Self.ice.opacity(0.95), Self.ice.opacity(0.2)]),
                                                       startPoint: CGPoint(x: x, y: island.maxY), endPoint: CGPoint(x: x, y: island.maxY + length)))
             }
-            gc.draw(Text("\(temperature)°").font(.system(size: 12, weight: .semibold)).foregroundStyle(Self.ice.opacity(grow)),
-                    at: CGPoint(x: island.maxX - 22, y: island.midY))
+            if !narrow {
+                gc.draw(Text("\(temperature)°").font(.system(size: 12, weight: .semibold)).foregroundStyle(Self.ice.opacity(grow)),
+                        at: CGPoint(x: island.maxX - 22, y: island.midY))
+            }
         default:
             break
         }
