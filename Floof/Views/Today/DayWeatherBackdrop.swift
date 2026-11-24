@@ -58,7 +58,7 @@ struct DayWeatherBackdrop: View {
         switch condition {
         case .frost:
             // Frostiger Rand oben und unten, Kristalle, glitzernde Punkte, ein Lichtstreif.
-            let edge = ice.opacity(onLight ? 0.22 : 0.16)
+            let edge = ice.opacity(onLight ? 0.22 : 0.11)
             let band = h * 0.3
             gc.fill(Path(CGRect(x: 0, y: 0, width: w, height: band)),
                     with: .linearGradient(Gradient(colors: [edge, .clear]), startPoint: .zero, endPoint: CGPoint(x: 0, y: band)))
@@ -69,10 +69,11 @@ struct DayWeatherBackdrop: View {
                 let top = i % 2 == 0
                 let u = r(i, 1)
                 // Schmale Fläche: nur in den Ecken. Breite Fläche: überall am Rand.
-                let x = wide ? w * u : w * (u < 0.5 ? 0.06 + 0.2 * u : 0.74 + 0.2 * (u - 0.5))
+                // Oben links steht der Monat: dort keine Kristalle, damit nichts darüber liegt.
+                let x = wide ? (top ? w * (0.5 + 0.5 * u) : w * u) : w * (u < 0.5 ? 0.06 + 0.2 * u : 0.74 + 0.2 * (u - 0.5))
                 let origin = CGPoint(x: x, y: top ? 1 : h - 1)
                 let inward = top ? Double.pi / 2 : -Double.pi / 2
-                let length = 3 + 5 * r(i, 2)
+                let length = 2.5 + 4 * r(i, 2)
                 for a in [-0.6, 0.0, 0.6] {
                     crystals.move(to: origin)
                     crystals.addLine(to: CGPoint(x: origin.x + cos(inward + a) * length, y: origin.y + sin(inward + a) * length))
@@ -182,7 +183,7 @@ struct DayWeatherBackdrop: View {
                 let y = h * (0.2 + 0.6 * r(i, 24))
                 let rx = wide ? w * 0.22 : 34.0, ry = wide ? h * 0.26 : 12.0
                 gc.fill(Path(ellipseIn: CGRect(x: x - rx, y: y - ry, width: rx * 2, height: ry * 2)),
-                        with: .radialGradient(Gradient(colors: [mist.opacity((onLight ? 0.3 : 0.2) * sin(progress * .pi)), .clear]),
+                        with: .radialGradient(Gradient(colors: [mist.opacity((onLight ? 0.26 : 0.11) * sin(progress * .pi)), .clear]),
                                               center: CGPoint(x: x, y: y), startRadius: 0, endRadius: rx))
             }
 
