@@ -161,25 +161,40 @@ struct NextDoseView: View {
     }
 
     private func rectangular(_ s: WidgetSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+        HStack(spacing: 8) {
             if let next = s.nextOpen(after: entry.date) {
-                HStack(spacing: 4) {
-                    Image(systemName: "pills.fill")
+                // Kreis, der sich in den drei Stunden vor der Gabe füllt – ohne Uhrzeit.
+                ZStack {
                     if next.due > entry.date {
-                        Text("\(next.time) · in \(Text(next.due, style: .relative))")
+                        ProgressView(timerInterval: next.due.addingTimeInterval(-3 * 3600)...next.due, countsDown: false) {
+                            EmptyView()
+                        } currentValueLabel: {
+                            EmptyView()
+                        }
+                        .progressViewStyle(.circular)
                     } else {
-                        Text("seit \(next.time) fällig")
+                        Circle().stroke(lineWidth: 3)
                     }
+                    Image(systemName: "pills.fill").font(.system(size: 13, weight: .semibold))
                 }
-                .font(.caption2.weight(.semibold))
+                .frame(width: 38, height: 38)
                 .widgetAccentable()
-                Text(s.nextGroup(after: entry.date).map(\.title).joined(separator: " + "))
-                    .font(.headline).lineLimit(1)
-                Text(next.petName).font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.nextGroup(after: entry.date).map(\.title).joined(separator: " + "))
+                        .font(.headline).lineLimit(2).minimumScaleFactor(0.8)
+                    Text(next.petName).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
             } else {
-                Text("Floof").font(.caption2.weight(.semibold)).widgetAccentable()
-                Text(s.doses.isEmpty ? "Heute keine Gaben" : "Alles gegeben").font(.headline)
-                Text("\(s.givenCount) von \(s.doses.count)").font(.caption).foregroundStyle(.secondary)
+                ZStack {
+                    Circle().stroke(lineWidth: 3)
+                    Image(systemName: "checkmark").font(.system(size: 14, weight: .bold))
+                }
+                .frame(width: 38, height: 38)
+                .widgetAccentable()
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.doses.isEmpty ? "Heute keine Gaben" : "Alles gegeben").font(.headline).lineLimit(2)
+                    Text("\(s.givenCount) von \(s.doses.count)").font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
