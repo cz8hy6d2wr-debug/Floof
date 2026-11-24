@@ -28,14 +28,15 @@ struct TodayView: View {
                     }
                 }
             }
-            .ambientBackground()
-            // Wetter rund um die Dynamic Island – 10 Sekunden beim Öffnen.
-            .overlay(alignment: .top) {
+            // Wetter rund um die Dynamic Island – 10 Sekunden beim Öffnen. Liegt hinter dem Inhalt
+            // und vor dem Hintergrundlicht (die Reihenfolge der Modifier ist Absicht).
+            .background(alignment: .top) {
                 if !store.pets.isEmpty, let w = weather.current, !weather.conditions.isEmpty {
                     WeatherIslandEffect(conditions: weather.conditions, temperature: Int(w.temperature.rounded()), posture: posture)
                         .id("\(weather.conditions.map(\.rawValue).joined(separator: "+"))-\(effectRun)-\(posture == .folded)")
                 }
             }
+            .ambientBackground()
             .onAppear { effectRun += 1 }
             .task { await weather.refreshIfNeeded() }
             .navigationBarTitleDisplayMode(.inline)

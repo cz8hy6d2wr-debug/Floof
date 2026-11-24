@@ -36,7 +36,7 @@ struct WeatherIslandEffect: View {
                 }
             }
             .mask { fade }
-            .opacity(shown ? 1 : 0)
+            .opacity(shown ? 0.85 : 0)
             .onAppear {
                 guard !reduceMotion else { return }
                 let island = Self.islandRect(width: proxy.size.width, posture: posture,
@@ -64,13 +64,13 @@ struct WeatherIslandEffect: View {
     @ViewBuilder
     private var fade: some View {
         if hasIsland {
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
+            RoundedRectangle(cornerRadius: 44, style: .continuous)
                 .fill(.black)
-                .frame(width: region.width, height: region.height)
-                .blur(radius: 14)
+                .frame(width: region.width - 16, height: region.height - 12)
+                .blur(radius: 22)
                 .position(x: region.midX, y: region.midY)
         } else {
-            LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.55),
+            LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.7), location: 0.35),
                                    .init(color: .clear, location: 1)],
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: max(region.height, 1))
@@ -443,7 +443,8 @@ final class WeatherLayer {
         switch condition {
         case .snow:
             for f in particles {
-                gc.fill(circle(f.x, f.y, f.r), with: .color(.white.opacity(0.9 * k)))
+                // Große Flocken sind näher und heller, kleine ferner und blasser.
+                gc.fill(circle(f.x, f.y, f.r), with: .color(.white.opacity(min(0.85, 0.3 + 0.28 * f.r) * k)))
             }
         case .rain, .storm:
             if condition == .storm {
@@ -456,8 +457,12 @@ final class WeatherLayer {
                 streaks.move(to: CGPoint(x: d.x, y: d.y))
                 streaks.addLine(to: CGPoint(x: d.x + (condition == .storm ? 5 : 3), y: d.y - (condition == .storm ? 16 : 14)))
             }
-            gc.stroke(streaks, with: .color(Self.water.opacity(0.5 * k)), lineWidth: 1)
-            if flash > 0 { gc.fill(Path(region), with: .color(Color(red: 0.86, green: 0.9, blue: 1).opacity(flash * 0.3))) }
+            var rain = gc; rain.blendMode = .screen
+            rain.stroke(streaks, with: .color(Self.water.opacity(0.4 * k)), lineWidth: 0.9)
+            if flash > 0 {
+                var lightning = gc; lightning.blendMode = .plusLighter
+                lightning.fill(Path(region), with: .color(Color(red: 0.86, green: 0.9, blue: 1).opacity(flash * 0.22)))
+            }
             if bolt.count > 1 {
                 var p = Path(); p.addLines(bolt)
                 var glow = gc; glow.addFilter(.shadow(color: Color(red: 0.62, green: 0.76, blue: 1), radius: 8))
@@ -475,6 +480,7 @@ final class WeatherLayer {
         case .clear, .heat:
             let center = CGPoint(x: island?.midX ?? size.width / 2, y: island?.midY ?? 0)
             var rays = gc
+            rays.blendMode = .plusLighter
             rays.translateBy(x: center.x, y: center.y)
             rays.rotate(by: .radians(t * 0.15))
             for i in 0..<14 {
@@ -486,7 +492,8 @@ final class WeatherLayer {
                 r.fill(p, with: .linearGradient(Gradient(colors: [Self.warm.opacity(0.3 * k), .clear]),
                                                 startPoint: .zero, endPoint: CGPoint(x: 0, y: -90)))
             }
-            gc.fill(Path(ellipseIn: CGRect(x: center.x - 90, y: center.y - 90, width: 180, height: 180)),
+            var halo = gc; halo.blendMode = .plusLighter
+            halo.fill(Path(ellipseIn: CGRect(x: center.x - 90, y: center.y - 90, width: 180, height: 180)),
                     with: .radialGradient(Gradient(colors: [Self.warm.opacity(0.35 * k), .clear]),
                                           center: center, startRadius: 6, endRadius: 90))
             if let island, condition == .heat {
@@ -521,7 +528,8 @@ final class WeatherLayer {
         case .night:
             for s in particles {
                 let twinkle = 0.35 + 0.65 * abs(sin(t * 1.7 + s.phase))
-                gc.fill(circle(s.x, s.y.truncatingRemainder(dividingBy: max(40, region.maxY)), 0.4 + s.a * 6), with: .color(Color(red: 1, green: 0.98, blue: 0.92).opacity(twinkle * k)))
+                var starLayer = gc; starLayer.blendMode = .plusLighter
+                starLayer.fill(circle(s.x, s.y.truncatingRemainder(dividingBy: max(40, region.maxY)), 0.4 + s.a * 6), with: .color(Color(red: 1, green: 0.98, blue: 0.92).opacity(twinkle * k)))
             }
             let anchor = island.map { CGPoint(x: $0.maxX - 10, y: $0.minY + 10) } ?? CGPoint(x: size.width - 60, y: 30)
             let m = CGPoint(x: anchor.x + min(1, t / 2.5) * 34, y: anchor.y - min(1, t / 2.5) * 2)
