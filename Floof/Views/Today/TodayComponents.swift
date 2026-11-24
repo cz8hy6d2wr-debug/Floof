@@ -364,7 +364,7 @@ struct DoseList: View {
                 ForEach(Array(doses.enumerated()), id: \.element.id) { index, dose in
                     DoseRow(dose: dose, showsPet: showsPet, isFuture: selection.isFuture)
                     if index < doses.count - 1 {
-                        Divider().padding(.leading, 64)
+                        Divider().padding(.leading, 72)
                     }
                 }
             }
@@ -386,7 +386,7 @@ struct DoseRow: View {
             store.toggle(dose)
         } label: {
             HStack(spacing: 14) {
-                FloofIcon(symbol: formSymbol, size: 24)
+                FloofIcon(symbol: formSymbol, size: 36, inset: 0.11)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dose.medication.title)
                         .font(.body.weight(.semibold))

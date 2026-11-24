@@ -39,7 +39,7 @@ struct Badge: Identifiable, Hashable {
     let symbol: String
 
     static let all: [Badge] = [
-        Badge(id: "first", title: "Erste Gabe", detail: "Die erste Dosis abgehakt", symbol: "leaf.fill"),
+        Badge(id: "first", title: "Erste Gabe", detail: "Die erste Dosis abgehakt", symbol: "drop.fill"),
         Badge(id: "perfect", title: "Rundum versorgt", detail: "Alle Gaben eines Tages erledigt", symbol: "checkmark.seal.fill"),
         Badge(id: "streak7", title: "Eine Woche lang", detail: "7 Tage am Stück alles gegeben", symbol: "calendar"),
         Badge(id: "punctual", title: "Pünktlich wie die Uhr", detail: "10 Gaben innerhalb einer Stunde", symbol: "clock.fill"),

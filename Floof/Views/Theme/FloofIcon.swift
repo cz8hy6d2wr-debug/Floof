@@ -6,6 +6,8 @@ struct FloofIcon: View {
     let symbol: String
     var size: CGFloat = 24
     var tile = true
+    /// Abstand des Symbols zum Kachelrand (Anteil der Symbolgröße).
+    var inset: CGFloat = 0.24
     /// Farbe für den Rückfall auf ein SF-Symbol.
     var fallbackTint: Color = Theme.carrot
 
@@ -24,7 +26,7 @@ struct FloofIcon: View {
                     .frame(width: size, height: size)
             }
         }
-        .padding(tile ? size * 0.24 : 0)
+        .padding(tile ? size * inset : 0)
         .background {
             if tile { IconTileBackground(cornerRadius: size * 0.42) }
         }

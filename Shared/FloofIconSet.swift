@@ -6,8 +6,11 @@ import Foundation
 enum FloofIconSet {
     static func asset(for symbol: String) -> String? {
         switch symbol {
-        case "pills", "pills.fill", "takeoutbag.and.cup.and.straw.fill": "fi.tablette"
-        case "drop.fill", "eyedropper.halffull", "cross.vial", "cross.vial.fill", "checkmark.circle.fill": "fi.pipette"
+        // Medizin – nach Darreichungsform im Schrank (flüssig = Dosierspritze, wie ihr sie gebt).
+        case "drop.fill", "checkmark.circle.fill": "fi.dosierspritze"
+        case "eyedropper.halffull", "cross.vial", "cross.vial.fill": "fi.tropfflasche"
+        case "pills", "pills.fill": "fi.tablette"
+        case "takeoutbag.and.cup.and.straw.fill": "fi.pulver"
         case "syringe", "syringe.fill": "fi.spritze"
         case "cross.case", "cross.case.fill", "shippingbox.fill": "fi.schrank"
         case "scalemass", "scalemass.fill": "fi.wiegen"
