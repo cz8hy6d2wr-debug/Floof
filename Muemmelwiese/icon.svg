@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#1F3D6B"/><stop offset="0.45" stop-color="#6A6FA0"/><stop offset="0.72" stop-color="#F29A6B"/><stop offset="1" stop-color="#FFD48A"/>
+ </linearGradient>
+ <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+  <stop offset="0" stop-color="#FFFBE8"/><stop offset="0.35" stop-color="#FFE7A6"/><stop offset="0.6" stop-color="#FFC877" stop-opacity="0.55"/><stop offset="1" stop-color="#FFB060" stop-opacity="0"/>
+ </radialGradient>
+ <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2F5A2A"/><stop offset="1" stop-color="#16301A"/></linearGradient>
+ <linearGradient id="hill2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6E7F5A"/><stop offset="1" stop-color="#4A5E40"/></linearGradient>
+ <g id="rabbit">
+  <circle cx="-33" cy="-17" r="5.5"/><circle cx="-30" cy="-21" r="4.5"/>
+  <path d="M13 -1 C17 -5 17 -12 14 -18 C11 -24 5 -29 -2 -30 C-10 -36 -18 -36 -24 -31 C-31 -27 -33 -19 -32 -11 C-31 -4 -28 -1 -23 -1 Z"/>
+  <rect x="-31" y="-4.5" width="25" height="5" rx="2.5"/>
+  <rect x="8" y="-4.2" width="14" height="4.6" rx="2.3"/>
+  <g transform="translate(14 -25)">
+   <g transform="translate(-8 -8) rotate(-27)"><path d="M-3.5 0 C-8.6 -13 -6.6 -29 0 -29 C6.8 -29 7.7 -11.6 3.5 0Z"/></g>
+   <g transform="translate(-3 -10) rotate(-8)"><path d="M-3.7 0 C-9 -13.5 -6.9 -30 0 -30 C7.1 -30 8 -12 3.7 0Z"/></g>
+   <path d="M-12 0 C-12 -8 -6 -12 2 -12 C10 -12 16.5 -6 17.5 -1 C18.5 3.5 15 7.5 11 7.5 C6 8.5 2 12 -4 10 C-10 8.5 -12 5 -12 0Z"/>
+  </g>
+ </g>
+ <mask id="rmask" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><use href="#rabbit" transform="translate(520 790) scale(8.6)" fill="#fff"/></mask>
+</defs>
+<rect width="1024" height="1024" fill="url(#sky)"/>
+<!-- Sterne oben -->
+<g fill="#fff" opacity=".8"><circle cx="150" cy="120" r="3"/><circle cx="300" cy="70" r="2"/><circle cx="860" cy="140" r="2.5"/><circle cx="740" cy="60" r="2"/><circle cx="90" cy="260" r="2"/><circle cx="930" cy="290" r="1.8"/></g>
+<circle cx="560" cy="560" r="330" fill="url(#sun)"/>
+<circle cx="560" cy="560" r="150" fill="#FFF3CF" opacity=".95"/>
+<!-- ferne Hügel -->
+<path d="M0 700 Q 200 620 420 680 T 1024 650 V1024 H0Z" fill="url(#hill2)" opacity=".9"/>
+<!-- Hügel vorn -->
+<path d="M0 790 Q 260 700 560 755 T 1024 740 V1024 H0Z" fill="url(#hill)"/>
+<!-- Kaninchen im Gegenlicht: Lichtsaum + dunkle Silhouette leicht versetzt -->
+<use href="#rabbit" transform="translate(520 790) scale(8.6)" fill="#FFD98F"/>
+<g mask="url(#rmask)"><use href="#rabbit" transform="translate(526 795) scale(8.6)" fill="#1C2A1C"/></g>
+<g fill="#2A5025"><path d="M203 836 Q 206 793 204 780 Q 210 796 212 836Z"/><path d="M216 836 Q 219 794 217 782 Q 222 797 225 836Z"/><path d="M236 836 Q 242 779 248 757 Q 245 784 245 836Z"/><path d="M242 836 Q 244 784 240 766 Q 248 789 251 836Z"/><path d="M255 836 Q 256 793 251 780 Q 260 796 264 836Z"/><path d="M275 836 Q 282 778 288 756 Q 284 784 284 836Z"/><path d="M287 836 Q 289 791 286 777 Q 293 795 296 836Z"/><path d="M298 836 Q 305 780 312 759 Q 307 786 307 836Z"/><path d="M314 836 Q 319 793 321 781 Q 321 797 323 836Z"/><path d="M325 836 Q 326 785 320 767 Q 330 789 334 836Z"/><path d="M336 836 Q 343 793 352 781 Q 345 796 345 836Z"/><path d="M353 836 Q 355 784 351 765 Q 359 789 362 836Z"/><path d="M366 836 Q 373 784 381 765 Q 375 788 375 836Z"/><path d="M378 836 Q 382 785 380 767 Q 385 789 387 836Z"/><path d="M389 836 Q 390 786 384 769 Q 394 791 398 836Z"/><path d="M399 836 Q 399 779 390 756 Q 403 784 408 836Z"/><path d="M409 836 Q 412 782 407 763 Q 415 787 418 836Z"/><path d="M427 836 Q 430 786 427 768 Q 433 790 436 836Z"/><path d="M445 836 Q 448 791 447 777 Q 451 795 454 836Z"/><path d="M450 836 Q 452 782 448 762 Q 456 787 459 836Z"/><path d="M465 836 Q 467 780 464 759 Q 471 785 474 836Z"/><path d="M480 836 Q 480 777 472 753 Q 484 783 489 836Z"/><path d="M488 836 Q 494 791 499 776 Q 496 794 497 836Z"/><path d="M506 836 Q 509 790 505 776 Q 512 794 515 836Z"/><path d="M515 836 Q 515 786 506 768 Q 519 790 524 836Z"/><path d="M533 836 Q 541 777 550 754 Q 543 783 542 836Z"/><path d="M546 836 Q 546 776 537 751 Q 551 782 555 836Z"/><path d="M555 836 Q 561 775 567 751 Q 563 782 564 836Z"/><path d="M569 836 Q 574 776 576 752 Q 577 782 578 836Z"/><path d="M586 836 Q 588 789 582 774 Q 591 793 595 836Z"/><path d="M595 836 Q 598 792 596 779 Q 602 796 604 836Z"/><path d="M614 836 Q 613 788 604 773 Q 618 792 623 836Z"/><path d="M617 836 Q 624 792 629 778 Q 626 795 626 836Z"/><path d="M634 836 Q 634 789 626 774 Q 638 793 643 836Z"/><path d="M653 836 Q 654 787 649 770 Q 658 791 662 836Z"/><path d="M657 836 Q 658 794 651 782 Q 662 797 666 836Z"/><path d="M676 836 Q 676 792 667 779 Q 680 795 685 836Z"/><path d="M687 836 Q 695 790 705 776 Q 697 794 696 836Z"/><path d="M696 836 Q 703 784 708 766 Q 705 789 705 836Z"/><path d="M712 836 Q 716 775 715 750 Q 719 781 721 836Z"/><path d="M723 836 Q 724 787 714 770 Q 728 791 732 836Z"/><path d="M738 836 Q 745 790 753 776 Q 747 794 747 836Z"/><path d="M755 836 Q 755 785 746 767 Q 760 790 764 836Z"/><path d="M763 836 Q 764 790 758 776 Q 768 794 772 836Z"/><path d="M775 836 Q 776 777 769 754 Q 780 783 784 836Z"/><path d="M787 836 Q 791 776 792 752 Q 794 782 796 836Z"/></g>
+<!-- Auge glänzt -->
+<circle cx="683" cy="547" r="6" fill="#FFE2A8" opacity=".95"/>
+<!-- Grashalme im Vordergrund -->
+<g fill="#0F2312">
+ <path d="M40 1024 Q 60 880 30 800 Q 80 880 75 1024Z"/><path d="M95 1024 Q 120 900 150 840 Q 130 930 125 1024Z"/>
+ <path d="M160 1024 Q 170 940 140 890 Q 200 950 190 1024Z"/><path d="M830 1024 Q 850 900 900 830 Q 880 930 865 1024Z"/>
+ <path d="M900 1024 Q 905 920 880 860 Q 950 930 935 1024Z"/><path d="M960 1024 Q 975 930 1010 880 Q 995 960 990 1024Z"/>
+ <path d="M250 1024 Q 262 960 240 930 Q 285 965 278 1024Z"/><path d="M740 1024 Q 755 960 735 920 Q 785 960 772 1024Z"/>
+</g>
+<!-- Glühwürmchen -->
+<g fill="#FFF3B0"><circle cx="230" cy="640" r="7"/><circle cx="820" cy="600" r="6"/><circle cx="700" cy="820" r="5"/><circle cx="330" cy="860" r="5"/></g>
+<g fill="#FFF3B0" opacity=".25"><circle cx="230" cy="640" r="20"/><circle cx="820" cy="600" r="17"/><circle cx="700" cy="820" r="14"/><circle cx="330" cy="860" r="14"/></g>
+</svg>

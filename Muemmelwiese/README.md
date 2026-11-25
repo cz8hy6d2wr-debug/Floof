@@ -1,3 +1,5 @@
+<p align="center"><img src="logo.png" alt="Mümmelwiese" width="560"></p>
+
 # Mümmelwiese
 
 ![Tag, Nacht, Shop, Album](screenshots.png)

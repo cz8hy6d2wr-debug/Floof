@@ -20,6 +20,7 @@ struct GardenView: View {
     @State private var importing = false
     @State private var confirmNewGame = false
     @State private var landscape = false
+    @State private var showsSplash = !GardenDemo.isActive
 
     var body: some View {
         ZStack {
@@ -53,6 +54,15 @@ struct GardenView: View {
             .accessibilityLabel("Mümmelwiese mit \(game.residents.count) Kaninchen")
 
             hud
+
+            if showsSplash {
+                SplashView()
+                    .transition(.opacity.combined(with: .scale(scale: 1.04)))
+                    .task {
+                        try? await Task.sleep(for: .seconds(1.6))
+                        withAnimation(.easeInOut(duration: 0.6)) { showsSplash = false }
+                    }
+            }
         }
         .preferredColorScheme(.light)
         .statusBarHidden()
@@ -794,5 +804,40 @@ struct SaveDocument: FileDocument {
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
+    }
+}
+
+
+// MARK: - Startbildschirm
+
+private struct SplashView: View {
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: [Color(hex: 0x1F3D6B), Color(hex: 0x6A6FA0), Color(hex: 0xF29A6B), Color(hex: 0xFFD48A)],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            VStack(spacing: 18) {
+                Image("Logo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 150, height: 150)
+                    .clipShape(.rect(cornerRadius: 34, style: .continuous))
+                    .shadow(color: .black.opacity(0.3), radius: 18, y: 10)
+                    .scaleEffect(appeared ? 1 : 0.85)
+                Text("Mümmelwiese")
+                    .font(.system(size: 42, weight: .black, design: .rounded))
+                    .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE2A8), Color(hex: 0xFFB65E)], startPoint: .top, endPoint: .bottom))
+                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                Text("Dein Kaninchen-Garten")
+                    .font(.headline)
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+            .opacity(appeared ? 1 : 0)
+        }
+        .onAppear { withAnimation(.spring(duration: 0.7)) { appeared = true } }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Mümmelwiese")
     }
 }
