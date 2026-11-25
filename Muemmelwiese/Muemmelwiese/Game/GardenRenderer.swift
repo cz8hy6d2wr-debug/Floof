@@ -251,7 +251,7 @@ enum GardenRenderer {
         for i in 0..<cols {
             let k = j * cols + i
             let h = CGFloat(game.save.grass[k])
-            let blades = h < 0.2 ? 3 : 7
+            let blades = game.lowPower ? (h < 0.2 ? 2 : 4) : (h < 0.2 ? 3 : 7)
             for b in 0..<blades {
                 let fx = (CGFloat(i) + hash(i, j, b)) / CGFloat(cols)
                 let fy = (CGFloat(j) + hash(i, j, b + 50)) / CGFloat(rows)

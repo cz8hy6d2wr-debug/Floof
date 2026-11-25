@@ -17,8 +17,9 @@ struct GardenView: View {
 
     var body: some View {
         ZStack {
-            TimelineView(.animation(paused: scenePhase != .active)) { timeline in
-                Canvas { ctx, size in
+            // Feste, niedrige Bildrate statt 120 Hz ProMotion – spart den meisten Strom.
+            TimelineView(.animation(minimumInterval: 1 / Double(game.frameRate), paused: scenePhase != .active)) { timeline in
+                Canvas(opaque: true) { ctx, size in
                     GardenRenderer.draw(game, in: &ctx, size: size,
                                         time: timeline.date.timeIntervalSinceReferenceDate)
                 }
@@ -48,6 +49,7 @@ struct GardenView: View {
         .statusBarHidden()
         .task { await game.run() }
         .onChange(of: scenePhase) { _, phase in
+            game.isActive = phase == .active
             if phase != .active { game.persist() }
         }
         .sensoryFeedback(.selection, trigger: game.tool)

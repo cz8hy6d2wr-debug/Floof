@@ -121,6 +121,16 @@ final class GardenGame {
     /// Für Screenshots: feste Uhrzeit.
     @ObservationIgnored var fixedHour: Double?
 
+    // MARK: Akku
+    /// Bilder pro Sekunde fürs Zeichnen – passt sich an (beobachtet, damit die Zeitleiste neu plant).
+    var frameRate = 30
+    /// Stromsparmodus des iPhones: weniger Halme, weniger Effekte, langsamere Takte.
+    @ObservationIgnored var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+    /// Läuft nur, solange die App im Vordergrund ist.
+    @ObservationIgnored var isActive = true
+    @ObservationIgnored private var lastInteraction: Double = 0
+    @ObservationIgnored private var powerCheck: Double = 0
+
     private let light = UIImpactFeedbackGenerator(style: .light)
     private let soft = UIImpactFeedbackGenerator(style: .soft)
     private let notify = UINotificationFeedbackGenerator()
@@ -222,15 +232,22 @@ final class GardenGame {
         lastWall = .now
         light.prepare()
         while !Task.isCancelled {
+            // Im Hintergrund oder bei offenem Kontrollzentrum: nichts rechnen.
+            // Beim Zurückkommen holt catchUp die verpasste Zeit in einem Schritt nach.
+            guard isActive else {
+                try? await Task.sleep(for: .milliseconds(500))
+                continue
+            }
             let now = Date.now
             let gap = now.timeIntervalSince(lastWall)
             lastWall = now
             if gap > 3 {
                 catchUp(seconds: gap)
             } else {
-                step(min(gap, 0.1))
+                step(min(gap, 0.12))
             }
-            try? await Task.sleep(for: .milliseconds(16))
+            // Simulation braucht keine 60 Hz: 30 Hz, im Stromsparmodus oder Leerlauf 20 Hz.
+            try? await Task.sleep(for: .milliseconds(frameRate >= 30 ? 33 : 50))
         }
     }
 
@@ -254,13 +271,19 @@ final class GardenGame {
         }
         if banner != nil, clock > bannerUntil { banner = nil }
 
+        powerCheck += dt
+        if powerCheck > 2 {
+            powerCheck = 0
+            updateFrameRate()
+        }
+
         hudTimer += dt
         if hudTimer > 0.4 {
             hudTimer = 0
             hudTick &+= 1
         }
         if clock >= nextSave {
-            nextSave = clock + 15
+            nextSave = clock + 30
             persist()
         }
     }
@@ -774,7 +797,17 @@ final class GardenGame {
 
     // MARK: - Berührung
 
+    /// 30 Bilder/s beim Spielen, 20 nach einer Minute ohne Berührung, 15 im Stromsparmodus.
+    private func updateFrameRate() {
+        lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        let idle = clock - lastInteraction > 60 && particles.isEmpty
+        let target = lowPower ? 15 : (idle ? 20 : 30)
+        if target != frameRate { frameRate = target }
+    }
+
     func touchBegan(_ p: CGPoint) {
+        lastInteraction = clock
+        if frameRate < 30 && !lowPower { frameRate = 30 }
         touchStart = p
         lastTouch = p
         pettingID = tool == .hand ? rabbitID(at: p) : nil
