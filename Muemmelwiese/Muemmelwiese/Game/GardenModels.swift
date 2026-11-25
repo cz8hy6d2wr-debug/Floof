@@ -41,8 +41,10 @@ enum Rarity: Int, Codable, CaseIterable, Comparable, Identifiable {
     var income: Int { [1, 2, 3, 5][rawValue] }
     /// Wie leicht ein Gast Vertrauen fasst.
     var trustFactor: Double { [1, 0.8, 0.6, 0.42][rawValue] }
-    /// So lange bleibt ein Gast (Sekunden).
-    var stay: ClosedRange<Double> { [130...180, 120...160, 100...140, 90...120][rawValue] }
+    /// So lange bleibt ein Gast (Sekunden) – Besuch ist selten, also bleibt er eine Weile.
+    var stay: ClosedRange<Double> { [300...420, 280...400, 240...340, 210...300][rawValue] }
+    /// Wie wahrscheinlich ein Gast dieser Stufe einen Wunsch hat.
+    var wishChance: Double { [0.3, 0.75, 1, 1][rawValue] }
 
     /// Wahrscheinlichkeiten je Stufe – mehr Gemütlichkeit und Glücksklee helfen.
     static func odds(cozy: Int, lucky: Bool) -> [Double] {
@@ -149,7 +151,7 @@ enum GardenFur: String, Codable, CaseIterable {
 }
 
 enum GardenPattern: String, Codable, CaseIterable {
-    case einfarbig, blesse, hollaender, schecke, russe
+    case einfarbig, blesse, hollaender, schecke, loh, russe, japaner, thueringer
 
     var title: String {
         switch self {
@@ -157,13 +159,16 @@ enum GardenPattern: String, Codable, CaseIterable {
         case .hollaender: "Holländer"
         case .schecke: "Schecke"
         case .blesse: "Blesse"
+        case .loh: "Loh"
         case .russe: "Russe"
+        case .japaner: "Japaner"
+        case .thueringer: "Thüringer"
         }
     }
 }
 
 enum GardenBreed: String, Codable, CaseIterable {
-    case stehohr, widder, zwerg, loewenkopf, riese
+    case stehohr, widder, zwerg, hermelin, rex, loewenkopf, angora, riese
 
     var title: String {
         switch self {
@@ -171,15 +176,70 @@ enum GardenBreed: String, Codable, CaseIterable {
         case .widder: "Widder"
         case .loewenkopf: "Löwenkopf"
         case .zwerg: "Zwerg"
-        case .riese: "Riese"
+        case .hermelin: "Hermelin"
+        case .rex: "Rex"
+        case .angora: "Angora"
+        case .riese: "Deutscher Riese"
         }
     }
 
+    /// Gesamtgröße – Merkmale sollen auf den ersten Blick erkennbar sein.
     var bodyScale: CGFloat {
         switch self {
-        case .zwerg: 0.82
-        case .riese: 1.22
+        case .hermelin: 0.62
+        case .zwerg: 0.74
+        case .loewenkopf: 0.9
+        case .widder: 1.05
+        case .angora: 1.08
+        case .riese: 1.5
         default: 1
+        }
+    }
+
+    /// Kopf im Verhältnis zum Körper (Zwerge haben runde, große Köpfe).
+    var headScale: CGFloat {
+        switch self {
+        case .hermelin: 1.3
+        case .zwerg: 1.22
+        case .loewenkopf: 1.08
+        case .riese: 0.94
+        default: 1
+        }
+    }
+
+    /// Körper gestaucht (rund) oder gestreckt (lang).
+    var bodyLength: CGFloat {
+        switch self {
+        case .hermelin: 0.84
+        case .zwerg: 0.88
+        case .riese: 1.1
+        case .rex: 1.03
+        default: 1
+        }
+    }
+
+    var earLength: CGFloat {
+        switch self {
+        case .hermelin: 13
+        case .zwerg: 19
+        case .loewenkopf: 22
+        case .angora: 25
+        case .widder: 30
+        case .riese: 38
+        default: 29
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .stehohr: "Klassisches Kaninchen mit aufrechten Ohren."
+        case .widder: "Lange Schlappohren, die seitlich hängen."
+        case .zwerg: "Klein, rund, große Augen und kurze Ohren."
+        case .hermelin: "Winzig, schneeweiß, ganz kurze Ohren."
+        case .rex: "Samtig kurzes Fell, gewellte Schnurrhaare."
+        case .loewenkopf: "Wilde Mähne rund um den Kopf."
+        case .angora: "Lange, wolkige Wolle am ganzen Körper."
+        case .riese: "Riesig, gemütlich und tiefenentspannt."
         }
     }
 }
@@ -227,33 +287,99 @@ struct RabbitLook: Codable, Hashable {
         case .gewoehnlich:
             fur = GardenFur.common.randomElement()!
             pattern = [.einfarbig, .einfarbig, .blesse].randomElement()!
-            breed = [.stehohr, .widder, .zwerg].randomElement()!
+            breed = [.stehohr, .stehohr, .widder, .zwerg].randomElement()!
         case .selten:
             fur = (GardenFur.common + GardenFur.uncommon + GardenFur.uncommon).randomElement()!
-            pattern = [.einfarbig, .blesse, .hollaender, .schecke].randomElement()!
-            breed = [.stehohr, .widder, .zwerg, .loewenkopf].randomElement()!
+            pattern = [.einfarbig, .blesse, .hollaender, .schecke, .loh].randomElement()!
+            breed = [.stehohr, .widder, .zwerg, .loewenkopf, .rex].randomElement()!
             // mindestens ein besonderes Merkmal
-            if !GardenFur.uncommon.contains(fur) && ![.hollaender, .schecke].contains(pattern) && breed != .loewenkopf {
-                pattern = [.hollaender, .schecke].randomElement()!
+            if !GardenFur.uncommon.contains(fur) && ![.hollaender, .schecke, .loh].contains(pattern)
+                && ![.loewenkopf, .rex].contains(breed) {
+                pattern = [.hollaender, .schecke, .loh].randomElement()!
             }
         case .superSelten:
             fur = (GardenFur.superRare + GardenFur.superRare + GardenFur.uncommon + GardenFur.common).randomElement()!
-            pattern = [.einfarbig, .hollaender, .schecke, .russe].randomElement()!
-            breed = [.widder, .loewenkopf, .riese, .zwerg].randomElement()!
-            if !GardenFur.superRare.contains(fur) && pattern != .russe && breed != .riese {
-                if Bool.random() { pattern = .russe } else { breed = .riese }
+            pattern = [.einfarbig, .hollaender, .schecke, .russe, .japaner, .thueringer].randomElement()!
+            breed = [.hermelin, .angora, .riese, .loewenkopf, .widder, .zwerg].randomElement()!
+            if !GardenFur.superRare.contains(fur) && ![.russe, .japaner, .thueringer].contains(pattern)
+                && ![.hermelin, .angora, .riese].contains(breed) {
+                breed = [.hermelin, .angora, .riese].randomElement()!
             }
         case .legendaer:
             fur = GardenFur.legendary.randomElement()!
             pattern = [.einfarbig, .einfarbig, .blesse].randomElement()!
             breed = GardenBreed.allCases.randomElement()!
         }
-        if pattern == .russe { fur = .weiss }
+        // Rassetypische Farben
+        if rarity != .legendaer {
+            switch pattern {
+            case .russe: fur = .weiss
+            case .thueringer: fur = .sand
+            case .loh: fur = [.schwarz, .schoko, .grau, .lila].randomElement()!
+            case .japaner: fur = [.schwarz, .schoko, .grau].randomElement()!
+            default: break
+            }
+            if breed == .hermelin { fur = .weiss; pattern = .einfarbig }
+        }
         return RabbitLook(fur: fur, pattern: pattern, breed: breed, accent: fur == accent ? .schwarz : accent)
     }
 
     var description: String {
         pattern == .einfarbig ? "\(breed.title) · \(fur.title)" : "\(breed.title) · \(pattern.title) · \(fur.title)"
+    }
+}
+
+// MARK: - Wünsche
+
+/// Besondere Gäste wollen etwas, bevor sie einziehen.
+enum VisitorWish: Codable, Hashable {
+    case futter(GardenFoodKind)
+    case deko(DecorKind)
+    case streicheln
+    case kurzerRasen
+
+    var text: String {
+        switch self {
+        case .futter(.heu): "Möchte frisches Heu"
+        case .futter(.loewenzahn): "Hätte gern Löwenzahn"
+        case .futter(.moehre): "Wünscht sich eine Möhre"
+        case .deko(let kind): "Sucht auf der Wiese: \(kind.title)"
+        case .streicheln: "Will ausgiebig gestreichelt werden"
+        case .kurzerRasen: "Mag nur frisch gemähten Rasen"
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .futter(let kind): "Leg \(kind.title) in seine Nähe."
+        case .deko(let kind): "Stell \(kind.title) auf (Shop → Gestalten)."
+        case .streicheln: "Streichle es mit der Hand, bis die Herzen voll sind."
+        case .kurzerRasen: "Mäh den Rasen rund um den Gast."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .futter(let kind): kind.symbol
+        case .deko(let kind): kind.symbol
+        case .streicheln: "hand.raised.fill"
+        case .kurzerRasen: "scissors"
+        }
+    }
+
+    static func random(for rarity: Rarity) -> VisitorWish {
+        switch rarity {
+        case .gewoehnlich:
+            return [.futter(.loewenzahn), .futter(.heu), .streicheln, .kurzerRasen].randomElement()!
+        case .selten:
+            return [.futter(.loewenzahn), .futter(.moehre), .streicheln, .kurzerRasen,
+                    .deko(.stein), .deko(.busch), .deko(.blumenbeet), .deko(.sonnenblumen), .deko(.pilz)].randomElement()!
+        case .superSelten:
+            return [.futter(.moehre), .streicheln, .deko(.tunnel), .deko(.laterne), .deko(.baumstamm),
+                    .deko(.gartenzwerg), .deko(.heuraufe)].randomElement()!
+        case .legendaer:
+            return [.deko(.teich), .deko(.feenring), .deko(.tunnel), .futter(.moehre)].randomElement()!
+        }
     }
 }
 
@@ -400,6 +526,12 @@ struct GardenRabbit: Codable, Identifiable, Hashable {
     /// Vertrauen eines Gastes (100 → zieht ein).
     var trust: Double = 0
     var leaveAt: Date?
+    /// Wunsch eines Gastes (optional gespeichert, damit ältere Spielstände lesbar bleiben).
+    var wish: VisitorWish?
+    var wishFulfilled: Bool?
+    var wishProgress: Double?
+
+    var hasOpenWish: Bool { isVisitor && wish != nil && wishFulfilled != true }
 
     static let names = [
         "Mümmel", "Flocke", "Hoppel", "Krümel", "Möhrchen", "Wuschel", "Puschel", "Stups",

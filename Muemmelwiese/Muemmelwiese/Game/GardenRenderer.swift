@@ -28,9 +28,8 @@ enum GardenRenderer {
         let rain = CGFloat(game.rainAmount)
         let top = game.lawnTop
 
+        drawBackdrop(game, &ctx, size: size, top: top, night: night, rain: rain)
         drawSky(&ctx, size: size, top: top, night: night, rain: rain, hour: game.hour, time: time)
-        drawHills(&ctx, size: size, top: top, night: night)
-        drawFence(&ctx, size: size, top: top, unit: game.unit)
         drawLawnBase(game, &ctx, size: size, top: top)
         drawHutch(game, &ctx, night: night)
         drawBed(game, &ctx, time: time)
@@ -97,172 +96,305 @@ enum GardenRenderer {
 
     // MARK: - Himmel & Hintergrund
 
-    static func drawSky(_ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, night: CGFloat, rain: CGFloat, hour: Double, time: Double) {
-        let dusk = max(0, 1 - abs(night - 0.5) * 2.2)   // Abend- und Morgenrot
-        var skyTop = mix(Color(hex: 0x6FB8EA), Color(hex: 0x0A1230), night)
-        var skyBottom = mix(Color(hex: 0xD3EEF6), Color(hex: 0x24325A), night)
-        skyBottom = mix(skyBottom, Color(hex: 0xF7B27A), dusk * 0.7)
-        skyTop = mix(skyTop, Color(hex: 0x8A9AAE), rain * 0.6)
-        skyBottom = mix(skyBottom, Color(hex: 0xB9C3CC), rain * 0.6)
-        let skyRect = CGRect(x: 0, y: 0, width: size.width, height: top + 20)
-        ctx.fill(Path(skyRect), with: .linearGradient(Gradient(colors: [skyTop, skyBottom]),
-                                                      startPoint: .zero, endPoint: CGPoint(x: 0, y: top)))
+    /// Unbewegter Hintergrund (Himmel, Horizont, Zaun, Boden) – wird selten neu gerendert und als Bild gezeichnet.
+    @MainActor
+    final class BackdropCache {
+        static let shared = BackdropCache()
+        private var key = ""
+        private(set) var image: Image?
+        private(set) var imageSize: CGSize = .zero
 
-        // Sterne
-        if night > 0.3 {
-            for k in 0..<60 {
-                let x = hash(k, 1) * size.width
-                let y = hash(k, 2) * top * 0.8
-                let tw = 0.5 + 0.5 * sin(time * (1 + Double(hash(k, 3)) * 2) + Double(k))
-                let r = 0.6 + hash(k, 4) * 1.2
-                ctx.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)),
-                         with: .color(.white.opacity(Double(night - 0.3) * 1.3 * tw)))
+        /// Wird im Spieltakt aufgerufen (nicht beim Zeichnen) und rendert nur, wenn sich etwas geändert hat.
+        func prepare(_ game: GardenGame) {
+            let size = game.size
+            guard size.width > 10, size.height > 10 else { return }
+            let night = CGFloat(1 - game.daylight), rain = CGFloat(game.rainAmount), top = game.lawnTop
+            let k = "\(Int(size.width))x\(Int(size.height))-\(Int(game.hour * 6))-\(Int(rain * 4))-\(game.lowPower)"
+            if k != key || image == nil {
+                key = k
+                let hour = game.hour, unit = game.unit, low = game.lowPower
+                let content = Canvas(opaque: true) { c, s in
+                    GardenRenderer.drawStaticBackdrop(&c, size: s, top: top, night: night, rain: rain, hour: hour, unit: unit, detailed: !low)
+                }
+                .frame(width: size.width, height: size.height)
+                let renderer = ImageRenderer(content: content)
+                renderer.scale = low ? 1.5 : 2
+                if let ui = renderer.uiImage {
+                    image = Image(uiImage: ui)
+                    imageSize = size
+                }
             }
         }
+    }
+
+    @MainActor
+    static func drawBackdrop(_ game: GardenGame, _ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, night: CGFloat, rain: CGFloat) {
+        let cache = BackdropCache.shared
+        if let image = cache.image, abs(cache.imageSize.width - size.width) < 2, abs(cache.imageSize.height - size.height) < 2 {
+            ctx.draw(image, in: CGRect(origin: .zero, size: size))
+        } else {
+            drawStaticBackdrop(&ctx, size: size, top: top, night: night, rain: rain, hour: game.hour, unit: game.unit, detailed: false)
+        }
+    }
+
+    static func drawStaticBackdrop(_ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, night: CGFloat, rain: CGFloat,
+                                   hour: Double, unit: CGFloat, detailed: Bool) {
+        let dusk = max(0, 1 - abs(night - 0.5) * 2.2)   // Abend- und Morgenrot
+        // Himmel: tiefes Blau oben, dunstig-hell am Horizont
+        var zenith = mix(Color(hex: 0x3F8FD8), Color(hex: 0x060C24), night)
+        var middle = mix(Color(hex: 0x86C1EC), Color(hex: 0x15214A), night)
+        var horizon = mix(Color(hex: 0xE2F1F6), Color(hex: 0x2C3A62), night)
+        horizon = mix(horizon, Color(hex: 0xF6B27C), dusk * 0.75)
+        middle = mix(middle, Color(hex: 0xD99BA6), dusk * 0.35)
+        zenith = mix(zenith, Color(hex: 0x7D8C9E), rain * 0.65)
+        middle = mix(middle, Color(hex: 0xA2ADB8), rain * 0.65)
+        horizon = mix(horizon, Color(hex: 0xC4CBD1), rain * 0.65)
+        ctx.fill(Path(CGRect(x: 0, y: 0, width: size.width, height: top + 30)),
+                 with: .linearGradient(Gradient(stops: [.init(color: zenith, location: 0), .init(color: middle, location: 0.55),
+                                                        .init(color: horizon, location: 1)]),
+                                       startPoint: .zero, endPoint: CGPoint(x: 0, y: top)))
 
         // Sonne bzw. Mond auf einem Bogen
-        let dayT = (hour - 6) / 14            // 6 Uhr … 20 Uhr
+        let dayT = (hour - 6) / 14
         let nightT = ((hour + 24 - 20).truncatingRemainder(dividingBy: 24)) / 10
         let isDay = night < 0.5
         let t = CGFloat(isDay ? dayT : nightT)
         if t > -0.1 && t < 1.1 {
             let cx = size.width * (0.1 + 0.8 * t)
             let cy = top * (0.75 - 0.55 * sin(.pi * min(max(t, 0), 1)))
-            let r: CGFloat = 22
+            let r: CGFloat = 20
             if isDay {
-                ctx.fill(Path(ellipseIn: CGRect(x: cx - r * 3, y: cy - r * 3, width: r * 6, height: r * 6)),
-                         with: .radialGradient(Gradient(colors: [Color(hex: 0xFFF3C4).opacity(0.55 * Double(1 - rain)), .clear]),
-                                               center: CGPoint(x: cx, y: cy), startRadius: r * 0.8, endRadius: r * 3))
+                ctx.fill(Path(ellipseIn: CGRect(x: cx - r * 6, y: cy - r * 6, width: r * 12, height: r * 12)),
+                         with: .radialGradient(Gradient(colors: [Color(hex: 0xFFF6D8).opacity(0.5 * Double(1 - rain)), .clear]),
+                                               center: CGPoint(x: cx, y: cy), startRadius: r, endRadius: r * 6))
                 ctx.fill(Path(ellipseIn: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)),
-                         with: .color(mix(Color(hex: 0xFFE9A0), Color(hex: 0xFFB070), dusk).opacity(Double(1 - rain * 0.7))))
+                         with: .radialGradient(Gradient(colors: [Color(hex: 0xFFFDF2), mix(Color(hex: 0xFFEFB0), Color(hex: 0xFFAA66), dusk)]),
+                                               center: CGPoint(x: cx, y: cy), startRadius: 0, endRadius: r))
             } else {
-                ctx.fill(Path(ellipseIn: CGRect(x: cx - r * 2.5, y: cy - r * 2.5, width: r * 5, height: r * 5)),
-                         with: .radialGradient(Gradient(colors: [Color.white.opacity(0.18), .clear]),
-                                               center: CGPoint(x: cx, y: cy), startRadius: r * 0.8, endRadius: r * 2.5))
+                ctx.fill(Path(ellipseIn: CGRect(x: cx - r * 3, y: cy - r * 3, width: r * 6, height: r * 6)),
+                         with: .radialGradient(Gradient(colors: [Color.white.opacity(0.16), .clear]),
+                                               center: CGPoint(x: cx, y: cy), startRadius: r * 0.8, endRadius: r * 3))
                 ctx.fill(Path(ellipseIn: CGRect(x: cx - r * 0.8, y: cy - r * 0.8, width: r * 1.6, height: r * 1.6)),
-                         with: .color(Color(hex: 0xF4F0DF)))
-                ctx.fill(Path(ellipseIn: CGRect(x: cx - r * 0.45, y: cy - r * 0.95, width: r * 1.6, height: r * 1.6)),
-                         with: .color(mix(Color(hex: 0x0A1230), Color(hex: 0x24325A), 0.3)))
+                         with: .radialGradient(Gradient(colors: [Color(hex: 0xFAF6E6), Color(hex: 0xD9D4C0)]),
+                                               center: CGPoint(x: cx - 3, y: cy - 3), startRadius: 0, endRadius: r))
+                for (dx, dy, rr) in [(CGFloat(-4), CGFloat(-2), CGFloat(3.5)), (5, 4, 2.5), (2, -7, 2)] {
+                    ctx.fill(Path(ellipseIn: CGRect(x: cx + dx - rr, y: cy + dy - rr, width: rr * 2, height: rr * 2)),
+                             with: .color(Color(hex: 0xBFB8A2).opacity(0.5)))
+                }
             }
         }
 
-        // Wolken ziehen langsam vorbei
-        let cloudColor = mix(mix(.white, Color(hex: 0x3A4668), night), Color(hex: 0x9AA4B0), rain * 0.7)
-        let cloudCount = 4 + Int(rain * 4)
-        for k in 0..<cloudCount {
-            let speed = 6 + Double(hash(k, 9)) * 8
-            let span = size.width + 240
-            let x = CGFloat((Double(hash(k, 7)) * Double(span) + time * speed).truncatingRemainder(dividingBy: Double(span))) - 120
-            let y = top * (0.12 + hash(k, 8) * 0.45)
-            let w = 70 + hash(k, 10) * 70
-            var cloud = Path()
-            cloud.addEllipse(in: CGRect(x: x, y: y, width: w, height: w * 0.32))
-            cloud.addEllipse(in: CGRect(x: x + w * 0.18, y: y - w * 0.16, width: w * 0.45, height: w * 0.4))
-            cloud.addEllipse(in: CGRect(x: x + w * 0.42, y: y - w * 0.1, width: w * 0.4, height: w * 0.34))
-            ctx.fill(cloud, with: .color(cloudColor.opacity(0.85)))
-        }
-    }
-
-    static func drawHills(_ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, night: CGFloat) {
-        let far = mix(Color(hex: 0x9CC38A), Color(hex: 0x1E2C3A), night * 0.8)
-        let near = mix(Color(hex: 0x6E9F55), Color(hex: 0x17262A), night * 0.8)
-        for (layer, color) in [(0, far), (1, near)] {
+        // Ferne Hügel im Dunst (Luftperspektive: je weiter weg, desto blasser und blauer)
+        let haze = mix(horizon, Color(hex: 0x9FB8C8), 0.3)
+        let hillColors = [mix(Color(hex: 0x8FB089), haze, 0.55), mix(Color(hex: 0x6E9A5E), haze, 0.3)]
+        for layer in 0..<2 {
             var p = Path()
-            let base = top - (layer == 0 ? 34 : 14)
+            let base = top - (layer == 0 ? 46 : 30) * unit
             p.move(to: CGPoint(x: 0, y: top + 10))
             p.addLine(to: CGPoint(x: 0, y: base))
-            let steps = 24
+            let steps = 40
             for s in 0...steps {
                 let x = size.width * CGFloat(s) / CGFloat(steps)
-                let wave = CGFloat(0.5 + 0.5 * sin(Double(x) / (layer == 0 ? 90.0 : 60.0) + Double(layer) * 2))
-                let amp: CGFloat = layer == 0 ? 26 : 18
-                let y = base - amp * wave
-                p.addLine(to: CGPoint(x: x, y: y))
+                let wave = CGFloat(0.5 + 0.3 * sin(Double(x) / (layer == 0 ? 140 : 85) + Double(layer) * 2)
+                                   + 0.2 * sin(Double(x) / 37 + Double(layer)))
+                p.addLine(to: CGPoint(x: x, y: base - (layer == 0 ? 30 : 20) * unit * wave))
             }
             p.addLine(to: CGPoint(x: size.width, y: top + 10))
             p.closeSubpath()
-            ctx.fill(p, with: .color(color))
+            ctx.fill(p, with: .color(mix(hillColors[layer], Color(hex: 0x101A28), night * 0.3)))
         }
-        // Ein paar runde Bäume am Horizont
-        for k in 0..<3 {
-            let x = size.width * (0.35 + CGFloat(k) * 0.24 + hash(k, 21) * 0.05)
-            let r = 20 + hash(k, 22) * 14
-            let y = top - 18
-            ctx.fill(Path(CGRect(x: x - 3, y: y - 6, width: 6, height: 18)), with: .color(mix(Color(hex: 0x6B4B33), .black, night * 0.7)))
-            var crown = Path()
-            crown.addEllipse(in: CGRect(x: x - r, y: y - r * 2, width: r * 2, height: r * 1.8))
-            crown.addEllipse(in: CGRect(x: x - r * 1.2, y: y - r * 1.4, width: r * 1.3, height: r * 1.1))
-            crown.addEllipse(in: CGRect(x: x - r * 0.1, y: y - r * 1.5, width: r * 1.3, height: r * 1.2))
-            ctx.fill(crown, with: .color(mix(Color(hex: 0x4F8A3C), Color(hex: 0x12201F), night * 0.85)))
+
+        // Baumreihe: viele Kronen, oben vom Licht getroffen, unten im Schatten
+        ctx.drawLayer { l in
+            if detailed { l.addFilter(.blur(radius: 0.6)) }
+            let dark = mix(Color(hex: 0x2F5A2C), Color(hex: 0x0A1414), night * 0.3)
+            let mid = mix(Color(hex: 0x41753A), Color(hex: 0x0F1C1C), night * 0.3)
+            let lit = mix(Color(hex: 0x6E9F4E), Color(hex: 0x16262A), night * 0.3)
+            var x: CGFloat = -10
+            var k = 0
+            while x < size.width + 20 {
+                let h = (22 + hash(k, 71) * 26 + (hash(k, 72) > 0.85 ? 22 : 0)) * unit
+                let w = (16 + hash(k, 73) * 16) * unit
+                let base = top - 6 * unit
+                for (n, color) in [dark, mid, lit].enumerated() {
+                    let shrink = CGFloat(n) * 0.18
+                    let rect = CGRect(x: x - w * (1 - shrink) + CGFloat(n) * 2, y: base - h * (1 - shrink * 0.4) - CGFloat(n) * 1.5,
+                                      width: w * 2 * (1 - shrink), height: h * (1 - shrink * 0.6))
+                    l.fill(Path(ellipseIn: rect), with: .color(color))
+                }
+                // Blattwerk
+                if detailed {
+                    for b in 0..<10 {
+                        let bx = x + (hash(k, b, 74) - 0.5) * w * 1.6
+                        let by = base - hash(k, b, 75) * h
+                        let br = (2.5 + hash(k, b, 76) * 3) * unit
+                        l.fill(Path(ellipseIn: CGRect(x: bx - br, y: by - br, width: br * 2, height: br * 2)),
+                               with: .color((b % 3 == 0 ? lit : dark).opacity(0.8)))
+                    }
+                }
+                x += w * (1.1 + hash(k, 77) * 0.5)
+                k += 1
+            }
         }
+
+        // Zaun aus verwittertem Holz
+        let wood = mix(Color(hex: 0xB48A62), Color(hex: 0x2A2420), night * 0.3)
+        let woodDark = mix(Color(hex: 0x7A5638), Color(hex: 0x15110E), night * 0.3)
+        let fh = 26 * unit
+        for rail in [0.38, 0.75] {
+            let y = top - fh * CGFloat(rail)
+            let r = CGRect(x: 0, y: y - 2 * unit, width: size.width, height: 4.5 * unit)
+            ctx.fill(Path(r), with: .linearGradient(Gradient(colors: [wood, woodDark]),
+                                                   startPoint: CGPoint(x: 0, y: r.minY), endPoint: CGPoint(x: 0, y: r.maxY)))
+        }
+        var px: CGFloat = 8
+        var pk = 0
+        while px < size.width {
+            let lean = (hash(pk, 81) - 0.5) * 1.5 * unit
+            var post = Path()
+            post.move(to: CGPoint(x: px - 4 * unit, y: top + 2))
+            post.addLine(to: CGPoint(x: px - 4 * unit + lean, y: top - fh))
+            post.addLine(to: CGPoint(x: px + lean, y: top - fh - 5 * unit))
+            post.addLine(to: CGPoint(x: px + 4 * unit + lean, y: top - fh))
+            post.addLine(to: CGPoint(x: px + 4 * unit, y: top + 2))
+            post.closeSubpath()
+            ctx.fill(post, with: .linearGradient(Gradient(colors: [mix(wood, .white, 0.12), woodDark]),
+                                                 startPoint: CGPoint(x: px - 4 * unit, y: 0), endPoint: CGPoint(x: px + 4 * unit, y: 0)))
+            var grain = Path()
+            grain.move(to: CGPoint(x: px - 1 * unit, y: top - 2))
+            grain.addLine(to: CGPoint(x: px - 1 * unit + lean, y: top - fh + 3))
+            grain.move(to: CGPoint(x: px + 1.8 * unit, y: top - 4))
+            grain.addLine(to: CGPoint(x: px + 1.8 * unit + lean, y: top - fh * 0.6))
+            ctx.stroke(grain, with: .color(woodDark.opacity(0.5)), lineWidth: 0.6)
+            px += 34 * unit
+            pk += 1
+        }
+
+        // Boden: in der Ferne heller und bläulicher, vorn satt; dazu Struktur aus Flecken und Klee
+        let lawnRect = CGRect(x: 0, y: top, width: size.width, height: size.height - top)
+        let far = mix(mix(Color(hex: 0x8DB967), haze, 0.25), Color(hex: 0x0E1A14), night * 0.3)
+        let near = mix(Color(hex: 0x4E8A35), Color(hex: 0x0A140E), night * 0.3)
+        ctx.fill(Path(lawnRect), with: .linearGradient(Gradient(colors: [far, mix(far, near, 0.5), near]),
+                                                       startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: size.height)))
+        let blotches = detailed ? 1400 : 500
+        var darkDots = Path(), lightDots = Path(), soil = Path(), clover = Path()
+        for k in 0..<blotches {
+            let fy = hash(k, 91)
+            let y = top + fy * fy * (size.height - top)          // mehr Details vorn
+            let x = hash(k, 92) * size.width
+            let sc = 0.5 + fy * 1.2
+            let r = (1.5 + hash(k, 93) * 5) * sc
+            let rect = CGRect(x: x - r * 1.6, y: y - r * 0.55, width: r * 3.2, height: r * 1.1)
+            let pick = hash(k, 94)
+            if pick < 0.45 { darkDots.addEllipse(in: rect) }
+            else if pick < 0.88 { lightDots.addEllipse(in: rect) }
+            else if pick < 0.94 { soil.addEllipse(in: rect.insetBy(dx: r * 0.8, dy: r * 0.2)) }
+            else {
+                for c in 0..<3 {
+                    let a = Double(c) / 3 * 2 * .pi
+                    let cr = r * 0.45
+                    clover.addEllipse(in: CGRect(x: x + CGFloat(cos(a)) * cr - cr, y: y + CGFloat(sin(a)) * cr * 0.5 - cr * 0.6,
+                                                 width: cr * 2, height: cr * 1.2))
+                }
+            }
+        }
+        ctx.fill(darkDots, with: .color(mix(Color(hex: 0x3B6E2A), .black, night * 0.3).opacity(0.35)))
+        ctx.fill(lightDots, with: .color(mix(Color(hex: 0xA9CF7C), .black, night * 0.3).opacity(0.3)))
+        ctx.fill(soil, with: .color(mix(Color(hex: 0x7A6244), .black, night * 0.3).opacity(0.35)))
+        ctx.fill(clover, with: .color(mix(Color(hex: 0x5C9A3E), .black, night * 0.3).opacity(0.8)))
+        // Dunst über dem fernen Rasen
+        ctx.fill(Path(CGRect(x: 0, y: top - 4, width: size.width, height: (size.height - top) * 0.25)),
+                 with: .linearGradient(Gradient(colors: [horizon.opacity(0.35 * Double(1 - night * 0.7)), .clear]),
+                                       startPoint: CGPoint(x: 0, y: top - 4), endPoint: CGPoint(x: 0, y: top + (size.height - top) * 0.25)))
     }
 
-    static func drawFence(_ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, unit: CGFloat) {
-        let wood = Color(hex: 0xC99A6B), dark = Color(hex: 0x8E6440)
-        let h = 26 * unit
-        for rail in [0.35, 0.72] {
-            let y = top - h * CGFloat(rail)
-            ctx.fill(Path(CGRect(x: 0, y: y - 2, width: size.width, height: 4 * unit)), with: .color(dark))
+    /// Was sich bewegt: Sterne funkeln, Wolken ziehen.
+    static func drawSky(_ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, night: CGFloat, rain: CGFloat, hour: Double, time: Double) {
+        if night > 0.3 {
+            var stars = Path(), bright = Path()
+            for k in 0..<70 {
+                let x = hash(k, 1) * size.width
+                let y = hash(k, 2) * top * 0.8
+                let tw = 0.5 + 0.5 * sin(time * (1 + Double(hash(k, 3)) * 2) + Double(k))
+                let r = 0.5 + hash(k, 4) * 1.1
+                let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+                if tw > 0.6 { bright.addEllipse(in: rect) } else { stars.addEllipse(in: rect) }
+            }
+            ctx.fill(stars, with: .color(.white.opacity(Double(night - 0.3) * 0.7)))
+            ctx.fill(bright, with: .color(.white.opacity(Double(night - 0.3) * 1.4)))
         }
-        var x: CGFloat = 8
-        while x < size.width {
-            var post = Path()
-            post.move(to: CGPoint(x: x - 4 * unit, y: top + 2))
-            post.addLine(to: CGPoint(x: x - 4 * unit, y: top - h))
-            post.addLine(to: CGPoint(x: x, y: top - h - 5 * unit))
-            post.addLine(to: CGPoint(x: x + 4 * unit, y: top - h))
-            post.addLine(to: CGPoint(x: x + 4 * unit, y: top + 2))
-            post.closeSubpath()
-            ctx.fill(post, with: .color(wood))
-            ctx.stroke(post, with: .color(dark.opacity(0.6)), lineWidth: 1)
-            x += 34 * unit
+
+        // Wolken: weich aus vielen Teilen, unten leicht verschattet
+        let light = mix(mix(.white, Color(hex: 0x3A4668), night), Color(hex: 0xA3ACB6), rain * 0.7)
+        let shadow = mix(mix(Color(hex: 0xC9D6E2), Color(hex: 0x1E2640), night), Color(hex: 0x7C8590), rain * 0.7)
+        let cloudCount = 4 + Int(rain * 5)
+        for k in 0..<cloudCount {
+            let speed = 4 + Double(hash(k, 9)) * 6
+            let span = size.width + 300
+            let x = CGFloat((Double(hash(k, 7)) * Double(span) + time * speed).truncatingRemainder(dividingBy: Double(span))) - 150
+            let y = top * (0.1 + hash(k, 8) * 0.42)
+            let w = (80 + hash(k, 10) * 90) * (0.7 + y / top * 0.5)
+            var lower = Path(), upper = Path()
+            for p in 0..<7 {
+                let px = x + w * (CGFloat(p) / 6)
+                let ph = w * (0.18 + hash(k, p, 11) * 0.22) * (1 - abs(CGFloat(p) - 3) / 5)
+                upper.addEllipse(in: CGRect(x: px - ph, y: y - ph * 1.2, width: ph * 2, height: ph * 1.7))
+                lower.addEllipse(in: CGRect(x: px - ph * 1.1, y: y - ph * 0.5, width: ph * 2.2, height: ph * 1.2))
+            }
+            ctx.fill(lower, with: .color(shadow.opacity(0.8)))
+            ctx.fill(upper, with: .color(light.opacity(0.92)))
         }
     }
 
     @MainActor
     static func drawLawnBase(_ game: GardenGame, _ ctx: inout GraphicsContext, size: CGSize, top: CGFloat) {
-        let rect = CGRect(x: 0, y: top, width: size.width, height: size.height - top)
-        ctx.fill(Path(rect), with: .linearGradient(Gradient(colors: [Color(hex: 0x7CB356), Color(hex: 0x5C9640)]),
-                                                   startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: size.height)))
-        // Mähstreifen und nasse Stellen je Zelle
+        // Mähstreifen (dezent wie bei echtem Rasen) und nasse Stellen je Zelle
         let cols = GardenSave.cols, rows = GardenSave.rows
         let cw = size.width / CGFloat(cols), ch = (size.height - top) / CGFloat(rows)
-        var lightStripe = Path(), darkStripe = Path(), wetPath = Path()
+        var lightStripe = Path(), darkStripe = Path(), wetPath = Path(), tallShade = Path()
         for k in 0..<(cols * rows) {
             let i = k % cols, j = k / cols
             let cell = CGRect(x: CGFloat(i) * cw, y: top + CGFloat(j) * ch, width: cw + 0.5, height: ch + 0.5)
             let h = CGFloat(game.save.grass[k])
-            if h < 0.5 {
+            if h < 0.45 {
                 if i % 2 == 0 { lightStripe.addRect(cell) } else { darkStripe.addRect(cell) }
+            } else if h > 0.7 {
+                tallShade.addRect(cell)
             }
             if game.save.wet[k] > 0.15 { wetPath.addRect(cell) }
         }
-        ctx.fill(lightStripe, with: .color(Color(hex: 0xA7D477).opacity(0.75)))
-        ctx.fill(darkStripe, with: .color(Color(hex: 0x8DC25F).opacity(0.75)))
-        ctx.fill(wetPath, with: .color(Color(hex: 0x2E5A30).opacity(0.18)))
+        ctx.fill(lightStripe, with: .color(Color(hex: 0xB5DA86).opacity(0.38)))
+        ctx.fill(darkStripe, with: .color(Color(hex: 0x6FA548).opacity(0.3)))
+        ctx.fill(tallShade, with: .color(Color(hex: 0x2E5A22).opacity(0.22)))
+        ctx.fill(wetPath, with: .color(Color(hex: 0x1F4A2A).opacity(0.2)))
     }
 
     @MainActor
     static func drawGrassRow(_ game: GardenGame, row j: Int, _ ctx: inout GraphicsContext, time: Double, wind: CGFloat) {
         let cols = GardenSave.cols, rows = GardenSave.rows
-        let shades = [Color(hex: 0x4C8A34), Color(hex: 0x66A443), Color(hex: 0x86C158)]
-        var paths = [Path(), Path(), Path()]
+        // dunkel am Grund … hell, und trockene, gelbliche Spitzen bei hohem Gras
+        let shades = [Color(hex: 0x3D7A2A), Color(hex: 0x4F8E35), Color(hex: 0x65A244), Color(hex: 0x82B957), Color(hex: 0xA9C66A)]
+        var paths = [Path(), Path(), Path(), Path(), Path()]
         let touch = game.toolPoint
         let bed = GardenGame.bedRect.insetBy(dx: -0.01, dy: -0.01)
+        let cw = game.size.width / CGFloat(cols)
+        let ch = (game.size.height - game.lawnTop) / CGFloat(rows)
+        let density = cw * ch / (game.lowPower ? 150 : 75)
         for i in 0..<cols {
             let k = j * cols + i
             let h = CGFloat(game.save.grass[k])
-            let blades = game.lowPower ? (h < 0.2 ? 2 : 4) : (h < 0.2 ? 3 : 7)
+            let blades = Int(min(18, max(3, density * (h < 0.2 ? 0.6 : 1))))
             for b in 0..<blades {
                 let fx = (CGFloat(i) + hash(i, j, b)) / CGFloat(cols)
                 let fy = (CGFloat(j) + hash(i, j, b + 50)) / CGFloat(rows)
                 if bed.contains(CGPoint(x: fx, y: fy)) { continue }
                 let base = game.screen(Double(fx), Double(fy))
                 let s = game.scale(atY: Double(fy))
-                let variance = 0.7 + hash(i, j, b + 99) * 0.6
-                let height = (3 + 26 * h) * s * variance
-                let width = 1.7 * s
-                var sway = CGFloat(sin(time * 1.6 + Double(base.x) * 0.025 + Double(b))) * (1.5 + 4 * h) * s * wind
+                let variance = 0.55 + hash(i, j, b + 99) * 0.9
+                let height = (2.5 + 28 * h) * s * variance
+                let width = (1.0 + hash(i, j, b + 3) * 0.8) * s
+                let lean = (hash(i, j, b + 5) - 0.5) * 6 * s * h
+                var sway = lean + CGFloat(sin(time * 1.5 + Double(base.x) * 0.022 + Double(b))) * (1 + 4 * h) * s * wind
                 if let touch {
                     let dx = base.x - touch.x, dy = base.y - touch.y
                     let d = hypot(dx, dy)
@@ -271,10 +403,12 @@ enum GardenRenderer {
                 let tip = CGPoint(x: base.x + sway, y: base.y - height)
                 var p = Path()
                 p.move(to: CGPoint(x: base.x - width, y: base.y))
-                p.addQuadCurve(to: tip, control: CGPoint(x: base.x - width * 0.2 + sway * 0.3, y: base.y - height * 0.6))
+                p.addQuadCurve(to: tip, control: CGPoint(x: base.x - width * 0.2 + sway * 0.25, y: base.y - height * 0.6))
                 p.addQuadCurve(to: CGPoint(x: base.x + width, y: base.y),
-                               control: CGPoint(x: base.x + width * 0.4 + sway * 0.3, y: base.y - height * 0.55))
-                paths[Int(hash(i, j, b + 7) * 2.999)].addPath(p)
+                               control: CGPoint(x: base.x + width * 0.4 + sway * 0.25, y: base.y - height * 0.55))
+                var shade = Int(hash(i, j, b + 7) * 3.999)
+                if h > 0.75 && variance > 1.25 { shade = 4 }          // trockene Spitzen
+                paths[shade].addPath(p)
             }
         }
         for (n, p) in paths.enumerated() { ctx.fill(p, with: .color(shades[n])) }
@@ -884,8 +1018,11 @@ enum GardenRenderer {
 
         // Schatten
         let shadowW = (pose.flop ? 64 : 52) * s * (1 - min(pose.lift, 40) / 90)
-        ctx.fill(Path(ellipseIn: CGRect(x: p.x - shadowW / 2, y: p.y - 5 * s, width: shadowW, height: 11 * s)),
-                 with: .color(.black.opacity(0.2)))
+        // weicher Schatten, leicht zur sonnenabgewandten Seite
+        let shadowRect = CGRect(x: p.x - shadowW / 2 - 4 * s, y: p.y - 6 * s, width: shadowW + 8 * s, height: 13 * s)
+        ctx.fill(Path(ellipseIn: shadowRect),
+                 with: .radialGradient(Gradient(colors: [.black.opacity(0.32), .black.opacity(0.12), .clear]),
+                                       center: CGPoint(x: shadowRect.midX, y: shadowRect.midY), startRadius: 0, endRadius: shadowRect.width / 2))
         if selected {
             let ring = CGRect(x: p.x - 34 * s, y: p.y - 9 * s, width: 68 * s, height: 18 * s)
             ctx.stroke(Path(ellipseIn: ring), with: .color(.white.opacity(0.85)),
@@ -903,6 +1040,39 @@ enum GardenRenderer {
             let icon = ctx.resolve(Text(Image(systemName: r.rarity.symbol)).font(.system(size: 8, weight: .bold))
                 .foregroundStyle(r.rarity.color))
             ctx.draw(icon, at: c)
+
+            // Wunsch als Sprechblase
+            if let wish = r.wish {
+                let done = r.wishFulfilled == true
+                let bob = CGFloat(sin(time * 2.2)) * 1.5
+                let b = CGRect(x: c.x + 14, y: c.y - 26 + bob, width: 30, height: 24)
+                var bubble = Path(roundedRect: b, cornerRadius: 9)
+                bubble.move(to: CGPoint(x: b.minX + 5, y: b.maxY - 2))
+                bubble.addLine(to: CGPoint(x: b.minX - 4, y: b.maxY + 7))
+                bubble.addLine(to: CGPoint(x: b.minX + 12, y: b.maxY - 1))
+                bubble.closeSubpath()
+                ctx.fill(bubble, with: .color(.black.opacity(0.12)))
+                ctx.fill(bubble.offsetBy(dx: 0, dy: -1), with: .color(done ? Color(hex: 0xE4F4D8) : .white))
+                let tint: Color = {
+                    switch wish {
+                    case .futter(let k): return k.tint
+                    case .deko: return MTheme.leaf
+                    case .streicheln: return Color(hex: 0xF27A9B)
+                    case .kurzerRasen: return Color(hex: 0x5E9A3E)
+                    }
+                }()
+                let symbol = ctx.resolve(Text(Image(systemName: done ? "checkmark" : wish.symbol))
+                    .font(.system(size: 13, weight: .bold)).foregroundStyle(done ? MTheme.leaf : tint))
+                ctx.draw(symbol, at: CGPoint(x: b.midX, y: b.midY - 1))
+                if wish == .streicheln, !done {
+                    let w = b.width - 8
+                    let f = CGFloat(min(1, (r.wishProgress ?? 0) / 10))
+                    ctx.fill(Path(roundedRect: CGRect(x: b.minX + 4, y: b.maxY - 5, width: w, height: 2.5), cornerRadius: 1.2),
+                             with: .color(.black.opacity(0.1)))
+                    ctx.fill(Path(roundedRect: CGRect(x: b.minX + 4, y: b.maxY - 5, width: w * f, height: 2.5), cornerRadius: 1.2),
+                             with: .color(tint))
+                }
+            }
         }
 
         ctx.drawLayer { layer in
@@ -935,6 +1105,15 @@ enum GardenRenderer {
         case .russe:
             return Palette(main: white.main, shade: white.shade, belly: white.belly,
                            spot: look.accent.shade, outline: white.shade)
+        case .loh:
+            return Palette(main: look.fur.main, shade: look.fur.shade, belly: Color(hex: 0xE09A55),
+                           spot: Color(hex: 0xDB8F48), outline: look.fur.shade)
+        case .japaner:
+            return Palette(main: look.fur.main, shade: look.fur.shade, belly: Color(hex: 0xF0C089),
+                           spot: Color(hex: 0xDE8A3E), outline: look.fur.shade)
+        case .thueringer:
+            return Palette(main: Color(hex: 0xC9995A), shade: Color(hex: 0x8C6235), belly: Color(hex: 0xB8874E),
+                           spot: Color(hex: 0x4A3022), outline: Color(hex: 0x8C6235))
         default:
             let spot = look.fur == .weiss ? look.accent.main : Color(hex: 0xF8F4EE)
             return Palette(main: look.fur.main, shade: look.fur.shade, belly: look.fur.belly, spot: spot, outline: look.fur.shade)
@@ -953,7 +1132,7 @@ enum GardenRenderer {
             return
         }
 
-        ctx.scaleBy(x: 1 / pose.stretch, y: pose.stretch * pose.breath)
+        ctx.scaleBy(x: look.breed.bodyLength / pose.stretch, y: pose.stretch * pose.breath)
 
         let grooming = pose.groom > -1
         let hc = CGPoint(x: 14 + 8 * pose.headDown + (grooming ? pose.groom * 0.6 : 0),
@@ -964,6 +1143,9 @@ enum GardenRenderer {
 
         // Körper
         let body = bodyPath()
+        if look.breed == .angora || look.breed == .loewenkopf {
+            fluff(&ctx, around: body, color: pal.main, shade: pal.shade, width: look.breed == .angora ? 9 : 4)
+        }
         ctx.fill(body, with: .linearGradient(Gradient(colors: [pal.main, pal.main, dark]),
                                              startPoint: CGPoint(x: -8, y: -34), endPoint: CGPoint(x: -4, y: 0)))
         ctx.drawLayer { l in
@@ -994,7 +1176,10 @@ enum GardenRenderer {
                    with: .linearGradient(Gradient(colors: [.clear, .black.opacity(0.18)]),
                                          startPoint: CGPoint(x: 0, y: -7), endPoint: CGPoint(x: 0, y: 0)))
         }
-        ctx.stroke(body, with: .color(pal.shade.opacity(0.45)), lineWidth: 0.8)
+        ctx.stroke(body, with: .color(pal.shade.opacity(0.3)), lineWidth: 0.7)
+        // flauschige Fellkante statt harter Linie
+        ctx.stroke(body, with: .color(mix(pal.main, .white, 0.1).opacity(0.9)),
+                   style: StrokeStyle(lineWidth: look.breed == .rex ? 0.8 : 1.8, lineCap: .round, dash: [0.5, 1.7]))
 
         // Hinterpfote und Vorderpfoten
         let footColor = look.pattern == .russe ? pal.spot : (look.pattern == .hollaender ? pal.spot : mix(pal.main, pal.belly, 0.2))
@@ -1015,8 +1200,8 @@ enum GardenRenderer {
         ctx.drawLayer { h in
             h.translateBy(x: hc.x, y: hc.y)
             h.rotate(by: .radians(Double(pose.headDown) * 0.38))
-            let hs: CGFloat = look.breed == .zwerg ? 1.12 : 1
-            h.scaleBy(x: hs, y: hs)
+            let hs = look.breed.headScale
+            h.scaleBy(x: hs / look.breed.bodyLength, y: hs)
             drawHead(&h, look: look, pal: pal, pose: pose, seed: seed)
         }
 
@@ -1025,6 +1210,14 @@ enum GardenRenderer {
             ctx.fill(Path(roundedRect: CGRect(x: hc.x + 4, y: hc.y + 4 + pose.groom * 2, width: 7, height: 4.5), cornerRadius: 2.2),
                      with: .color(pawColor))
         }
+    }
+
+    /// Flauschiger Rand aus Fellbüscheln (Angora, Löwenkopf).
+    private static func fluff(_ ctx: inout GraphicsContext, around path: Path, color: Color, shade: Color, width: CGFloat) {
+        ctx.stroke(path, with: .color(mix(color, shade, 0.2)),
+                   style: StrokeStyle(lineWidth: width * 2, lineCap: .round, dash: [1.2, width * 0.55]))
+        ctx.stroke(path, with: .color(color),
+                   style: StrokeStyle(lineWidth: width * 1.4, lineCap: .round, dash: [1.5, width * 0.4], dashPhase: 2))
     }
 
     private static func bodyPath() -> Path {
@@ -1068,8 +1261,19 @@ enum GardenRenderer {
     }
 
     private static func furTexture(_ l: inout GraphicsContext, rect: CGRect, look: RabbitLook, pal: Palette, seed: Int, count: Int) {
-        l.stroke(furPath(in: rect, count: count, seed: seed), with: .color(pal.shade.opacity(0.3)), lineWidth: 0.7)
-        l.stroke(furPath(in: rect, count: count / 2, seed: seed &+ 9), with: .color(.white.opacity(0.18)), lineWidth: 0.7)
+        switch look.breed {
+        case .rex:
+            // Samtfell: kaum Haarstriche, dafür seidiger Glanz
+            l.fill(Path(ellipseIn: CGRect(x: rect.minX + rect.width * 0.2, y: rect.minY, width: rect.width * 0.5, height: rect.height * 0.35)),
+                   with: .color(.white.opacity(0.18)))
+            l.stroke(furPath(in: rect, count: count / 3, seed: seed, length: 2), with: .color(pal.shade.opacity(0.18)), lineWidth: 0.5)
+        case .angora:
+            l.stroke(furPath(in: rect, count: count * 2, seed: seed, length: 9, angle: 2.2), with: .color(pal.shade.opacity(0.28)), lineWidth: 0.8)
+            l.stroke(furPath(in: rect, count: count, seed: seed &+ 9, length: 9, angle: 2.0), with: .color(.white.opacity(0.3)), lineWidth: 0.9)
+        default:
+            l.stroke(furPath(in: rect, count: count, seed: seed), with: .color(pal.shade.opacity(0.3)), lineWidth: 0.7)
+            l.stroke(furPath(in: rect, count: count / 2, seed: seed &+ 9), with: .color(.white.opacity(0.18)), lineWidth: 0.7)
+        }
         // Wildfarbene Kaninchen haben gesprenkeltes ("geticktes") Fell.
         if look.fur == .wildfarben || look.fur == .sand || look.fur == .silber {
             var dots = Path()
@@ -1110,6 +1314,37 @@ enum GardenRenderer {
             l.stroke(stripe, with: .color(pal.spot), lineWidth: 5)
         case .blesse:
             l.fill(Path(ellipseIn: CGRect(x: 8, y: -24, width: 12, height: 18)), with: .color(pal.spot.opacity(0.9)))
+        case .loh:
+            // lohfarbener Bauch, Brust und Unterseite mit scharfer Kante
+            l.fill(Path(ellipseIn: CGRect(x: -34, y: -10, width: 54, height: 16)), with: .color(pal.spot))
+            l.fill(Path(ellipseIn: CGRect(x: 6, y: -22, width: 14, height: 22)), with: .color(pal.spot))
+            var ticks = Path()
+            for k in 0..<14 {
+                let x = -30 + hash(seed, k, 31) * 44
+                ticks.move(to: CGPoint(x: x, y: -12 + hash(seed, k, 32) * 4))
+                ticks.addLine(to: CGPoint(x: x - 1.5, y: -9))
+            }
+            l.stroke(ticks, with: .color(pal.spot), lineWidth: 1.2)
+        case .japaner:
+            // Harlekin: abwechselnde Bänder
+            for k in 0..<6 where k % 2 == 1 {
+                let x = -36 + CGFloat(k) * 9.5
+                var band = Path()
+                band.move(to: CGPoint(x: x, y: -40))
+                band.addLine(to: CGPoint(x: x + 9.5, y: -40))
+                band.addLine(to: CGPoint(x: x + 7, y: 2))
+                band.addLine(to: CGPoint(x: x - 2.5, y: 2))
+                band.closeSubpath()
+                l.fill(band, with: .color(pal.spot))
+            }
+        case .thueringer:
+            // rußiger Schleier an Flanken und Hinterteil
+            l.fill(Path(ellipseIn: CGRect(x: -40, y: -28, width: 30, height: 34)),
+                   with: .radialGradient(Gradient(colors: [pal.spot.opacity(0.55), .clear]),
+                                         center: CGPoint(x: -30, y: -10), startRadius: 0, endRadius: 22))
+            l.fill(Path(CGRect(x: -40, y: -8, width: 70, height: 10)),
+                   with: .linearGradient(Gradient(colors: [.clear, pal.spot.opacity(0.45)]),
+                                         startPoint: CGPoint(x: 0, y: -8), endPoint: CGPoint(x: 0, y: 0)))
         case .russe, .einfarbig:
             break
         }
@@ -1139,31 +1374,35 @@ enum GardenRenderer {
     /// Kopf samt Ohren und Gesicht, Ursprung in der Kopfmitte.
     private static func drawHead(_ h: inout GraphicsContext, look: RabbitLook, pal: Palette, pose: RabbitPose, seed: Int) {
         let lop = look.breed == .widder
-        let earLen: CGFloat = look.breed == .riese ? 32 : (look.breed == .zwerg ? 24 : 29)
+        let earLen = look.breed.earLength
+        let earW: CGFloat = look.breed == .riese ? 13 : (look.breed == .hermelin ? 10.5 : 11)
         let earC = earColor(look, pal)
         let dark = mix(pal.main, pal.shade, 0.65)
 
         // Löwenkopf-Mähne
         if look.breed == .loewenkopf {
             let mane = mix(pal.main, pal.belly, 0.25)
-            for k in 0..<12 {
-                let ang = 0.55 * .pi + Double(k) / 11 * 1.1 * .pi
-                let c = CGPoint(x: -1 + CGFloat(cos(ang)) * 11.5, y: 1 + CGFloat(sin(ang)) * 10.5)
-                h.fill(Path(ellipseIn: CGRect(x: c.x - 5.5, y: c.y - 5, width: 11, height: 10)), with: .color(mane))
+            for k in 0..<18 {
+                let ang = 0.35 * .pi + Double(k) / 17 * 1.5 * .pi
+                let rr: CGFloat = 14 + hash(seed, k, 41) * 3
+                let c = CGPoint(x: -1 + CGFloat(cos(ang)) * rr, y: 1 + CGFloat(sin(ang)) * rr * 0.9)
+                h.fill(Path(ellipseIn: CGRect(x: c.x - 7, y: c.y - 6.5, width: 14, height: 13)), with: .color(mane))
             }
-            h.stroke(furPath(in: CGRect(x: -20, y: -10, width: 18, height: 24), count: 30, seed: seed &+ 5, length: 6, angle: 2.2),
+            h.stroke(furPath(in: CGRect(x: -26, y: -16, width: 30, height: 36), count: 60, seed: seed &+ 5, length: 9, angle: 2.2),
                      with: .color(pal.shade.opacity(0.35)), lineWidth: 0.8)
+            h.stroke(furPath(in: CGRect(x: -26, y: -16, width: 30, height: 36), count: 30, seed: seed &+ 6, length: 9, angle: 1.9),
+                     with: .color(.white.opacity(0.3)), lineWidth: 0.8)
         }
 
         // Ohren hinter dem Kopf
         if lop {
-            ear(&h, base: CGPoint(x: -6, y: -7), length: earLen * 0.82, width: 12, angle: 0.4 + pose.earTwitch * 0.3,
+            ear(&h, base: CGPoint(x: -6, y: -7), length: earLen * 0.95, width: 13.5, angle: 0.4 + pose.earTwitch * 0.3,
                 hanging: true, color: mix(earC, pal.shade, 0.35), inner: nil, shade: pal.shade)
         } else {
-            ear(&h, base: CGPoint(x: -8, y: -8), length: earLen, width: 11,
+            ear(&h, base: CGPoint(x: -8, y: -8), length: earLen, width: earW,
                 angle: -0.45 - pose.earsBack * 0.85 + pose.earTwitch, hanging: false,
                 color: mix(earC, pal.shade, 0.3), inner: Color(hex: 0xC98A92), shade: pal.shade)
-            ear(&h, base: CGPoint(x: -3, y: -10), length: earLen + 1, width: 11.5,
+            ear(&h, base: CGPoint(x: -3, y: -10), length: earLen + 1, width: earW + 0.5,
                 angle: -0.17 - pose.earsBack * 0.95, hanging: false, color: earC, inner: pal.ear, shade: pal.shade)
         }
 
@@ -1186,6 +1425,14 @@ enum GardenRenderer {
                 f.fill(Path(ellipseIn: CGRect(x: -1.5, y: -9, width: 12, height: 11)), with: .color(pal.spot))
             case .russe:
                 f.fill(Path(ellipseIn: CGRect(x: 7.5, y: -7, width: 14, height: 15)), with: .color(pal.spot))
+            case .thueringer:
+                f.fill(Path(ellipseIn: CGRect(x: 2, y: -10, width: 22, height: 22)),
+                       with: .radialGradient(Gradient(colors: [pal.spot.opacity(0.85), pal.spot.opacity(0)]),
+                                             center: CGPoint(x: 16, y: 0), startRadius: 1, endRadius: 13))
+            case .loh:
+                f.fill(Path(ellipseIn: CGRect(x: -6, y: 4, width: 24, height: 10)), with: .color(pal.spot))
+            case .japaner:
+                f.fill(Path(CGRect(x: -14, y: -14, width: 17, height: 30)), with: .color(pal.spot))
             case .einfarbig:
                 break
             }
@@ -1197,11 +1444,14 @@ enum GardenRenderer {
             f.stroke(furPath(in: CGRect(x: -12, y: -12, width: 22, height: 20), count: 20, seed: seed &+ 3, length: 3, angle: 2.9),
                      with: .color(pal.shade.opacity(0.25)), lineWidth: 0.6)
         }
-        h.stroke(head, with: .color(pal.shade.opacity(0.45)), lineWidth: 0.8)
+        h.stroke(head, with: .color(pal.shade.opacity(0.3)), lineWidth: 0.7)
+        h.stroke(head, with: .color(pal.main.opacity(0.85)),
+                 style: StrokeStyle(lineWidth: look.breed == .rex ? 0.6 : 1.3, lineCap: .round, dash: [0.4, 1.6]))
 
         // Auge mit hellem Augenring
         let eye = CGPoint(x: 4.5, y: -3.5)
-        let ringColor = look.fur == .wildfarben || look.fur == .sand ? Color(hex: 0xF3E6D2) : mix(pal.main, pal.belly, 0.4)
+        let ringColor = look.pattern == .loh ? pal.spot
+            : (look.fur == .wildfarben || look.fur == .sand ? Color(hex: 0xF3E6D2) : mix(pal.main, pal.belly, 0.4))
         h.fill(Path(ellipseIn: CGRect(x: eye.x - 5.6, y: eye.y - 5.2, width: 11.2, height: 10.4)), with: .color(ringColor.opacity(0.75)))
         if pose.eyesClosed {
             var lid = Path()
@@ -1214,9 +1464,10 @@ enum GardenRenderer {
             }
             h.stroke(lid, with: .color(Color(hex: 0x2A1D15)), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
         } else {
-            let albino = look.pattern == .russe || (look.fur == .weiss && look.pattern == .einfarbig)
-            let outer = albino ? Color(hex: 0x8E1F33) : Color(hex: 0x1F1009)
-            let inner = albino ? Color(hex: 0xE46D84) : Color(hex: 0x7A4626)
+            let blue = look.breed == .hermelin
+            let albino = !blue && (look.pattern == .russe || (look.fur == .weiss && look.pattern == .einfarbig))
+            let outer = blue ? Color(hex: 0x1C3558) : (albino ? Color(hex: 0x8E1F33) : Color(hex: 0x1F1009))
+            let inner = blue ? Color(hex: 0x6FA3E0) : (albino ? Color(hex: 0xE46D84) : Color(hex: 0x7A4626))
             let iris = CGRect(x: eye.x - 3.9, y: eye.y - 4.1, width: 7.8, height: 8.2)
             h.fill(Path(ellipseIn: iris), with: .radialGradient(Gradient(colors: [inner, outer]),
                                                                center: CGPoint(x: eye.x + 0.9, y: eye.y + 1.4),
@@ -1246,21 +1497,27 @@ enum GardenRenderer {
         for k in 0..<4 {
             let y0 = n.y + 2.2 + CGFloat(k) * 0.6
             whiskers.move(to: CGPoint(x: n.x - 3.5, y: y0))
-            whiskers.addQuadCurve(to: CGPoint(x: n.x + 9 + CGFloat(k), y: y0 - 2 + CGFloat(k) * 2.6 + pose.nose * 0.4),
-                                  control: CGPoint(x: n.x + 3, y: y0 - 1.5 + CGFloat(k)))
+            if look.breed == .rex {
+                // Rex: gewellte Schnurrhaare
+                whiskers.addCurve(to: CGPoint(x: n.x + 8 + CGFloat(k), y: y0 + CGFloat(k) * 2.4),
+                                  control1: CGPoint(x: n.x + 1, y: y0 - 3), control2: CGPoint(x: n.x + 4, y: y0 + 4))
+            } else {
+                whiskers.addQuadCurve(to: CGPoint(x: n.x + 9 + CGFloat(k), y: y0 - 2 + CGFloat(k) * 2.6 + pose.nose * 0.4),
+                                      control: CGPoint(x: n.x + 3, y: y0 - 1.5 + CGFloat(k)))
+            }
         }
         h.stroke(whiskers, with: .color((darkFur ? Color.white : Color(hex: 0x4A3A30)).opacity(0.45)), lineWidth: 0.45)
 
         // Widder: vorderes Schlappohr vor dem Kopf
         if lop {
-            ear(&h, base: CGPoint(x: -3, y: -9), length: earLen * 0.86, width: 12.5, angle: 0.22 + pose.earTwitch * 0.3,
+            ear(&h, base: CGPoint(x: -3, y: -9), length: earLen, width: 14, angle: 0.18 + pose.earTwitch * 0.3,
                 hanging: true, color: earC, inner: nil, shade: pal.shade)
         }
     }
 
     private static func earColor(_ look: RabbitLook, _ pal: Palette) -> Color {
         switch look.pattern {
-        case .russe, .schecke: pal.spot
+        case .russe, .schecke, .thueringer: pal.spot
         default: pal.main
         }
     }
@@ -1345,7 +1602,7 @@ enum GardenRenderer {
         ctx.drawLayer { h in
             h.translateBy(x: 25, y: -11)
             h.rotate(by: .radians(0.32))
-            let hs: CGFloat = look.breed == .zwerg ? 1.1 : 1
+            let hs = look.breed.headScale
             h.scaleBy(x: hs, y: hs)
             drawHead(&h, look: look, pal: pal, pose: headPose, seed: seed)
         }

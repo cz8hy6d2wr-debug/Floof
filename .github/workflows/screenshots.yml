@@ -2,7 +2,7 @@ name: Screenshots
 
 # Startet Floof im Simulator mit Beispieldaten und fotografiert alle Tabs –
 # iPhone (zugeklappt) und iPad mini (als Ersatz für das aufgeklappte 4:3-Display),
-# jeweils hell und dunkel – dazu die Mümmelwiese (Tag, Nacht, Shop, Album).
+# jeweils hell und dunkel – dazu die Mümmelwiese (Tag, Wunsch, Nacht, Shop, Album, Querformat).
 # Die Bilder landen auf dem Branch "ci-screenshots".
 on:
   workflow_dispatch:
@@ -86,7 +86,7 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time 10:24 --batteryState charged --batteryLevel 100
           xcrun simctl install "$UDID" "$APP"
-          for screen in day night shop album; do
+          for screen in day wish night shop album landscape; do
             xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
             xcrun simctl launch "$UDID" "$BUNDLE" -MuemmelDemo YES -MuemmelScreen "$screen" -AppleLanguages "(de)" -AppleLocale de_DE >/dev/null
             sleep 9

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Mümmelwiese: ein Kaninchen-Spiel auf einer lebendigen Wiese.
 ///
@@ -14,6 +15,11 @@ struct GardenView: View {
     @State private var showsShop = GardenDemo.isActive && GardenDemo.screen == "shop"
     @State private var renamingID: UUID?
     @State private var newName = ""
+    @State private var exporting = false
+    @State private var exportDocument = SaveDocument(data: Data())
+    @State private var importing = false
+    @State private var confirmNewGame = false
+    @State private var landscape = false
 
     var body: some View {
         ZStack {
@@ -39,7 +45,10 @@ struct GardenView: View {
                         game.touchEnded(value.location)
                     }
             )
-            .onGeometryChange(for: CGSize.self) { $0.size } action: { game.size = $0 }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: {
+                game.size = $0
+                landscape = $0.width > $0.height * 1.15
+            }
             .ignoresSafeArea()
             .accessibilityLabel("Mümmelwiese mit \(game.residents.count) Kaninchen")
 
@@ -48,6 +57,13 @@ struct GardenView: View {
         .preferredColorScheme(.light)
         .statusBarHidden()
         .task { await game.run() }
+        .onAppear {
+            // Screenshots im Querformat
+            if GardenDemo.isActive, GardenDemo.screen == "landscape",
+               let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeRight)) { _ in }
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             game.isActive = phase == .active
             if phase != .active { game.persist() }
@@ -55,6 +71,19 @@ struct GardenView: View {
         .sensoryFeedback(.selection, trigger: game.tool)
         .sheet(isPresented: $showsAlbum) { GardenAlbum(game: game) }
         .sheet(isPresented: $showsShop) { GardenShop(game: game) }
+        .fileExporter(isPresented: $exporting, document: exportDocument, contentType: .json,
+                      defaultFilename: "Mümmelwiese \(Date.now.formatted(.dateTime.day().month().year()))") { result in
+            if case .success = result { game.showBanner("In Dateien gesichert", symbol: "checkmark.circle.fill", duration: 3) }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
+            if case .success(let url) = result { _ = game.load(from: url) }
+        }
+        .alert("Neues Spiel beginnen?", isPresented: $confirmNewGame) {
+            Button("Neu beginnen", role: .destructive) { game.newGame() }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Deine Wiese und alle Kaninchen werden ersetzt. Sichere den Spielstand vorher in Dateien, wenn du ihn behalten möchtest.")
+        }
         .alert("Wie soll es heißen?", isPresented: Binding(get: { renamingID != nil }, set: { if !$0 { renamingID = nil } })) {
             TextField("Name", text: $newName)
             Button("Sichern") { if let id = renamingID { game.rename(id, to: newName) } }
@@ -65,37 +94,66 @@ struct GardenView: View {
     // MARK: - Oberfläche
 
     private var hud: some View {
-        VStack(spacing: 10) {
-            topBar
-            if let banner = game.banner {
-                Label(banner.text, systemImage: banner.symbol)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 16).padding(.vertical, 10)
-                    .glassEffect(.regular.tint(.white.opacity(0.25)), in: .capsule)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .id(banner.id)
-            }
-            Spacer(minLength: 0)
-            if game.tool == .gestalten {
-                decorBar.transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if let rabbit = selectedRabbit {
-                RabbitCard(rabbit: rabbit, game: game) {
-                    newName = rabbit.name
-                    renamingID = rabbit.id
+        Group {
+            if landscape {
+                // Querformat: Infos links, Werkzeuge senkrecht am rechten Rand, Wiese in voller Breite.
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        topBar
+                        bannerView
+                        Spacer(minLength: 0)
+                        panels
+                    }
+                    .frame(maxWidth: 430, alignment: .leading)
+                    Spacer(minLength: 0)
+                    toolbar(vertical: true)
+                        .frame(width: 70)
+                        .frame(maxHeight: .infinity, alignment: .center)
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .id(rabbit.id)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 10) {
+                    topBar
+                    bannerView
+                    Spacer(minLength: 0)
+                    panels
+                    toolbar(vertical: false)
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 4)
+                .frame(maxWidth: 560)
             }
-            if game.tool == .futter { foodPicker.transition(.scale(scale: 0.9).combined(with: .opacity)) }
-            toolbar
         }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 4)
-        .frame(maxWidth: 560)
         .animation(.spring(duration: 0.35), value: game.banner)
         .animation(.spring(duration: 0.35), value: game.selectedID)
         .animation(.spring(duration: 0.3), value: game.tool)
+    }
+
+    @ViewBuilder private var bannerView: some View {
+        if let banner = game.banner {
+            Label(banner.text, systemImage: banner.symbol)
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .glassEffect(.regular.tint(.white.opacity(0.25)), in: .capsule)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .id(banner.id)
+        }
+    }
+
+    @ViewBuilder private var panels: some View {
+        if game.tool == .gestalten {
+            decorBar.transition(.move(edge: .bottom).combined(with: .opacity))
+        } else if let rabbit = selectedRabbit {
+            RabbitCard(rabbit: rabbit, game: game, compact: landscape) {
+                newName = rabbit.name
+                renamingID = rabbit.id
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .id(rabbit.id)
+        }
+        if game.tool == .futter { foodPicker.transition(.scale(scale: 0.9).combined(with: .opacity)) }
     }
 
     private var selectedRabbit: GardenRabbit? {
@@ -105,12 +163,31 @@ struct GardenView: View {
 
     private var topBar: some View {
         HStack(spacing: 8) {
-            Button { showsShop = true } label: {
-                Image(systemName: "bag.fill").font(.headline).frame(width: 44, height: 44)
+            Menu {
+                Button { showsShop = true } label: { Label("Shop", systemImage: "bag.fill") }
+                Section {
+                    Button { game.saveNow() } label: {
+                        Label {
+                            Text("Jetzt speichern")
+                            Text(game.lastSavedAt.map { "Zuletzt \($0.formatted(date: .omitted, time: .shortened))" }
+                                 ?? "Speichert auch automatisch")
+                        } icon: { Image(systemName: "square.and.arrow.down.fill") }
+                    }
+                    Button {
+                        exportDocument = SaveDocument(data: game.snapshot())
+                        exporting = true
+                    } label: { Label("In Dateien sichern …", systemImage: "folder.fill") }
+                    Button { importing = true } label: { Label("Spielstand laden …", systemImage: "tray.and.arrow.down.fill") }
+                }
+                Section {
+                    Button(role: .destructive) { confirmNewGame = true } label: { Label("Neues Spiel …", systemImage: "arrow.counterclockwise") }
+                }
+            } label: {
+                Image(systemName: "line.3.horizontal").font(.headline).frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
-            .accessibilityLabel("Shop")
+            .accessibilityLabel("Menü: Shop und Spielstand")
 
             Spacer(minLength: 0)
             HStack(spacing: 11) {
@@ -215,16 +292,17 @@ struct GardenView: View {
         .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: 26))
     }
 
-    private var toolbar: some View {
-        GlassEffectContainer(spacing: 6) {
-            HStack(spacing: 6) {
+    private func toolbar(vertical: Bool) -> some View {
+        let layout = vertical ? AnyLayout(VStackLayout(spacing: 6)) : AnyLayout(HStackLayout(spacing: 6))
+        return GlassEffectContainer(spacing: 6) {
+            layout {
                 ForEach(GardenTool.allCases) { tool in
                     Button { select(tool) } label: {
                         VStack(spacing: 3) {
                             Image(systemName: tool.symbol).font(.title3.weight(.semibold))
                             Text(tool.title).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .frame(maxWidth: .infinity, minHeight: vertical ? 50 : 54)
                         .foregroundStyle(game.tool == tool ? Color.white : Color.primary)
                         .contentShape(.rect)
                     }
@@ -275,6 +353,7 @@ struct RarityBadge: View {
 private struct RabbitCard: View {
     let rabbit: GardenRabbit
     let game: GardenGame
+    var compact = false
     var onRename: () -> Void
 
     var body: some View {
@@ -301,8 +380,10 @@ private struct RabbitCard: View {
                         Text(rabbit.look.description)
                             .font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
                     }
-                    Text("\(rabbit.personality.title.capitalized) – \(rabbit.personality.hint)")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if !compact {
+                        Text("\(rabbit.personality.title.capitalized) – \(rabbit.personality.hint)")
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 0)
                 Button { game.selectedID = nil } label: {
@@ -315,8 +396,26 @@ private struct RabbitCard: View {
 
             if rabbit.isVisitor {
                 StatBar(title: "Vertrauen", symbol: "heart.fill", value: rabbit.trust, tint: rabbit.rarity.color)
-                Text(visitorHint)
-                    .font(.footnote).foregroundStyle(.secondary)
+                if let wish = rabbit.wish {
+                    let done = rabbit.wishFulfilled == true
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: done ? "checkmark.seal.fill" : wish.symbol)
+                            .font(.title3)
+                            .foregroundStyle(done ? MTheme.leaf : MTheme.carrot)
+                            .frame(width: 30)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(done ? "Wunsch erfüllt" : "Wunsch: \(wish.text)")
+                                .font(.subheadline.weight(.semibold))
+                            Text(done ? "Jetzt noch etwas Vertrauen – dann zieht es ein." : wish.hint)
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(10)
+                    .background((done ? MTheme.leaf : MTheme.carrot).opacity(0.12), in: .rect(cornerRadius: 14))
+                } else {
+                    Text(visitorHint)
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             } else {
                 HStack(spacing: 10) {
                     StatBar(title: "Satt", symbol: "fork.knife", value: rabbit.hunger, tint: Color(hex: 0xE2722B))
@@ -676,4 +775,24 @@ private struct GardenAlbum: View {
 
 #Preview {
     GardenView()
+}
+
+
+// MARK: - Spielstand als Datei
+
+/// Spielstand für „In Dateien sichern“ (JSON).
+struct SaveDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+        self.data = data
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
 }

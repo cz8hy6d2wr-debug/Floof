@@ -130,6 +130,7 @@ final class GardenGame {
     @ObservationIgnored var isActive = true
     @ObservationIgnored private var lastInteraction: Double = 0
     @ObservationIgnored private var powerCheck: Double = 0
+    @ObservationIgnored private var backdropTimer: Double = 0
 
     private let light = UIImpactFeedbackGenerator(style: .light)
     private let soft = UIImpactFeedbackGenerator(style: .soft)
@@ -140,18 +141,13 @@ final class GardenGame {
         if demo {
             save = Self.demoSave()
             fixedHour = GardenDemo.screen == "night" ? 22.5 : 10.5
-        } else if let data = UserDefaults.standard.data(forKey: Self.saveKey),
-                  let loaded = try? JSONDecoder().decode(GardenSave.self, from: data),
-                  loaded.grass.count == GardenSave.cols * GardenSave.rows {
+        } else if let loaded = Self.loadFromDisk() {
             save = loaded
         } else {
-            save = GardenSave()
-            save.flowers = (0..<5).map { _ in
-                GardenFlower(kind: Bool.random() ? .gaensebluemchen : .loewenzahn,
-                             x: .random(in: 0.08...0.92), y: .random(in: 0.2...0.75))
-            }
+            save = Self.freshSave()
         }
         inventory = save.inventory
+        if demo, GardenDemo.screen == "wish" { selectedID = save.rabbits.last?.id }
         for rabbit in save.rabbits { actors[rabbit.id] = RabbitActor() }
         if !demo { catchUp(seconds: Date.now.timeIntervalSince(save.lastSaved)) }
         if save.rabbits.isEmpty { nextVisitor = 3 }
@@ -159,8 +155,9 @@ final class GardenGame {
 
     // MARK: - Geometrie
 
-    var lawnTop: CGFloat { size.height * 0.34 }
-    var unit: CGFloat { min(max(min(size.width, size.height * 0.62) / 390, 0.8), 1.7) }
+    var isLandscape: Bool { size.width > size.height * 1.15 }
+    var lawnTop: CGFloat { size.height * (isLandscape ? 0.3 : 0.34) }
+    var unit: CGFloat { min(max(min(size.width, size.height * (isLandscape ? 1.0 : 0.62)) / 390, 0.8), 1.7) }
 
     func screen(_ x: Double, _ y: Double) -> CGPoint {
         CGPoint(x: x * size.width, y: lawnTop + y * (size.height - lawnTop))
@@ -173,7 +170,9 @@ final class GardenGame {
     func scale(atY y: Double) -> CGFloat { unit * (0.62 + 0.55 * CGFloat(y)) }
 
     /// Tiefste Stelle, an die Tiere laufen (darunter liegt die Werkzeugleiste).
-    var maxY: Double { max(0.5, 1 - Double(150 / max(size.height - lawnTop, 1))) }
+    var maxY: Double { max(0.5, 1 - Double((isLandscape ? 26 : 150) / max(size.height - lawnTop, 1))) }
+    /// Im Querformat stehen die Werkzeuge rechts – dorthin laufen die Tiere nicht.
+    var maxX: Double { isLandscape ? min(0.94, 1 - Double(110 / max(size.width, 1))) : 0.94 }
 
     static let hutch = CGPoint(x: 0.14, y: 0.02)
     static let bedRect = CGRect(x: 0.64, y: 0.0, width: 0.31, height: 0.11)
@@ -266,7 +265,8 @@ final class GardenGame {
             spawnFlower()
         }
         if clock >= nextVisitor {
-            nextVisitor = clock + .random(in: 50...140)
+            // Besuch ist etwas Besonderes: etwa alle 4–9 Minuten.
+            nextVisitor = clock + .random(in: 240...540)
             if visitor == nil { spawnVisitor() }
         }
         if banner != nil, clock > bannerUntil { banner = nil }
@@ -275,6 +275,11 @@ final class GardenGame {
         if powerCheck > 2 {
             powerCheck = 0
             updateFrameRate()
+        }
+        backdropTimer -= dt
+        if backdropTimer <= 0 {
+            backdropTimer = 1
+            GardenRenderer.BackdropCache.shared.prepare(self)
         }
 
         hudTimer += dt
@@ -425,8 +430,21 @@ final class GardenGame {
             }
         }
 
+        // Wunsch „kurzer Rasen“ prüfen (etwa einmal pro Sekunde)
+        if r.hasOpenWish, r.wish == .kurzerRasen, Double.random(in: 0...1) < dt {
+            let near = save.grass.indices.filter {
+                let c = cellCenter($0)
+                return hypot(Double(c.x) - r.x, Double(c.y) - r.y) < 0.16
+            }
+            let avg = near.isEmpty ? 1 : near.reduce(0) { $0 + save.grass[$1] } / Double(near.count)
+            if avg < 0.3 { fulfillWish(&r, &a) }
+        }
+
         // Gast verlässt den Garten
         if r.isVisitor, a.mode == .leave, r.x < -0.06 || r.x > 1.06 {
+            if r.rarity >= .selten {
+                showBanner("Der \(r.rarity.title.lowercased())e Gast ist weitergezogen …", symbol: "hare.fill", duration: 4)
+            }
             save.rabbits.remove(at: i)
             actors[r.id] = nil
             if selectedID == r.id { selectedID = nil }
@@ -466,8 +484,10 @@ final class GardenGame {
             r.hunger = min(100, r.hunger + kind.nourishment * bite)
             r.mood = min(100, r.mood + kind.joy * bite)
             if r.isVisitor {
-                r.trust = min(100, r.trust + kind.trust * bite * (r.personality == .schuechtern ? 0.7 : 1) * r.rarity.trustFactor)
-                if r.trust >= 100 { befriend(&r, &a) }
+                if case .futter(let wanted)? = r.wish, wanted == kind, r.wishFulfilled != true {
+                    fulfillWish(&r, &a)
+                }
+                addTrust(&r, &a, kind.trust * bite * (r.personality == .schuechtern ? 0.7 : 1) * r.rarity.trustFactor)
             } else {
                 r.friendship = min(100, r.friendship + kind.joy * bite * 0.25)
             }
@@ -521,6 +541,14 @@ final class GardenGame {
             if let leaveAt = r.leaveAt, leaveAt < .now {
                 a.mode = .leave
                 a.goal = CGPoint(x: r.x < 0.5 ? -0.1 : 1.1, y: r.y)
+                return
+            }
+            if r.hasOpenWish, case .deko(let wanted)? = r.wish,
+               let d = save.decor.first(where: { $0.kind == wanted }) {
+                a.mode = .seekDecor
+                a.decorID = d.id
+                let side: Double = r.x < d.x ? -1 : 1
+                a.goal = clampToLawn(CGPoint(x: d.x + side * (d.kind == .teich || d.kind == .feenring ? 0.1 : 0.065), y: d.y + 0.01))
                 return
             }
             if let food = nearestFood(to: r, within: r.personality == .schuechtern ? 0.35 : 0.6) {
@@ -602,6 +630,7 @@ final class GardenGame {
         case .seekDecor:
             guard let d = save.decor.first(where: { $0.id == a.decorID }) else { a.mode = .idle; a.timer = 1; break }
             a.facing = d.x >= r.x ? 1 : -1
+            if r.hasOpenWish, case .deko(let wanted)? = r.wish, wanted == d.kind { fulfillWish(&r, &a) }
             switch d.kind {
             case .tunnel:
                 a.mode = .hide
@@ -692,6 +721,30 @@ final class GardenGame {
         }
     }
 
+    /// Vertrauen wächst – mit offenem Wunsch aber höchstens bis 60.
+    private func addTrust(_ r: inout GardenRabbit, _ a: inout RabbitActor, _ amount: Double) {
+        let cap: Double = r.hasOpenWish ? 60 : 100
+        let before = r.trust
+        r.trust = min(cap, r.trust + amount)
+        if r.hasOpenWish, before < cap, r.trust >= cap, r.id == selectedID || save.tutorialStep < 3 {
+            showBanner("Fast! Erst den Wunsch erfüllen: \(r.wish!.text.lowercased())", symbol: r.wish!.symbol, duration: 4)
+        }
+        if r.trust >= 100 { befriend(&r, &a) }
+    }
+
+    private func fulfillWish(_ r: inout GardenRabbit, _ a: inout RabbitActor) {
+        guard r.hasOpenWish else { return }
+        r.wishFulfilled = true
+        let p = screen(r.x, r.y)
+        burst(.sparkle, at: CGPoint(x: p.x, y: p.y - 50), count: 14, color: Color(hex: 0xFFE38A))
+        burst(.heart, at: CGPoint(x: p.x, y: p.y - 40), count: 3, color: .pink)
+        notify.notificationOccurred(.success)
+        showBanner("Wunsch erfüllt! Jetzt fasst es richtig Vertrauen.", symbol: "checkmark.seal.fill", duration: 4)
+        if save.tutorialStep < 3 { save.tutorialStep = 3 }
+        addTrust(&r, &a, 35)
+        hudTick &+= 1
+    }
+
     private func nearestFood(to r: GardenRabbit, within radius: Double) -> GardenFood? {
         save.foods
             .map { ($0, hypot($0.x - r.x, $0.y - r.y)) }
@@ -728,7 +781,7 @@ final class GardenGame {
     }
 
     func clampToLawn(_ p: CGPoint) -> CGPoint {
-        var q = CGPoint(x: min(CGFloat(0.94), max(CGFloat(0.06), p.x)), y: min(CGFloat(maxY), max(CGFloat(0.05), p.y)))
+        var q = CGPoint(x: min(CGFloat(maxX), max(CGFloat(0.06), p.x)), y: min(CGFloat(maxY), max(CGFloat(0.05), p.y)))
         // nicht ins Beet
         if Self.bedRect.contains(q) { q.y = Self.bedRect.maxY + 0.02 }
         return q
@@ -749,6 +802,11 @@ final class GardenGame {
         r.isVisitor = true
         r.leaveAt = Date.now.addingTimeInterval(.random(in: rarity.stay))
         r.trust = 0
+        if save.tutorialStep > 0, Double.random(in: 0...1) < rarity.wishChance {
+            r.wish = VisitorWish.random(for: rarity)
+            r.wishFulfilled = false
+            r.wishProgress = 0
+        }
         var a = RabbitActor()
         a.mode = .enter
         a.facing = fromLeft ? 1 : -1
@@ -884,11 +942,10 @@ final class GardenGame {
                 let shy = r.personality == .schuechtern ? 0.55 : 0.3
                 if r.trust < 40 && Double.random(in: 0...1) < shy {
                     startle(&r, &a, from: world(p))
-                    r.trust = min(100, r.trust + 3)
+                    addTrust(&r, &a, 3)
                 } else {
-                    r.trust = min(100, r.trust + 9)
+                    addTrust(&r, &a, 9 * r.rarity.trustFactor)
                     burst(.heart, at: CGPoint(x: p.x, y: p.y - 10), count: 1, color: .pink)
-                    if r.trust >= 100 { befriend(&r, &a) }
                 }
             } else {
                 a.lookAt = clock + 1.2
@@ -985,8 +1042,11 @@ final class GardenGame {
                 a.strokeDistance = 0
                 let love = r.personality == .verschmust ? 2.0 : 1.0
                 if r.isVisitor {
-                    r.trust = min(100, r.trust + 4 * love)
-                    if r.trust >= 100 { befriend(&r, &a) }
+                    if r.wish == .streicheln, r.wishFulfilled != true {
+                        r.wishProgress = (r.wishProgress ?? 0) + love
+                        if (r.wishProgress ?? 0) >= 10 { fulfillWish(&r, &a) }
+                    }
+                    addTrust(&r, &a, 4 * love * r.rarity.trustFactor)
                 } else {
                     r.mood = min(100, r.mood + 3 * love)
                     r.friendship = min(100, r.friendship + 0.8 * love)
@@ -1294,8 +1354,9 @@ final class GardenGame {
         let newFlowers = min(6, Int(t / 90))
         for _ in 0..<newFlowers { spawnFlower() }
 
-        if t > 600 {
-            nextVisitor = min(nextVisitor, clock + 3)
+        if t > 1200 {
+            // Manchmal wartet schon jemand, wenn man zurückkommt.
+            if Double.random(in: 0...1) < 0.6 { nextVisitor = min(nextVisitor, clock + 3) }
             if !residents.isEmpty {
                 showBanner(earned > 0 ? "Willkommen zurück! Deine Kaninchen haben \(earned) ★ gesammelt."
                            : "Willkommen zurück! Der Rasen ist gewachsen.", symbol: "star.fill", duration: 5)
@@ -1304,13 +1365,101 @@ final class GardenGame {
         hudTick &+= 1
     }
 
-    func persist() {
-        guard !isDemo else { return }
+    // MARK: Speicherort
+    // Der Spielstand liegt als Datei im App-Ordner (mit Sicherungskopie des vorigen Stands).
+
+    static var saveURL: URL { URL.documentsDirectory.appending(path: "muemmelwiese.json") }
+    static var backupURL: URL { URL.documentsDirectory.appending(path: "muemmelwiese-vorher.json") }
+
+    /// Zuletzt gespeichert (für die Anzeige im Menü).
+    var lastSavedAt: Date?
+
+    static func decode(_ data: Data) -> GardenSave? {
+        guard let loaded = try? JSONDecoder().decode(GardenSave.self, from: data),
+              loaded.grass.count == GardenSave.cols * GardenSave.rows else { return nil }
+        return loaded
+    }
+
+    private static func loadFromDisk() -> GardenSave? {
+        if let data = try? Data(contentsOf: saveURL), let s = decode(data) { return s }
+        if let data = try? Data(contentsOf: backupURL), let s = decode(data) { return s }
+        // ältere Versionen speicherten in den Einstellungen
+        if let data = UserDefaults.standard.data(forKey: saveKey), let s = decode(data) { return s }
+        return nil
+    }
+
+    private static func freshSave() -> GardenSave {
+        var s = GardenSave()
+        s.flowers = (0..<5).map { _ in
+            GardenFlower(kind: Bool.random() ? .gaensebluemchen : .loewenzahn,
+                         x: .random(in: 0.08...0.92), y: .random(in: 0.2...0.75))
+        }
+        return s
+    }
+
+    /// Aktueller Spielstand als Daten (für „In Dateien sichern“).
+    func snapshot() -> Data {
         save.inventory = inventory
         save.lastSaved = .now
-        if let data = try? JSONEncoder().encode(save) {
-            UserDefaults.standard.set(data, forKey: Self.saveKey)
+        return (try? JSONEncoder().encode(save)) ?? Data()
+    }
+
+    func persist() {
+        guard !isDemo else { return }
+        let data = snapshot()
+        guard !data.isEmpty else { return }
+        let fm = FileManager.default
+        if fm.fileExists(atPath: Self.saveURL.path()) {
+            try? fm.removeItem(at: Self.backupURL)
+            try? fm.copyItem(at: Self.saveURL, to: Self.backupURL)
         }
+        do {
+            try data.write(to: Self.saveURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+            lastSavedAt = .now
+        } catch {
+            UserDefaults.standard.set(data, forKey: Self.saveKey)   // Notlösung
+        }
+    }
+
+    /// „Jetzt speichern“ aus dem Menü.
+    func saveNow() {
+        persist()
+        notify.notificationOccurred(.success)
+        showBanner(isDemo ? "Demo – wird nicht gespeichert" : "Spielstand gespeichert", symbol: "checkmark.circle.fill", duration: 2.5)
+    }
+
+    /// Spielstand aus einer Datei laden (ersetzt den aktuellen).
+    func load(from url: URL) -> Bool {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url), let loaded = Self.decode(data) else {
+            showBanner("Diese Datei ist kein Mümmelwiese-Spielstand", symbol: "exclamationmark.triangle.fill", duration: 4)
+            return false
+        }
+        replace(with: loaded)
+        showBanner("Spielstand geladen – \(residents.count) Kaninchen", symbol: "tray.and.arrow.down.fill", duration: 4)
+        return true
+    }
+
+    func newGame() {
+        replace(with: Self.freshSave())
+        nextVisitor = clock + 3
+        showBanner("Neue Wiese – bald kommt der erste Besuch", symbol: "leaf.fill", duration: 4)
+    }
+
+    private func replace(with newSave: GardenSave) {
+        save = newSave
+        inventory = newSave.inventory
+        actors = [:]
+        for rabbit in save.rabbits { actors[rabbit.id] = RabbitActor() }
+        particles.removeAll()
+        selectedID = nil
+        selectedDecorID = nil
+        placing = nil
+        tool = .hand
+        lastWall = .now
+        persist()
+        hudTick &+= 1
     }
 
     // MARK: - Demo (Screenshots)
@@ -1323,10 +1472,11 @@ final class GardenGame {
         }
         let looks: [(String, RabbitLook, Rarity, GardenPersonality, Double, Double)] = [
             ("Mümmel", RabbitLook(fur: .wildfarben, pattern: .einfarbig, breed: .stehohr, accent: .schwarz), .gewoehnlich, .verfressen, 0.3, 0.3),
-            ("Flocke", RabbitLook(fur: .weiss, pattern: .russe, breed: .zwerg, accent: .schwarz), .superSelten, .verschmust, 0.55, 0.45),
-            ("Keks", RabbitLook(fur: .sand, pattern: .hollaender, breed: .widder, accent: .schoko), .selten, .verspielt, 0.72, 0.62),
-            ("Sakura", RabbitLook(fur: .kirsch, pattern: .einfarbig, breed: .loewenkopf, accent: .schoko), .legendaer, .neugierig, 0.22, 0.6),
-            ("Orion", RabbitLook(fur: .nacht, pattern: .blesse, breed: .stehohr, accent: .grau), .legendaer, .verschlafen, 0.82, 0.3),
+            ("Flocke", RabbitLook(fur: .weiss, pattern: .einfarbig, breed: .hermelin, accent: .schwarz), .superSelten, .verschmust, 0.6, 0.46),
+            ("Keks", RabbitLook(fur: .schwarz, pattern: .japaner, breed: .widder, accent: .schoko), .superSelten, .verspielt, 0.74, 0.62),
+            ("Bruno", RabbitLook(fur: .sand, pattern: .thueringer, breed: .riese, accent: .schoko), .superSelten, .verschlafen, 0.2, 0.66),
+            ("Sakura", RabbitLook(fur: .kirsch, pattern: .einfarbig, breed: .loewenkopf, accent: .schoko), .legendaer, .neugierig, 0.45, 0.72),
+            ("Orion", RabbitLook(fur: .nacht, pattern: .blesse, breed: .stehohr, accent: .grau), .legendaer, .verschlafen, 0.84, 0.3),
         ]
         s.rabbits = looks.map { name, look, rarity, pers, x, y in
             var r = GardenRabbit(name: name, look: look, rarity: rarity, personality: pers)
@@ -1334,6 +1484,15 @@ final class GardenGame {
             r.hunger = 70; r.mood = 85; r.energy = 90; r.friendship = 60
             return r
         }
+        var guest = GardenRabbit(name: "Gast", look: RabbitLook(fur: .schoko, pattern: .loh, breed: .angora, accent: .schwarz),
+                                 rarity: .selten, personality: .schuechtern)
+        guest.x = 0.62; guest.y = 0.24
+        guest.isVisitor = true
+        guest.trust = 45
+        guest.leaveAt = Date.now.addingTimeInterval(600)
+        guest.wish = .futter(.loewenzahn)
+        guest.wishFulfilled = false
+        s.rabbits.append(guest)
         s.flowers = [
             GardenFlower(kind: .loewenzahn, x: 0.62, y: 0.4),
             GardenFlower(kind: .gaensebluemchen, x: 0.85, y: 0.5),
