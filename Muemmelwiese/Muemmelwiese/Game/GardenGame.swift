@@ -867,7 +867,7 @@ final class GardenGame {
     private func rabbitID(at p: CGPoint) -> UUID? {
         var best: (UUID, CGFloat)?
         for r in save.rabbits {
-            let s = scale(atY: r.y) * r.look.breed.bodyScale
+            let s = scale(atY: r.y) * r.look.breed.bodyScale * 1.2
             let c = screen(r.x, r.y)
             let center = CGPoint(x: c.x, y: c.y - 22 * s)
             let d = hypot(p.x - center.x, (p.y - center.y) * 0.9)

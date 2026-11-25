@@ -248,6 +248,7 @@ enum GardenRenderer {
         let shades = [Color(hex: 0x4C8A34), Color(hex: 0x66A443), Color(hex: 0x86C158)]
         var paths = [Path(), Path(), Path()]
         let touch = game.toolPoint
+        let bed = GardenGame.bedRect.insetBy(dx: -0.01, dy: -0.01)
         for i in 0..<cols {
             let k = j * cols + i
             let h = CGFloat(game.save.grass[k])
@@ -255,6 +256,7 @@ enum GardenRenderer {
             for b in 0..<blades {
                 let fx = (CGFloat(i) + hash(i, j, b)) / CGFloat(cols)
                 let fy = (CGFloat(j) + hash(i, j, b + 50)) / CGFloat(rows)
+                if bed.contains(CGPoint(x: fx, y: fy)) { continue }
                 let base = game.screen(Double(fx), Double(fy))
                 let s = game.scale(atY: Double(fy))
                 let variance = 0.7 + hash(i, j, b + 99) * 0.6
@@ -866,7 +868,7 @@ enum GardenRenderer {
         let r = game.save.rabbits[index]
         let a = game.actors[r.id] ?? RabbitActor()
         let p = game.screen(r.x, r.y)
-        let s = game.scale(atY: r.y) * r.look.breed.bodyScale * 0.92
+        let s = game.scale(atY: r.y) * r.look.breed.bodyScale * 1.12
         if a.mode == .hide { return }
         let pose = GardenRenderer.pose(for: r, actor: a, clock: game.clock)
         let selected = game.selectedID == r.id
