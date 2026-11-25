@@ -2,9 +2,11 @@
 
 # Mümmelwiese
 
-![Tag, Wunsch, Nacht, Shop, Album](screenshots.png)
+![Tag, Wunsch, Winter, Nacht, Shop, Album](screenshots.png)
 
 ![Querformat](querformat.png)
+
+![Aufgeklappt](aufgeklappt.png)
 
 Eigenständiges Kaninchen-Spiel (SwiftUI, iOS 26) – eine Art Tamagotchi auf einer lebendigen Wiese.
 

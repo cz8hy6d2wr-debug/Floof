@@ -120,10 +120,14 @@ struct GardenView: View {
                     HStack(alignment: .top, spacing: hingeGutter) {
                         topBar.frame(maxWidth: .infinity)
                         VStack(spacing: 8) {
-                            weatherChip
+                            HStack(spacing: 8) {
+                                weatherChip
+                                albumButton
+                            }
                             bannerView
                         }
                         .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
                     }
                     Spacer(minLength: 0)
                     HStack(alignment: .bottom, spacing: hingeGutter) {
@@ -286,14 +290,19 @@ struct GardenView: View {
             .animation(.snappy, value: game.inventory)
             Spacer(minLength: 0)
 
-            Button { showsAlbum = true } label: {
-                Image(systemName: "book.pages.fill").font(.headline).frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: .circle)
-            .accessibilityLabel("Mümmel-Album")
+            // Aufgeklappt sitzt das Album rechts vom Falz neben dem Wetter.
+            if !unfolded { albumButton }
         }
         .padding(.top, 4)
+    }
+
+    private var albumButton: some View {
+        Button { showsAlbum = true } label: {
+            Image(systemName: "book.pages.fill").font(.headline).frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .circle)
+        .accessibilityLabel("Mümmel-Album")
     }
 
     private var foodPicker: some View {

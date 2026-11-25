@@ -105,7 +105,7 @@ final class RealWeather: NSObject {
 
     /// Lädt neu, wenn der letzte Stand älter als 30 Minuten ist.
     func refresh(force: Bool = false) async {
-        guard enabled, !loading else { return }
+        guard enabled, !loading, !GardenDemo.isActive else { return }
         if !force, let snapshot, Date.now.timeIntervalSince(snapshot.fetched) < 1800 { return }
         loading = true
         defer { loading = false }
