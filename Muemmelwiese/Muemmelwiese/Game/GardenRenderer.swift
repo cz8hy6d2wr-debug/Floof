@@ -942,158 +942,319 @@ enum GardenRenderer {
     }
 
     /// Kaninchen nach rechts blickend, Boden bei y = 0, Einheit ≈ Punkte bei Maßstab 1.
+    /// Aufbau wie ein echtes sitzendes Kaninchen: tiefe Brust, hoher runder Rücken,
+    /// kräftige Keule, länglicher Kopf mit Schnauze, große Augen seitlich am Kopf.
     static func rabbitShape(_ ctx: inout GraphicsContext, look: RabbitLook, pose: RabbitPose) {
         let pal = palette(look)
-        let seed = (look.fur.rawValue + look.pattern.rawValue).utf8.reduce(7) { $0 &* 31 &+ Int($1) }
-        let outline = GraphicsContext.Shading.color(pal.outline.opacity(0.9))
+        let seed = (look.fur.rawValue + look.pattern.rawValue + look.breed.rawValue).utf8.reduce(7) { $0 &* 31 &+ Int($1) }
 
         if pose.flop {
-            flopShape(&ctx, look: look, pal: pal, pose: pose)
+            flopShape(&ctx, look: look, pal: pal, pose: pose, seed: seed)
             return
         }
 
         ctx.scaleBy(x: 1 / pose.stretch, y: pose.stretch * pose.breath)
 
-        let headR: CGFloat = look.breed == .zwerg ? 15.5 : 14
         let grooming = pose.groom > -1
-        let hc = CGPoint(x: 15 + 7 * pose.headDown + (grooming ? pose.groom * 0.6 : 0),
-                         y: -33 + 20 * pose.headDown + pose.chew * 0.6 + (pose.groom > -1 ? 2 : 0))
-        let lop = look.breed == .widder
+        let hc = CGPoint(x: 14 + 8 * pose.headDown + (grooming ? pose.groom * 0.6 : 0),
+                         y: -25 + 17 * pose.headDown + pose.chew * 0.5 + (grooming ? 2 : 0))
+        let dark = mix(pal.main, pal.shade, 0.65)
 
-        // Schwänzchen
-        let tail = CGRect(x: -32, y: -22, width: 12, height: 12)
-        ctx.fill(Path(ellipseIn: tail.insetBy(dx: -1, dy: -1)), with: outline)
-        ctx.fill(Path(ellipseIn: tail), with: .color(look.pattern == .russe ? pal.main : pal.belly))
-
-        // Ohren hinter dem Kopf
-        if lop {
-            ear(&ctx, base: CGPoint(x: hc.x - 7, y: hc.y - 7), length: 22, width: 10,
-                angle: 0.55 + pose.earTwitch * 0.3, hanging: true, color: earColor(look, pal), inner: nil)
-        } else {
-            let back = -0.42 - pose.earsBack * 0.85 + pose.earTwitch
-            let front = -0.12 - pose.earsBack * 0.95
-            ear(&ctx, base: CGPoint(x: hc.x - 6, y: hc.y - 8), length: 27, width: 10,
-                angle: back, hanging: false, color: earColor(look, pal), inner: nil, shade: pal.shade)
-            ear(&ctx, base: CGPoint(x: hc.x, y: hc.y - 10), length: 28, width: 10.5,
-                angle: front, hanging: false, color: earColor(look, pal), inner: pal.ear)
-        }
+        drawTail(&ctx, at: CGPoint(x: -32, y: -16), look: look, pal: pal)
 
         // Körper
-        let body = Path(ellipseIn: CGRect(x: -27, y: -33, width: 46, height: 33))
-        ctx.stroke(body, with: outline, lineWidth: 2.2)
-        ctx.fill(body, with: .linearGradient(Gradient(colors: [pal.main, mix(pal.main, pal.shade, 0.55)]),
-                                             startPoint: CGPoint(x: 0, y: -33), endPoint: CGPoint(x: 0, y: 0)))
+        let body = bodyPath()
+        ctx.fill(body, with: .linearGradient(Gradient(colors: [pal.main, pal.main, dark]),
+                                             startPoint: CGPoint(x: -8, y: -34), endPoint: CGPoint(x: -4, y: 0)))
         ctx.drawLayer { l in
             l.clip(to: body)
-            switch look.pattern {
-            case .hollaender:
-                l.fill(Path(CGRect(x: 0, y: -40, width: 30, height: 45)), with: .color(pal.spot))
-            case .schecke:
-                for k in 0..<3 {
-                    let x = -22 + hash(seed, k) * 28
-                    let y = -30 + hash(seed, k, 1) * 18
-                    let w = 9 + hash(seed, k, 2) * 9
-                    l.fill(Path(ellipseIn: CGRect(x: x, y: y, width: w, height: w * 0.8)), with: .color(pal.spot))
-                }
-                // Aalstrich
-                l.fill(Path(roundedRect: CGRect(x: -22, y: -35, width: 30, height: 6), cornerRadius: 3), with: .color(pal.spot))
-            default:
-                break
-            }
+            bodyPattern(&l, look: look, pal: pal, seed: seed)
+            // Brust und Bauch
+            l.fill(Path(ellipseIn: CGRect(x: 3, y: -20, width: 14, height: 20)), with: .color(pal.belly.opacity(0.22)))
+            l.fill(Path(ellipseIn: CGRect(x: -16, y: -8, width: 34, height: 11)), with: .color(pal.belly.opacity(0.32)))
             // Keule
-            l.fill(Path(ellipseIn: CGRect(x: -26, y: -27, width: 26, height: 24)), with: .color(pal.shade.opacity(0.16)))
-            if look.fur == .nacht && look.pattern != .russe {
-                for k in 0..<9 {
-                    let x = -24 + hash(k, 61) * 40, y = -31 + hash(k, 62) * 26, r = 0.7 + hash(k, 63) * 1.1
-                    l.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)), with: .color(.white.opacity(0.9)))
-                }
-            }
-            if look.fur == .mond || look.fur == .gold {
-                l.fill(Path(ellipseIn: CGRect(x: -14, y: -32, width: 24, height: 10)), with: .color(.white.opacity(0.45)))
-            }
+            var thigh = Path()
+            thigh.move(to: CGPoint(x: -4, y: -1))
+            thigh.addCurve(to: CGPoint(x: -20, y: -27), control1: CGPoint(x: -2, y: -15), control2: CGPoint(x: -9, y: -27))
+            thigh.addCurve(to: CGPoint(x: -33, y: -10), control1: CGPoint(x: -29, y: -27), control2: CGPoint(x: -34, y: -18))
+            thigh.addCurve(to: CGPoint(x: -24, y: -1), control1: CGPoint(x: -31, y: -4), control2: CGPoint(x: -28, y: -1))
+            thigh.closeSubpath()
+            l.fill(thigh, with: .color(pal.shade.opacity(0.16)))
+            var thighLight = Path()
+            thighLight.move(to: CGPoint(x: -5, y: -6))
+            thighLight.addCurve(to: CGPoint(x: -22, y: -25), control1: CGPoint(x: -4, y: -17), control2: CGPoint(x: -12, y: -25))
+            l.stroke(thighLight, with: .color(.white.opacity(0.22)), lineWidth: 1.4)
+            // Licht von oben
+            l.fill(Path(ellipseIn: CGRect(x: -32, y: -44, width: 40, height: 26)),
+                   with: .radialGradient(Gradient(colors: [.white.opacity(0.32), .clear]),
+                                         center: CGPoint(x: -12, y: -31), startRadius: 0, endRadius: 19))
+            furTexture(&l, rect: CGRect(x: -34, y: -35, width: 54, height: 34), look: look, pal: pal, seed: seed, count: 60)
+            // Schatten am Boden
+            l.fill(Path(CGRect(x: -40, y: -7, width: 70, height: 8)),
+                   with: .linearGradient(Gradient(colors: [.clear, .black.opacity(0.18)]),
+                                         startPoint: CGPoint(x: 0, y: -7), endPoint: CGPoint(x: 0, y: 0)))
         }
-        // Brust
-        ctx.fill(Path(ellipseIn: CGRect(x: 3, y: -21, width: 15, height: 17)), with: .color(pal.belly.opacity(0.9)))
+        ctx.stroke(body, with: .color(pal.shade.opacity(0.45)), lineWidth: 0.8)
 
-        // Füße
-        let footColor = look.pattern == .russe ? pal.spot : (look.pattern == .hollaender ? pal.spot : pal.shade)
-        ctx.fill(Path(ellipseIn: CGRect(x: -24, y: -5, width: 21, height: 7)), with: .color(footColor))
-        let pawY: CGFloat = pose.groom > -1 ? hc.y + 7 + pose.groom * 2 : -5
-        let pawX: CGFloat = pose.groom > -1 ? hc.x + 5 : 8
-        ctx.fill(Path(ellipseIn: CGRect(x: pawX, y: pawY, width: 9, height: 6)),
-                 with: .color(look.pattern == .russe ? pal.spot : pal.belly))
-        ctx.fill(Path(ellipseIn: CGRect(x: pawX + 6, y: pawY + (pose.groom > -1 ? 1 : 0), width: 9, height: 6)),
-                 with: .color(look.pattern == .russe ? pal.spot : pal.belly))
-
-        // Löwenkopf-Mähne
-        if look.breed == .loewenkopf {
-            for k in 0..<9 {
-                let ang = Double(k) / 9 * 1.6 * .pi + 0.5 * .pi
-                let c = CGPoint(x: hc.x + CGFloat(cos(ang)) * (headR + 1), y: hc.y + CGFloat(sin(ang)) * (headR - 1))
-                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 6.5, y: c.y - 6.5, width: 13, height: 13)),
-                         with: .color(mix(pal.main, .white, 0.25)))
-            }
+        // Hinterpfote und Vorderpfoten
+        let footColor = look.pattern == .russe ? pal.spot : (look.pattern == .hollaender ? pal.spot : mix(pal.main, pal.belly, 0.2))
+        let foot = Path(roundedRect: CGRect(x: -31, y: -4.5, width: 25, height: 5), cornerRadius: 2.5)
+        ctx.fill(foot, with: .color(footColor))
+        ctx.stroke(foot, with: .color(pal.shade.opacity(0.35)), lineWidth: 0.6)
+        let pawColor = look.pattern == .russe ? pal.spot : mix(pal.belly, pal.main, 0.3)
+        let pawY: CGFloat = grooming ? hc.y + 8 + pose.groom * 2 : -4.2
+        let pawX: CGFloat = grooming ? hc.x + 3 : 8
+        for k in 0..<2 {
+            let paw = Path(roundedRect: CGRect(x: pawX + CGFloat(k) * 5.5, y: pawY + (grooming && k == 1 ? 1 : 0), width: 8.5, height: 4.6),
+                           cornerRadius: 2.3)
+            ctx.fill(paw, with: .color(pawColor))
+            ctx.stroke(paw, with: .color(pal.shade.opacity(0.35)), lineWidth: 0.5)
         }
 
         // Kopf
-        let head = Path(ellipseIn: CGRect(x: hc.x - headR, y: hc.y - headR * 0.92, width: headR * 2.1, height: headR * 1.9))
-        ctx.stroke(head, with: outline, lineWidth: 2.2)
-        ctx.fill(head, with: .color(pal.main))
-        ctx.fill(Path(ellipseIn: CGRect(x: hc.x - 2, y: hc.y - 1, width: 18, height: 14)), with: .color(mix(pal.main, pal.belly, 0.35)))
-        ctx.drawLayer { l in
-            l.clip(to: head)
+        ctx.drawLayer { h in
+            h.translateBy(x: hc.x, y: hc.y)
+            h.rotate(by: .radians(Double(pose.headDown) * 0.38))
+            let hs: CGFloat = look.breed == .zwerg ? 1.12 : 1
+            h.scaleBy(x: hs, y: hs)
+            drawHead(&h, look: look, pal: pal, pose: pose, seed: seed)
+        }
+
+        // Pfoten vor dem Gesicht beim Putzen
+        if grooming {
+            ctx.fill(Path(roundedRect: CGRect(x: hc.x + 4, y: hc.y + 4 + pose.groom * 2, width: 7, height: 4.5), cornerRadius: 2.2),
+                     with: .color(pawColor))
+        }
+    }
+
+    private static func bodyPath() -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: 13, y: -1))
+        p.addCurve(to: CGPoint(x: 14, y: -18), control1: CGPoint(x: 17, y: -5), control2: CGPoint(x: 17, y: -12))
+        p.addCurve(to: CGPoint(x: -2, y: -30), control1: CGPoint(x: 11, y: -24), control2: CGPoint(x: 5, y: -29))
+        p.addCurve(to: CGPoint(x: -24, y: -31), control1: CGPoint(x: -10, y: -36), control2: CGPoint(x: -18, y: -36))
+        p.addCurve(to: CGPoint(x: -32, y: -11), control1: CGPoint(x: -31, y: -27), control2: CGPoint(x: -33, y: -19))
+        p.addCurve(to: CGPoint(x: -23, y: -1), control1: CGPoint(x: -31, y: -4), control2: CGPoint(x: -28, y: -1))
+        p.closeSubpath()
+        return p
+    }
+
+    /// Kopf mit Schnauze, Ursprung in der Kopfmitte, Nase bei etwa (17, -1).
+    private static func headPath() -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: -12, y: 0))
+        p.addCurve(to: CGPoint(x: 2, y: -12), control1: CGPoint(x: -12, y: -8), control2: CGPoint(x: -6, y: -12))
+        p.addCurve(to: CGPoint(x: 17.5, y: -1), control1: CGPoint(x: 10, y: -12), control2: CGPoint(x: 16.5, y: -6))
+        p.addCurve(to: CGPoint(x: 11, y: 7.5), control1: CGPoint(x: 18.5, y: 3.5), control2: CGPoint(x: 15, y: 7.5))
+        p.addCurve(to: CGPoint(x: -4, y: 10), control1: CGPoint(x: 6, y: 8.5), control2: CGPoint(x: 2, y: 12))
+        p.addCurve(to: CGPoint(x: -12, y: 0), control1: CGPoint(x: -10, y: 8.5), control2: CGPoint(x: -12, y: 5))
+        p.closeSubpath()
+        return p
+    }
+
+    /// Kurze, leicht gebogene Haarstriche – Fell statt glatter Fläche.
+    private static func furPath(in r: CGRect, count: Int, seed: Int, length: CGFloat = 4.5, angle: CGFloat = 2.6) -> Path {
+        var p = Path()
+        for k in 0..<count {
+            let x = r.minX + hash(seed, k, 11) * r.width
+            let y = r.minY + hash(seed, k, 12) * r.height
+            let a = angle + (hash(seed, k, 13) - 0.5) * 0.7
+            let len = length * (0.6 + hash(seed, k, 14) * 0.8)
+            p.move(to: CGPoint(x: x, y: y))
+            p.addQuadCurve(to: CGPoint(x: x + cos(a) * len, y: y + sin(a) * len),
+                           control: CGPoint(x: x + cos(a - 0.45) * len * 0.5, y: y + sin(a - 0.45) * len * 0.5))
+        }
+        return p
+    }
+
+    private static func furTexture(_ l: inout GraphicsContext, rect: CGRect, look: RabbitLook, pal: Palette, seed: Int, count: Int) {
+        l.stroke(furPath(in: rect, count: count, seed: seed), with: .color(pal.shade.opacity(0.3)), lineWidth: 0.7)
+        l.stroke(furPath(in: rect, count: count / 2, seed: seed &+ 9), with: .color(.white.opacity(0.18)), lineWidth: 0.7)
+        // Wildfarbene Kaninchen haben gesprenkeltes ("geticktes") Fell.
+        if look.fur == .wildfarben || look.fur == .sand || look.fur == .silber {
+            var dots = Path()
+            for k in 0..<70 {
+                let x = rect.minX + hash(seed, k, 21) * rect.width
+                let y = rect.minY + hash(seed, k, 22) * rect.height * 0.8
+                let r: CGFloat = 0.45 + hash(seed, k, 23) * 0.45
+                dots.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+            }
+            l.fill(dots, with: .color((look.fur == .silber ? Color.white : Color(hex: 0x2E2018)).opacity(0.35)))
+        }
+    }
+
+    private static func bodyPattern(_ l: inout GraphicsContext, look: RabbitLook, pal: Palette, seed: Int) {
+        switch look.pattern {
+        case .hollaender:
+            var front = Path()
+            front.move(to: CGPoint(x: 0, y: -40))
+            front.addQuadCurve(to: CGPoint(x: -6, y: 2), control: CGPoint(x: -9, y: -18))
+            front.addLine(to: CGPoint(x: 30, y: 2))
+            front.addLine(to: CGPoint(x: 30, y: -40))
+            front.closeSubpath()
+            l.fill(front, with: .color(pal.spot))
+        case .schecke:
+            for k in 0..<4 {
+                let x = -28 + hash(seed, k) * 34
+                let y = -30 + hash(seed, k, 1) * 18
+                let w = 8 + hash(seed, k, 2) * 9
+                var blob = Path()
+                blob.addEllipse(in: CGRect(x: x, y: y, width: w, height: w * 0.75))
+                blob.addEllipse(in: CGRect(x: x + w * 0.4, y: y + w * 0.3, width: w * 0.6, height: w * 0.5))
+                l.fill(blob, with: .color(pal.spot))
+            }
+            // Aalstrich entlang des Rückens
+            var stripe = Path()
+            stripe.move(to: CGPoint(x: 6, y: -31))
+            stripe.addCurve(to: CGPoint(x: -30, y: -24), control1: CGPoint(x: -6, y: -35), control2: CGPoint(x: -22, y: -34))
+            l.stroke(stripe, with: .color(pal.spot), lineWidth: 5)
+        case .blesse:
+            l.fill(Path(ellipseIn: CGRect(x: 8, y: -24, width: 12, height: 18)), with: .color(pal.spot.opacity(0.9)))
+        case .russe, .einfarbig:
+            break
+        }
+        if look.fur == .nacht && look.pattern != .russe {
+            var stars = Path()
+            for k in 0..<10 {
+                let x = -28 + hash(k, 61) * 40, y = -31 + hash(k, 62) * 26, r = 0.6 + hash(k, 63) * 0.9
+                stars.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+            }
+            l.fill(stars, with: .color(.white.opacity(0.9)))
+        }
+        if look.fur == .mond || look.fur == .gold {
+            l.fill(Path(ellipseIn: CGRect(x: -18, y: -33, width: 26, height: 9)), with: .color(.white.opacity(0.4)))
+        }
+    }
+
+    private static func drawTail(_ ctx: inout GraphicsContext, at c: CGPoint, look: RabbitLook, pal: Palette) {
+        let color = look.pattern == .russe ? pal.spot : pal.belly
+        for (dx, dy, r) in [(CGFloat(-1), CGFloat(-1), CGFloat(5.5)), (2, -4, 4.5), (-2.5, 3, 4)] {
+            let center = CGPoint(x: c.x + dx, y: c.y + dy)
+            ctx.fill(Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)),
+                     with: .radialGradient(Gradient(colors: [mix(color, .white, 0.2), mix(color, pal.shade, 0.25)]),
+                                           center: CGPoint(x: center.x - 1, y: center.y - 1.5), startRadius: 0, endRadius: r))
+        }
+    }
+
+    /// Kopf samt Ohren und Gesicht, Ursprung in der Kopfmitte.
+    private static func drawHead(_ h: inout GraphicsContext, look: RabbitLook, pal: Palette, pose: RabbitPose, seed: Int) {
+        let lop = look.breed == .widder
+        let earLen: CGFloat = look.breed == .riese ? 32 : (look.breed == .zwerg ? 24 : 29)
+        let earC = earColor(look, pal)
+        let dark = mix(pal.main, pal.shade, 0.65)
+
+        // Löwenkopf-Mähne
+        if look.breed == .loewenkopf {
+            let mane = mix(pal.main, pal.belly, 0.25)
+            for k in 0..<12 {
+                let ang = 0.55 * .pi + Double(k) / 11 * 1.1 * .pi
+                let c = CGPoint(x: -1 + CGFloat(cos(ang)) * 11.5, y: 1 + CGFloat(sin(ang)) * 10.5)
+                h.fill(Path(ellipseIn: CGRect(x: c.x - 5.5, y: c.y - 5, width: 11, height: 10)), with: .color(mane))
+            }
+            h.stroke(furPath(in: CGRect(x: -20, y: -10, width: 18, height: 24), count: 30, seed: seed &+ 5, length: 6, angle: 2.2),
+                     with: .color(pal.shade.opacity(0.35)), lineWidth: 0.8)
+        }
+
+        // Ohren hinter dem Kopf
+        if lop {
+            ear(&h, base: CGPoint(x: -6, y: -7), length: earLen * 0.82, width: 12, angle: 0.4 + pose.earTwitch * 0.3,
+                hanging: true, color: mix(earC, pal.shade, 0.35), inner: nil, shade: pal.shade)
+        } else {
+            ear(&h, base: CGPoint(x: -8, y: -8), length: earLen, width: 11,
+                angle: -0.45 - pose.earsBack * 0.85 + pose.earTwitch, hanging: false,
+                color: mix(earC, pal.shade, 0.3), inner: Color(hex: 0xC98A92), shade: pal.shade)
+            ear(&h, base: CGPoint(x: -3, y: -10), length: earLen + 1, width: 11.5,
+                angle: -0.17 - pose.earsBack * 0.95, hanging: false, color: earC, inner: pal.ear, shade: pal.shade)
+        }
+
+        let head = headPath()
+        h.fill(head, with: .radialGradient(Gradient(colors: [mix(pal.main, .white, 0.14), pal.main, dark]),
+                                           center: CGPoint(x: 2, y: -6), startRadius: 1, endRadius: 20))
+        h.drawLayer { f in
+            f.clip(to: head)
             switch look.pattern {
             case .hollaender, .blesse:
                 var blaze = Path()
-                blaze.move(to: CGPoint(x: hc.x + 6, y: hc.y - headR))
-                blaze.addQuadCurve(to: CGPoint(x: hc.x + 18, y: hc.y + 10), control: CGPoint(x: hc.x + 2, y: hc.y + 6))
-                blaze.addLine(to: CGPoint(x: hc.x + 18, y: hc.y - headR))
-                blaze.closeSubpath()
-                l.fill(blaze, with: .color(pal.spot))
+                blaze.move(to: CGPoint(x: 3, y: -12.5))
+                blaze.addQuadCurve(to: CGPoint(x: 18.5, y: -1), control: CGPoint(x: 13, y: -9))
+                blaze.addLine(to: CGPoint(x: 13, y: 10))
+                blaze.addQuadCurve(to: CGPoint(x: 3, y: -12.5), control: CGPoint(x: 3, y: 0))
+                f.fill(blaze, with: .color(pal.spot))
             case .schecke:
-                l.fill(Path(ellipseIn: CGRect(x: hc.x + 1, y: hc.y - 7, width: 11, height: 10)), with: .color(pal.spot))
-                l.fill(Path(ellipseIn: CGRect(x: hc.x + 9, y: hc.y + 1, width: 9, height: 7)), with: .color(pal.spot))
+                f.fill(Path(ellipseIn: CGRect(x: 8, y: -6, width: 10, height: 8)), with: .color(pal.spot))
+                f.fill(Path(ellipseIn: CGRect(x: 11, y: -2, width: 8, height: 7)), with: .color(pal.spot))
+                f.fill(Path(ellipseIn: CGRect(x: -1.5, y: -9, width: 12, height: 11)), with: .color(pal.spot))
             case .russe:
-                l.fill(Path(ellipseIn: CGRect(x: hc.x + 7, y: hc.y - 4, width: 14, height: 13)), with: .color(pal.spot))
+                f.fill(Path(ellipseIn: CGRect(x: 7.5, y: -7, width: 14, height: 15)), with: .color(pal.spot))
             case .einfarbig:
                 break
             }
+            // Wange, Schnauzenpolster, Kiefer
+            f.fill(Path(ellipseIn: CGRect(x: -7, y: -1, width: 17, height: 12)), with: .color(pal.belly.opacity(0.2)))
+            f.fill(Path(ellipseIn: CGRect(x: 9.5, y: -2.5, width: 8.5, height: 8)),
+                   with: .color(mix(look.pattern == .russe ? pal.spot : pal.main, pal.belly, 0.55).opacity(0.4)))
+            f.fill(Path(ellipseIn: CGRect(x: -14, y: 4, width: 30, height: 12)), with: .color(pal.shade.opacity(0.22)))
+            f.stroke(furPath(in: CGRect(x: -12, y: -12, width: 22, height: 20), count: 20, seed: seed &+ 3, length: 3, angle: 2.9),
+                     with: .color(pal.shade.opacity(0.25)), lineWidth: 0.6)
         }
+        h.stroke(head, with: .color(pal.shade.opacity(0.45)), lineWidth: 0.8)
 
-        // Auge
-        let eye = CGPoint(x: hc.x + 6, y: hc.y - 3)
+        // Auge mit hellem Augenring
+        let eye = CGPoint(x: 4.5, y: -3.5)
+        let ringColor = look.fur == .wildfarben || look.fur == .sand ? Color(hex: 0xF3E6D2) : mix(pal.main, pal.belly, 0.4)
+        h.fill(Path(ellipseIn: CGRect(x: eye.x - 5.6, y: eye.y - 5.2, width: 11.2, height: 10.4)), with: .color(ringColor.opacity(0.75)))
         if pose.eyesClosed {
             var lid = Path()
             if pose.happy {
-                lid.move(to: CGPoint(x: eye.x - 3.5, y: eye.y + 1))
-                lid.addQuadCurve(to: CGPoint(x: eye.x + 3.5, y: eye.y + 1), control: CGPoint(x: eye.x, y: eye.y - 3.5))
+                lid.move(to: CGPoint(x: eye.x - 3.6, y: eye.y + 1))
+                lid.addQuadCurve(to: CGPoint(x: eye.x + 3.6, y: eye.y + 1), control: CGPoint(x: eye.x, y: eye.y - 3))
             } else {
-                lid.move(to: CGPoint(x: eye.x - 3.5, y: eye.y))
-                lid.addQuadCurve(to: CGPoint(x: eye.x + 3.5, y: eye.y), control: CGPoint(x: eye.x, y: eye.y + 3))
+                lid.move(to: CGPoint(x: eye.x - 3.6, y: eye.y))
+                lid.addQuadCurve(to: CGPoint(x: eye.x + 3.6, y: eye.y), control: CGPoint(x: eye.x, y: eye.y + 2.6))
             }
-            ctx.stroke(lid, with: .color(Color(hex: 0x2A1D15)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            h.stroke(lid, with: .color(Color(hex: 0x2A1D15)), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
         } else {
-            let irisColor = look.pattern == .russe || (look.fur == .weiss && look.pattern == .einfarbig)
-                ? Color(hex: 0xB0384A) : Color(hex: 0x1E1512)
-            ctx.fill(Path(ellipseIn: CGRect(x: eye.x - 3.6, y: eye.y - 3.9, width: 7.2, height: 7.8)), with: .color(irisColor))
-            ctx.fill(Path(ellipseIn: CGRect(x: eye.x - 0.6, y: eye.y - 2.9, width: 2.6, height: 2.6)), with: .color(.white))
+            let albino = look.pattern == .russe || (look.fur == .weiss && look.pattern == .einfarbig)
+            let outer = albino ? Color(hex: 0x8E1F33) : Color(hex: 0x1F1009)
+            let inner = albino ? Color(hex: 0xE46D84) : Color(hex: 0x7A4626)
+            let iris = CGRect(x: eye.x - 3.9, y: eye.y - 4.1, width: 7.8, height: 8.2)
+            h.fill(Path(ellipseIn: iris), with: .radialGradient(Gradient(colors: [inner, outer]),
+                                                               center: CGPoint(x: eye.x + 0.9, y: eye.y + 1.4),
+                                                               startRadius: 0, endRadius: 4.6))
+            h.fill(Path(ellipseIn: CGRect(x: eye.x - 1.9, y: eye.y - 1.8, width: 3.8, height: 4)), with: .color(.black.opacity(0.8)))
+            var lid = Path()
+            lid.addArc(center: eye, radius: 4.1, startAngle: .degrees(200), endAngle: .degrees(340), clockwise: false)
+            h.stroke(lid, with: .color(Color(hex: 0x1F1009).opacity(0.6)), lineWidth: 1.1)
+            h.fill(Path(ellipseIn: CGRect(x: eye.x + 0.2, y: eye.y - 3.2, width: 2.6, height: 2.4)), with: .color(.white))
+            h.fill(Path(ellipseIn: CGRect(x: eye.x - 2.4, y: eye.y + 1.1, width: 1.2, height: 1.2)), with: .color(.white.opacity(0.6)))
         }
-        // Wange
-        ctx.fill(Path(ellipseIn: CGRect(x: hc.x + 3, y: hc.y + 3, width: 7, height: 4)), with: .color(Color(hex: 0xF29AA5).opacity(0.35)))
-        // Nase & Schnurrhaare
-        let nose = CGPoint(x: hc.x + headR + 0.5, y: hc.y + 3 + pose.nose)
-        ctx.fill(Path(ellipseIn: CGRect(x: nose.x - 2.2, y: nose.y - 1.6, width: 4.4, height: 3.4)), with: .color(Color(hex: 0xD9707E)))
+
+        // Nase, Mund, Schnurrhaare
+        let n = CGPoint(x: 16.6, y: -1.6 + pose.nose * 0.8)
+        var nose = Path()
+        nose.move(to: CGPoint(x: n.x - 1.9, y: n.y - 1))
+        nose.addQuadCurve(to: CGPoint(x: n.x + 1.1, y: n.y - 1.3), control: CGPoint(x: n.x - 0.4, y: n.y - 2.4))
+        nose.addLine(to: CGPoint(x: n.x - 0.1, y: n.y + 1.2))
+        nose.closeSubpath()
+        h.fill(nose, with: .color(Color(hex: 0xD48592)))
+        var mouth = Path()
+        mouth.move(to: CGPoint(x: n.x - 0.1, y: n.y + 1.2))
+        mouth.addQuadCurve(to: CGPoint(x: n.x - 2.4, y: n.y + 4.2), control: CGPoint(x: n.x + 0.2, y: n.y + 3.4))
+        h.stroke(mouth, with: .color(pal.shade.opacity(0.7)), lineWidth: 0.7)
+        let darkFur = [GardenFur.schwarz, .schoko, .nacht, .wildfarben].contains(look.fur) && look.pattern != .russe
         var whiskers = Path()
-        for k in -1...1 {
-            whiskers.move(to: CGPoint(x: nose.x - 2, y: nose.y + 1.5))
-            whiskers.addLine(to: CGPoint(x: nose.x + 9, y: nose.y + 1.5 + CGFloat(k) * 3 + pose.nose * 0.5))
+        for k in 0..<4 {
+            let y0 = n.y + 2.2 + CGFloat(k) * 0.6
+            whiskers.move(to: CGPoint(x: n.x - 3.5, y: y0))
+            whiskers.addQuadCurve(to: CGPoint(x: n.x + 9 + CGFloat(k), y: y0 - 2 + CGFloat(k) * 2.6 + pose.nose * 0.4),
+                                  control: CGPoint(x: n.x + 3, y: y0 - 1.5 + CGFloat(k)))
         }
-        ctx.stroke(whiskers, with: .color(Color(hex: 0x2A1D15).opacity(0.35)), lineWidth: 0.7)
+        h.stroke(whiskers, with: .color((darkFur ? Color.white : Color(hex: 0x4A3A30)).opacity(0.45)), lineWidth: 0.45)
 
         // Widder: vorderes Schlappohr vor dem Kopf
         if lop {
-            ear(&ctx, base: CGPoint(x: hc.x - 2, y: hc.y - 9), length: 24, width: 10.5,
-                angle: 0.25 + pose.earTwitch * 0.3, hanging: true, color: earColor(look, pal), inner: nil, shade: pal.shade)
+            ear(&h, base: CGPoint(x: -3, y: -9), length: earLen * 0.86, width: 12.5, angle: 0.22 + pose.earTwitch * 0.3,
+                hanging: true, color: earC, inner: nil, shade: pal.shade)
         }
     }
 
@@ -1104,57 +1265,90 @@ enum GardenRenderer {
         }
     }
 
-    private static func ear(_ ctx: inout GraphicsContext, base: CGPoint, length: CGFloat, width: CGFloat,
-                            angle: CGFloat, hanging: Bool, color: Color, inner: Color?, shade: Color? = nil) {
+    /// Blattförmiges Ohr: schmal am Ansatz, breit in der Mitte, runde Spitze.
+    private static func ear(_ ctx: inout GraphicsContext, base: CGPoint, length L: CGFloat, width W: CGFloat,
+                            angle: CGFloat, hanging: Bool, color: Color, inner: Color?, shade: Color) {
         ctx.drawLayer { l in
             l.translateBy(x: base.x, y: base.y)
             l.rotate(by: .radians(Double(angle)))
-            let rect = hanging
-                ? CGRect(x: -width / 2, y: 0, width: width, height: length)
-                : CGRect(x: -width / 2, y: -length, width: width, height: length)
-            let path = Path(roundedRect: rect, cornerRadius: width / 2)
-            l.stroke(path, with: .color((shade ?? color).opacity(0.8)), lineWidth: 2)
-            l.fill(path, with: .color(color))
-            if let shade, hanging {
-                l.fill(Path(roundedRect: rect.insetBy(dx: 2.5, dy: 4).offsetBy(dx: 1, dy: 2), cornerRadius: width / 3),
-                       with: .color(shade.opacity(0.25)))
+            let d: CGFloat = hanging ? 1 : -1
+            var p = Path()
+            p.move(to: CGPoint(x: -W * 0.32, y: 0))
+            p.addCurve(to: CGPoint(x: 0, y: d * L), control1: CGPoint(x: -W * 0.78, y: d * L * 0.45),
+                       control2: CGPoint(x: -W * 0.6, y: d * L))
+            p.addCurve(to: CGPoint(x: W * 0.32, y: 0), control1: CGPoint(x: W * 0.62, y: d * L),
+                       control2: CGPoint(x: W * 0.7, y: d * L * 0.4))
+            p.closeSubpath()
+            l.fill(p, with: .linearGradient(Gradient(colors: [color, mix(color, shade, 0.3)]),
+                                            startPoint: .zero, endPoint: CGPoint(x: 0, y: d * L)))
+            if let inner, !hanging {
+                var q = Path()
+                q.move(to: CGPoint(x: -W * 0.1, y: -3))
+                q.addCurve(to: CGPoint(x: 0.3, y: -L * 0.86), control1: CGPoint(x: -W * 0.44, y: -L * 0.45),
+                           control2: CGPoint(x: -W * 0.3, y: -L * 0.86))
+                q.addCurve(to: CGPoint(x: W * 0.16, y: -3), control1: CGPoint(x: W * 0.32, y: -L * 0.86),
+                           control2: CGPoint(x: W * 0.36, y: -L * 0.4))
+                q.closeSubpath()
+                l.fill(q, with: .linearGradient(Gradient(colors: [inner.opacity(0.95), inner.opacity(0.55)]),
+                                                startPoint: CGPoint(x: 0, y: -3), endPoint: CGPoint(x: 0, y: -L)))
+                var vein = Path()
+                vein.move(to: CGPoint(x: 0.2, y: -5))
+                vein.addQuadCurve(to: CGPoint(x: -0.4, y: -L * 0.72), control: CGPoint(x: -1.6, y: -L * 0.4))
+                l.stroke(vein, with: .color(Color(hex: 0xB8606E).opacity(0.35)), lineWidth: 0.5)
             }
-            if let inner {
-                l.fill(Path(roundedRect: rect.insetBy(dx: width * 0.27, dy: 4), cornerRadius: width / 3), with: .color(inner))
+            if hanging {
+                var fold = Path()
+                fold.move(to: CGPoint(x: 0, y: 3))
+                fold.addQuadCurve(to: CGPoint(x: 0.5, y: L * 0.85), control: CGPoint(x: -2.5, y: L * 0.5))
+                l.stroke(fold, with: .color(shade.opacity(0.35)), lineWidth: 0.9)
             }
+            l.stroke(p, with: .color(shade.opacity(0.45)), lineWidth: 0.7)
         }
     }
 
     /// Ausgestreckt auf der Seite liegend – das glücklichste Kaninchen der Welt.
-    private static func flopShape(_ ctx: inout GraphicsContext, look: RabbitLook, pal: Palette, pose: RabbitPose) {
-        let outline = GraphicsContext.Shading.color(pal.outline.opacity(0.9))
+    private static func flopShape(_ ctx: inout GraphicsContext, look: RabbitLook, pal: Palette, pose: RabbitPose, seed: Int) {
         ctx.scaleBy(x: 1, y: pose.breath)
-        // Hinterläufe
-        ctx.fill(Path(roundedRect: CGRect(x: -42, y: -9, width: 22, height: 8), cornerRadius: 4), with: .color(pal.shade))
-        let body = Path(ellipseIn: CGRect(x: -30, y: -21, width: 52, height: 21))
-        ctx.stroke(body, with: outline, lineWidth: 2.2)
-        ctx.fill(body, with: .color(pal.main))
-        ctx.fill(Path(ellipseIn: CGRect(x: -18, y: -9, width: 30, height: 9)), with: .color(pal.belly.opacity(0.8)))
-        if look.pattern == .schecke || look.pattern == .hollaender {
-            ctx.drawLayer { l in
-                l.clip(to: body)
-                l.fill(Path(ellipseIn: CGRect(x: -14, y: -22, width: 14, height: 11)), with: .color(pal.spot))
-            }
+        let dark = mix(pal.main, pal.shade, 0.65)
+        // Hinterlauf ausgestreckt
+        let leg = Path(roundedRect: CGRect(x: -47, y: -8, width: 22, height: 6.5), cornerRadius: 3.2)
+        ctx.fill(leg, with: .color(look.pattern == .russe ? pal.spot : mix(pal.main, pal.belly, 0.35)))
+        ctx.stroke(leg, with: .color(pal.shade.opacity(0.35)), lineWidth: 0.6)
+        drawTail(&ctx, at: CGPoint(x: -32, y: -13), look: look, pal: pal)
+
+        var body = Path()
+        body.move(to: CGPoint(x: -32, y: -3))
+        body.addCurve(to: CGPoint(x: -18, y: -21), control1: CGPoint(x: -37, y: -12), control2: CGPoint(x: -29, y: -20))
+        body.addCurve(to: CGPoint(x: 18, y: -15), control1: CGPoint(x: -6, y: -23), control2: CGPoint(x: 10, y: -21))
+        body.addCurve(to: CGPoint(x: 16, y: -1), control1: CGPoint(x: 24, y: -10), control2: CGPoint(x: 22, y: -2))
+        body.closeSubpath()
+        ctx.fill(body, with: .linearGradient(Gradient(colors: [pal.main, dark]),
+                                             startPoint: CGPoint(x: 0, y: -22), endPoint: CGPoint(x: 0, y: 0)))
+        ctx.drawLayer { l in
+            l.clip(to: body)
+            bodyPattern(&l, look: look, pal: pal, seed: seed)
+            l.fill(Path(ellipseIn: CGRect(x: -20, y: -9, width: 34, height: 10)), with: .color(pal.belly.opacity(0.6)))
+            l.fill(Path(ellipseIn: CGRect(x: -26, y: -28, width: 36, height: 18)),
+                   with: .radialGradient(Gradient(colors: [.white.opacity(0.3), .clear]),
+                                         center: CGPoint(x: -8, y: -20), startRadius: 0, endRadius: 16))
+            furTexture(&l, rect: CGRect(x: -34, y: -23, width: 54, height: 22), look: look, pal: pal, seed: seed, count: 40)
         }
-        // Ohren flach nach hinten
-        ear(&ctx, base: CGPoint(x: 20, y: -16), length: 26, width: 9.5, angle: -1.75, hanging: false,
-            color: earColor(look, pal), inner: pal.ear)
-        let head = Path(ellipseIn: CGRect(x: 14, y: -24, width: 27, height: 23))
-        ctx.stroke(head, with: outline, lineWidth: 2.2)
-        ctx.fill(head, with: .color(pal.main))
-        var lid = Path()
-        lid.move(to: CGPoint(x: 28, y: -14))
-        lid.addQuadCurve(to: CGPoint(x: 34, y: -14), control: CGPoint(x: 31, y: -11.5))
-        ctx.stroke(lid, with: .color(Color(hex: 0x2A1D15)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-        ctx.fill(Path(ellipseIn: CGRect(x: 38.5, y: -11, width: 4, height: 3)), with: .color(Color(hex: 0xD9707E)))
-        // Vorderpfötchen
-        ctx.fill(Path(roundedRect: CGRect(x: 10, y: -5, width: 16, height: 6), cornerRadius: 3), with: .color(pal.belly))
-        ctx.fill(Path(ellipseIn: CGRect(x: -36, y: -19, width: 11, height: 11)), with: .color(pal.belly))
+        ctx.stroke(body, with: .color(pal.shade.opacity(0.45)), lineWidth: 0.8)
+        let paw = Path(roundedRect: CGRect(x: 13, y: -4.5, width: 15, height: 4.5), cornerRadius: 2.2)
+        ctx.fill(paw, with: .color(look.pattern == .russe ? pal.spot : mix(pal.belly, pal.main, 0.3)))
+
+        var headPose = pose
+        headPose.eyesClosed = true
+        headPose.happy = false
+        headPose.earsBack = 1.45
+        headPose.nose = 0
+        ctx.drawLayer { h in
+            h.translateBy(x: 25, y: -11)
+            h.rotate(by: .radians(0.32))
+            let hs: CGFloat = look.breed == .zwerg ? 1.1 : 1
+            h.scaleBy(x: hs, y: hs)
+            drawHead(&h, look: look, pal: pal, pose: headPose, seed: seed)
+        }
     }
 
     // MARK: - Tiere der Luft, Wetter, Partikel
