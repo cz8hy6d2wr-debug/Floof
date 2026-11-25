@@ -3,7 +3,7 @@ import UIKit
 import UserNotifications
 
 enum GardenTool: String, CaseIterable, Identifiable {
-    case hand, maeher, giesskanne, futter, gestalten
+    case hand, maeher, giesskanne, futter, foto, gestalten
     var id: String { rawValue }
 
     var title: String {
@@ -12,6 +12,7 @@ enum GardenTool: String, CaseIterable, Identifiable {
         case .maeher: "Mähen"
         case .giesskanne: "Gießen"
         case .futter: "Futter"
+        case .foto: "Foto"
         case .gestalten: "Gestalten"
         }
     }
@@ -22,6 +23,7 @@ enum GardenTool: String, CaseIterable, Identifiable {
         case .maeher: "scissors"
         case .giesskanne: "drop.fill"
         case .futter: "carrot.fill"
+        case .foto: "camera.fill"
         case .gestalten: "paintbrush.fill"
         }
     }
@@ -93,6 +95,11 @@ final class GardenGame {
     var celebrate = 0
     /// Gewählte Deko zum Aufstellen (Werkzeug „Gestalten“).
     var placing: DecorKind?
+    /// Gerade aufgenommenes Foto (Polaroid-Ansicht)
+    var photoResult: PhotoResult?
+    @ObservationIgnored var photoCache: [String: UIImage] = [:]
+    @ObservationIgnored var xpCarry: Double = 0
+    @ObservationIgnored var stationTimer: Double = 1
     var selectedDecorID: UUID?
 
     // MARK: Simulation
@@ -155,9 +162,9 @@ final class GardenGame {
     @ObservationIgnored private var supplyTimer: Double = 60
     @ObservationIgnored private var weatherRefresh: Double = 2
 
-    private let light = UIImpactFeedbackGenerator(style: .light)
-    private let soft = UIImpactFeedbackGenerator(style: .soft)
-    private let notify = UINotificationFeedbackGenerator()
+    let light = UIImpactFeedbackGenerator(style: .light)
+    let soft = UIImpactFeedbackGenerator(style: .soft)
+    let notify = UINotificationFeedbackGenerator()
 
     init(demo: Bool = GardenDemo.isActive) {
         isDemo = demo
@@ -174,6 +181,7 @@ final class GardenGame {
         for rabbit in save.rabbits { actors[rabbit.id] = RabbitActor() }
         if !demo { catchUp(seconds: Date.now.timeIntervalSince(save.lastSaved)) }
         if !demo { checkWinterSupplies() }
+        if !demo { refreshQuestsIfNeeded() }
         if save.rabbits.isEmpty { nextVisitor = 8 }   // erst Begrüßung bzw. Wintervorrat lesen lassen
     }
 
@@ -272,7 +280,7 @@ final class GardenGame {
         return save.rabbits.first { $0.id == selectedID }
     }
 
-    private func index(of id: UUID) -> Int? { save.rabbits.firstIndex { $0.id == id } }
+    func index(of id: UUID) -> Int? { save.rabbits.firstIndex { $0.id == id } }
 
     // MARK: - Schleife
 
@@ -315,8 +323,11 @@ final class GardenGame {
         }
         if clock >= nextVisitor {
             // Besuch ist etwas Besonderes: etwa alle 4–9 Minuten.
-            nextVisitor = clock + .random(in: 240...540)
-            if visitor == nil { spawnVisitor() }
+            nextVisitor = clock + .random(in: 240...540) / arrivalFactor
+            if visitor == nil {
+                if residents.count < capacity { spawnVisitor() }
+                else if !isDemo { showBanner("Die Station ist voll – vermittle Schützlinge, damit neue Fundtiere Platz haben", symbol: "house.fill", duration: 5) }
+            }
         }
         if banner != nil, clock > bannerUntil { banner = nil }
 
@@ -340,6 +351,11 @@ final class GardenGame {
         if hudTimer > 0.4 {
             hudTimer = 0
             hudTick &+= 1
+        }
+        stationTimer -= dt
+        if stationTimer <= 0 {
+            stationTimer = 3
+            stationTick(elapsed: 3)
         }
         supplyTimer -= dt
         if supplyTimer <= 0 {
@@ -857,6 +873,8 @@ final class GardenGame {
         let pool = r.rarity == .legendaer ? (GardenRabbit.legendaryNames[r.look.fur] ?? GardenRabbit.names) : GardenRabbit.names
         r.name = pool.filter { !used.contains($0) }.randomElement() ?? GardenRabbit.names.randomElement()!
         inventory.sterne += r.rarity.reward
+        track(.zaehmen(r.rarity))
+        gainXP([15, 30, 60, 120][r.rarity.rawValue])
         a.mode = .idle
         a.timer = 1.5
         let p = screen(r.x, r.y)
@@ -892,6 +910,8 @@ final class GardenGame {
     private func fulfillWish(_ r: inout GardenRabbit, _ a: inout RabbitActor) {
         guard r.hasOpenWish else { return }
         r.wishFulfilled = true
+        track(.wunsch)
+        gainXP(20)
         let p = screen(r.x, r.y)
         burst(.sparkle, at: CGPoint(x: p.x, y: p.y - 50), count: 14, color: Color(hex: 0xFFE38A))
         burst(.heart, at: CGPoint(x: p.x, y: p.y - 40), count: 3, color: .pink)
@@ -950,7 +970,7 @@ final class GardenGame {
     private func spawnVisitor(preset: PendingVisit? = nil) {
         let lucky = save.luckyClover
         if preset == nil { save.luckyClover = false }
-        let rarity = preset?.rarity ?? Rarity.roll(cozy: cozy, lucky: lucky)
+        let rarity = preset?.rarity ?? gatedRarity(Rarity.roll(cozy: cozy, lucky: lucky), lucky: lucky)
         let look = preset?.look ?? RabbitLook.random(rarity)
         let fromLeft = Bool.random()
         let y = Double.random(in: 0.25...min(0.7, maxY))
@@ -959,7 +979,7 @@ final class GardenGame {
         r.x = fromLeft ? -0.06 : 1.06
         r.y = y
         r.isVisitor = true
-        r.leaveAt = Date.now.addingTimeInterval(.random(in: rarity.stay))
+        r.leaveAt = nil   // Fundtiere bleiben, bis sie Vertrauen gefasst haben
         r.trust = 0
         if save.tutorialStep > 0, Double.random(in: 0...1) < rarity.wishChance {
             r.wish = VisitorWish.random(for: rarity)
@@ -980,21 +1000,25 @@ final class GardenGame {
         save.discoveredFurs.insert(look.fur)
         save.discoveredPatterns.insert(look.pattern)
         save.discoveredBreeds.insert(look.breed)
+        register(look)
         if rarity >= .superSelten { notify.notificationOccurred(.success) } else { soft.impactOccurred() }
 
+        let how = ["Ein Fundtier wurde abgegeben", "Edith hat ein Kaninchen am Feldrand gefunden",
+                   "Jemand hat ein Kaninchen vor der Station ausgesetzt", "Ein Kaninchen wurde aus schlechter Haltung gerettet",
+                   "Die Feuerwehr bringt ein entlaufenes Kaninchen"].randomElement()!
         if save.tutorialStep == 0 {
             save.tutorialStep = 1
-            showBanner("Besuch! Leg Futter hin oder streichle ihn ganz vorsichtig.", symbol: "hare.fill", duration: 7)
+            showBanner("Ein Fundtier! Es ist noch ängstlich – leg Futter hin oder streichle es ganz vorsichtig.", symbol: "hare.fill", duration: 7)
         } else {
             switch rarity {
             case .legendaer:
-                showBanner("LEGENDÄR! Ein \(look.fur.title)-Kaninchen erscheint …", symbol: "crown.fill", duration: 7)
+                showBanner("LEGENDÄR! Ein \(look.fur.title)-Kaninchen sucht Schutz in deiner Station …", symbol: "crown.fill", duration: 7)
             case .superSelten:
-                showBanner("Super selten: \(look.description)!", symbol: "star.fill", duration: 6)
+                showBanner("\(how): super selten – \(look.description)!", symbol: "star.fill", duration: 6)
             case .selten:
-                showBanner(new ? "Seltener Besuch – neu im Album!" : "Seltener Besuch: \(look.description)", symbol: "diamond.fill")
+                showBanner("\(how) – \(new ? "neu im Sammelbuch!" : look.description)", symbol: "diamond.fill", duration: 5)
             case .gewoehnlich:
-                showBanner(new ? "Neu im Album: \(look.description)" : "Ein \(look.breed.title) schaut vorbei", symbol: "hare.fill")
+                showBanner("\(how)\(new ? " – neu im Sammelbuch!" : "")", symbol: "hare.fill", duration: 5)
             }
         }
     }
@@ -1047,7 +1071,7 @@ final class GardenGame {
             applyTool(from: last, to: p)
         case .hand:
             if let id = pettingID { pet(id, distance: hypot(p.x - last.x, p.y - last.y), at: p) }
-        case .futter:
+        case .futter, .foto:
             break
         case .gestalten:
             if let id = draggingDecorID, let i = save.decor.firstIndex(where: { $0.id == id }) {
@@ -1074,6 +1098,9 @@ final class GardenGame {
         switch tool {
         case .hand: tap(p)
         case .futter: placeFood(at: world(p))
+        case .foto:
+            if let id = rabbitID(at: p) { takePhoto(of: id) }
+            else { showBanner("Tipp auf ein Kaninchen, um es zu fotografieren", symbol: "camera.fill", duration: 2.5) }
         case .gestalten:
             if dragged != nil { light.impactOccurred(); return }
             if let kind = placing { placeDecor(kind, at: world(p)) } else { selectedDecorID = nil }
@@ -1128,8 +1155,12 @@ final class GardenGame {
             switch flower.kind {
             case .loewenzahn:
                 inventory.loewenzahn += 1
+                track(.pfluecken)
+                gainXP(1)
                 floatLabel("+1 Löwenzahn", at: p)
             case .gaensebluemchen:
+                track(.pfluecken)
+                gainXP(1)
                 burst(.petal, at: p, count: 8, color: .white)
                 for k in save.rabbits.indices where !save.rabbits[k].isVisitor
                     && hypot(save.rabbits[k].x - Double(w.x), save.rabbits[k].y - Double(w.y)) < 0.2 {
@@ -1160,6 +1191,8 @@ final class GardenGame {
                 save.bed[i] = CarrotSlot()
                 inventory.moehre += bonus
                 inventory.sterne += 2
+                track(.ernten, bonus)
+                gainXP(4)
                 floatLabel("+\(bonus) Möhre", at: sp)
                 burst(.sparkle, at: sp, count: 8, color: .orange)
                 notify.notificationOccurred(.success)
@@ -1211,6 +1244,8 @@ final class GardenGame {
                     r.friendship = min(100, r.friendship + 0.8 * love)
                 }
                 burst(.heart, at: CGPoint(x: p.x, y: p.y - 14), count: 1, color: Color(hex: 0xF27A9B))
+                track(.streicheln)
+                gainXPFraction(0.5)
                 soft.impactOccurred(intensity: 0.6)
             }
         }
@@ -1240,10 +1275,13 @@ final class GardenGame {
     private func mow(at p: CGPoint) {
         guard world(p).y > -0.02 else { return }
         var cut = 0.0
+        var cutCells = 0
+        defer { if cutCells > 0 { track(.maehen, cutCells); gainXPFraction(Double(cutCells) * 0.25) } }
         for k in cells(around: p, rx: 0.075, ry: 0.06) {
             let c = cellCenter(k)
             if Self.bedRect.insetBy(dx: -0.01, dy: -0.01).contains(c) { continue }
             if save.grass[k] > 0.16 {
+                cutCells += 1
                 cut += save.grass[k] - 0.08
                 save.grass[k] = 0.08
             }
@@ -1271,7 +1309,12 @@ final class GardenGame {
     }
 
     private func water(at p: CGPoint) {
-        for k in cells(around: p, rx: 0.07, ry: 0.055) { save.wet[k] = 1 }
+        var watered = 0
+        for k in cells(around: p, rx: 0.07, ry: 0.055) {
+            if save.wet[k] < 0.5 { watered += 1 }
+            save.wet[k] = 1
+        }
+        if watered > 0 { track(.giessen, watered); gainXPFraction(Double(watered) * 0.2) }
         if Double.random(in: 0...1) < 0.6 { burst(.drop, at: p, count: 2, color: Color(hex: 0x7CC3F2)) }
         for i in save.bed.indices where save.bed[i].planted != nil {
             let c = Self.slotCenter(i)
@@ -1318,6 +1361,8 @@ final class GardenGame {
         guard save.stock(kind) > 0 else { placing = nil; return }
         let p = clampToLawn(w)
         save.decorStock[kind.rawValue] = save.stock(kind) - 1
+        track(.deko)
+        gainXP(3)
         let d = GardenDecor(kind: kind, x: Double(p.x), y: Double(p.y))
         save.decor.append(d)
         selectedDecorID = d.id
@@ -1339,6 +1384,28 @@ final class GardenGame {
     /// Futter, das gerade angezeigt wird: Zweige nur im Winter oder wenn welche da sind.
     var availableFoods: [GardenFoodKind] {
         GardenFoodKind.allCases.filter { $0 != .zweige || inventory.zweige > 0 || season == .winter }
+    }
+
+    /// Seltenheit nach Stationslevel begrenzen (Glücksklee erlaubt eine Stufe mehr).
+    func gatedRarity(_ r: Rarity, lucky: Bool) -> Rarity {
+        var cap = Progression.maxRarity(level: level)
+        if lucky, let up = Rarity(rawValue: min(3, cap.rawValue + 1)) { cap = up }
+        return min(r, cap)
+    }
+
+    /// Nach Weihnachten und Ostern werden besonders viele Kaninchen abgegeben – wie in echten Tierheimen.
+    var arrivalFactor: Double {
+        let month = Calendar.current.component(.month, from: .now)
+        return month == 1 || month == 4 ? 1.6 : 1
+    }
+
+    func gainXPFraction(_ amount: Double) {
+        xpCarry += amount
+        if xpCarry >= 1 {
+            let whole = Int(xpCarry)
+            xpCarry -= Double(whole)
+            gainXP(whole)
+        }
     }
 
     /// Im Winter wächst kaum etwas – niemand soll ohne Futter dastehen.
@@ -1433,6 +1500,8 @@ final class GardenGame {
         guard save.foods.count < 8 else { showBanner("Erst mal aufessen lassen", symbol: "hare.fill"); return }
         let p = clampToLawn(w)
         inventory[kind] -= 1
+        track(.futtern(kind))
+        gainXP(1)
         save.foods.append(GardenFood(kind: kind, x: p.x, y: p.y))
         light.impactOccurred()
         // Hungrige reagieren sofort.
@@ -1506,7 +1575,7 @@ final class GardenGame {
         }
     }
 
-    private func floatLabel(_ text: String, at p: CGPoint) {
+    func floatLabel(_ text: String, at p: CGPoint) {
         particles.append(GardenParticle(kind: .label(text), p: p, v: CGVector(dx: 0, dy: -36),
                                         life: 1.4, maxLife: 1.4, spin: 0))
     }
@@ -1561,7 +1630,7 @@ final class GardenGame {
             actors[r.id] = RabbitActor()
         }
         // Gäste gehen irgendwann wieder.
-        save.rabbits.removeAll { $0.isVisitor && ($0.leaveAt ?? .distantPast) < .now }
+        save.rabbits.removeAll { $0.isVisitor && ($0.leaveAt.map { $0 < .now } ?? false) }
         if selectedID != nil, selectedRabbit == nil { selectedID = nil }
 
         let earned = min(400, Int(t / 180) * residents.reduce(0) { $0 + $1.rarity.income })
@@ -1600,7 +1669,7 @@ final class GardenGame {
     func prepareForBackground() {
         persist()
         guard !isDemo, visitor == nil, save.tutorialStep >= 1 else { return }
-        let rarity = Rarity.roll(cozy: cozy, lucky: save.luckyClover)
+        let rarity = gatedRarity(Rarity.roll(cozy: cozy, lucky: save.luckyClover), lucky: save.luckyClover)
         if save.luckyClover { save.luckyClover = false }
         let pending = PendingVisit(arrive: Date.now.addingTimeInterval(.random(in: 20 * 60...90 * 60)),
                                    rarity: rarity, look: RabbitLook.random(rarity),
@@ -1630,7 +1699,7 @@ final class GardenGame {
         guard let pending = save.pendingVisit else { return false }
         save.pendingVisit = nil
         guard Date.now >= pending.arrive else { return false }
-        if Date.now < pending.arrive.addingTimeInterval(45 * 60), visitor == nil {
+        if visitor == nil, residents.count < capacity {
             spawnVisitor(preset: pending)
             return true
         }
@@ -1796,6 +1865,26 @@ final class GardenGame {
         s.discoveredBreeds = [.stehohr, .zwerg, .widder, .loewenkopf]
         s.visitorsSeen = 24
         s.inventory = GardenInventory(heu: 14, loewenzahn: 3, moehre: 2, sterne: 236)
+        // Station für Screenshots
+        s.level = 7
+        s.xp = 140
+        s.followers = 486
+        s.quests = GardenQuest.daily(level: 7, season: .herbst, residents: 6, decorOwned: true)
+        if var q = s.quests?.first { q.progress = q.target; s.quests?[0] = q }
+        let residents = s.rabbits.filter { !$0.isVisitor }
+        s.adopters = [
+            Adopter.random(level: 7, residents: residents, taken: [], via: residents.first { $0.name == "Keks" }),
+            Adopter.random(level: 7, residents: residents, taken: [], via: residents.first { $0.name == "Mümmel" }),
+        ]
+        s.adoptions = [
+            AdoptionRecord(name: "Hazel", look: RabbitLook(fur: .grau, pattern: .einfarbig, breed: .widder, accent: .schwarz),
+                           rarity: .gewoehnlich, family: "Oma Gerda", date: Date.now.addingTimeInterval(-86_400 * 2),
+                           postcard: "Gestern hat Hazel zum ersten Mal auf dem Schoß geschlafen. 💛 Oma Gerda"),
+        ]
+        s.combos = Set(s.rabbits.map { Progression.comboKey($0.look) })
+        for i in s.rabbits.indices where !s.rabbits[i].isVisitor {
+            s.rabbits[i].joined = Date.now.addingTimeInterval(-3600)
+        }
         return s
     }
 }

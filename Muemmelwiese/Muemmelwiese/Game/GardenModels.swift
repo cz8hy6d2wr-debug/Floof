@@ -581,6 +581,9 @@ struct GardenRabbit: Codable, Identifiable, Hashable {
 
     var hasOpenWish: Bool { isVisitor && wish != nil && wishFulfilled != true }
 
+    /// Aufgepäppelt und bereit für ein neues Zuhause.
+    var isReady: Bool { !isVisitor && hunger >= 55 && mood >= 60 && friendship >= 45 && Date.now.timeIntervalSince(joined) > 8 * 60 }
+
     static let names = [
         "Mümmel", "Flocke", "Hoppel", "Krümel", "Möhrchen", "Wuschel", "Puschel", "Stups",
         "Lotte", "Bommel", "Fussel", "Erbse", "Keks", "Zimt", "Muffin", "Socke", "Pünktchen",
@@ -747,6 +750,20 @@ struct GardenSave: Codable {
     var winterGiftYear: Int?
     /// Tag ("yyyy-MM-dd") der letzten Nachbarschaftshilfe.
     var lastAidDay: String?
+
+    // Auffangstation: Fortschritt, Aufgaben, Sammelbuch, Vermittlung (optional – ältere Spielstände bleiben lesbar)
+    var xp: Int?
+    var level: Int?
+    var quests: [GardenQuest]?
+    var questDay: String?
+    var rerollDay: String?
+    var combos: Set<String>?
+    var claimedMilestones: Set<Int>?
+    var adopters: [Adopter]?
+    var adoptions: [AdoptionRecord]?
+    var nextAdopterAt: Date?
+    var posts: [SocialPost]?
+    var followers: Int?
 
     func stock(_ kind: DecorKind) -> Int { decorStock[kind.rawValue] ?? 0 }
     func owned(_ kind: DecorKind) -> Int { stock(kind) + decor.filter { $0.kind == kind }.count }

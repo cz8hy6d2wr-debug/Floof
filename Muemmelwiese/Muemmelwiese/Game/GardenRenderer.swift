@@ -1057,6 +1057,13 @@ enum GardenRenderer {
         let s = game.scale(atY: r.y) * r.look.breed.bodyScale * 1.12
         if a.mode == .hide { return }
         let pose = GardenRenderer.pose(for: r, actor: a, clock: game.clock)
+        // Vermittlungsbereit: kleines Haus-Schild über dem Kopf
+        if r.isReady {
+            let c = CGPoint(x: p.x, y: p.y - 70 * game.scale(atY: r.y) * r.look.breed.bodyScale - pose.lift)
+            ctx.fill(Path(ellipseIn: CGRect(x: c.x - 10, y: c.y - 10, width: 20, height: 20)), with: .color(MTheme.leaf.opacity(0.9)))
+            let icon = ctx.resolve(Text(Image(systemName: "house.fill")).font(.system(size: 10, weight: .bold)).foregroundStyle(.white))
+            ctx.draw(icon, at: c)
+        }
         let selected = game.selectedID == r.id
 
         // Aura seltener Kaninchen

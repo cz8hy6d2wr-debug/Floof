@@ -20,6 +20,9 @@ struct GardenView: View {
     @State private var importing = false
     @State private var confirmNewGame = false
     @State private var landscape = false
+    @State private var showsStation = GardenDemo.isActive && GardenDemo.screen == "station"
+    @State private var showsAdoption = GardenDemo.isActive && GardenDemo.screen == "adoption"
+    @State private var showsHoppelgram = false
     /// Faltbares iPhone aufgeklappt (Innendisplay ~4:3): Bedienung links und rechts vom Falz.
     @State private var unfolded = false
     /// Zwischenraum über dem Falz – hier liegt kein Knopf und kein Text.
@@ -90,6 +93,12 @@ struct GardenView: View {
         .sensoryFeedback(.selection, trigger: game.tool)
         .sheet(isPresented: $showsAlbum) { GardenAlbum(game: game).presentationSizing(.form) }
         .sheet(isPresented: $showsShop) { GardenShop(game: game).presentationSizing(.form) }
+        .sheet(isPresented: $showsStation) { StationSheet(game: game).presentationSizing(.form) }
+        .sheet(isPresented: $showsAdoption) { AdoptionSheet(game: game).presentationSizing(.form) }
+        .sheet(isPresented: $showsHoppelgram) { HoppelgramSheet(game: game).presentationSizing(.form) }
+        .sheet(item: Binding(get: { game.photoResult }, set: { game.photoResult = $0 })) { photo in
+            PhotoSheet(game: game, photo: photo).presentationSizing(.form)
+        }
         .fileExporter(isPresented: $exporting, document: exportDocument, contentType: .json,
                       defaultFilename: "Mümmelwiese \(Date.now.formatted(.dateTime.day().month().year()))") { result in
             if case .success = result { game.showBanner("In Dateien gesichert", symbol: "checkmark.circle.fill", duration: 3) }
@@ -121,7 +130,7 @@ struct GardenView: View {
                         topBar.frame(maxWidth: .infinity)
                         VStack(spacing: 8) {
                             HStack(spacing: 8) {
-                                weatherChip
+                                stationBar
                                 albumButton
                             }
                             bannerView
@@ -144,7 +153,7 @@ struct GardenView: View {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 8) {
                         topBar
-                        weatherChip
+                        stationBar
                         bannerView
                         Spacer(minLength: 0)
                         panels
@@ -160,7 +169,7 @@ struct GardenView: View {
             } else {
                 VStack(spacing: 10) {
                     topBar
-                    weatherChip
+                    stationBar
                     bannerView
                     Spacer(minLength: 0)
                     panels
@@ -184,17 +193,33 @@ struct GardenView: View {
                 Image(systemName: kind.symbol(isDay: isDay)).symbolRenderingMode(.multicolor)
                 if let t = game.temperature { Text("\(Int(t.rounded()))°").monospacedDigit() }
                 Text(kind.title).foregroundStyle(.secondary)
-                Text("·").foregroundStyle(.secondary)
             }
             Image(systemName: game.season.symbol).foregroundStyle(MTheme.leaf)
-            Text(game.season.title).foregroundStyle(.secondary)
+                .accessibilityLabel(game.season.title)
         }
         .font(.caption.weight(.semibold))
         .lineLimit(1)
-        .padding(.horizontal, 12).padding(.vertical, 6)
+        .minimumScaleFactor(0.8)
+        .padding(.horizontal, 10).frame(height: 36)
         .glassEffect(.regular, in: .capsule)
-        .frame(maxWidth: .infinity, alignment: landscape ? .leading : .center)
         .accessibilityElement(children: .combine)
+    }
+
+    /// Station: Level, Wetter, Aufgaben, Vermittlung, Hoppelgram.
+    private var stationBar: some View {
+        let _ = game.hudTick
+        return HStack(spacing: 8) {
+            Button { showsStation = true } label: {
+                LevelBadge(level: game.level, progress: Double(game.xp) / Double(max(game.xpForNext, 1)))
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            weatherChip
+            Spacer(minLength: 0)
+            CountButton(symbol: "checklist", count: game.claimableQuests, label: "Aufgaben") { showsStation = true }
+            CountButton(symbol: "envelope.fill", count: game.adopters.count, label: "Vermittlung") { showsAdoption = true }
+            CountButton(symbol: "camera.aperture", count: 0, label: "Hoppelgram") { showsHoppelgram = true }
+        }
     }
 
     @ViewBuilder private var bannerView: some View {
@@ -404,6 +429,7 @@ struct GardenView: View {
         case .maeher: game.showBanner("Über den Rasen wischen – gibt Heu", symbol: "scissors", duration: 2.5)
         case .giesskanne: game.showBanner("Nasser Rasen und Möhren wachsen doppelt so schnell", symbol: "drop.fill", duration: 2.5)
         case .futter: game.showBanner("Tippen legt Futter auf den Rasen", symbol: "carrot.fill", duration: 2.5)
+        case .foto: game.showBanner("Tipp auf einen Schützling – Luftsprünge und Dämmerlicht geben die besten Fotos", symbol: "camera.fill", duration: 3)
         case .gestalten: game.showBanner("Gemütlichkeit \(game.cozy) – lockt seltenere Gäste", symbol: "sparkles", duration: 3)
         }
     }
@@ -445,7 +471,7 @@ private struct RabbitCard: View {
                     .overlay(Circle().strokeBorder(rabbit.rarity.color.opacity(0.7), lineWidth: rabbit.rarity >= .superSelten ? 2 : 0))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(rabbit.isVisitor ? "Zu Besuch" : rabbit.name)
+                        Text(rabbit.isVisitor ? "Neuankömmling" : rabbit.name)
                             .font(MTheme.title(21))
                         if !rabbit.isVisitor {
                             Button(action: onRename) {
@@ -515,6 +541,22 @@ private struct RabbitCard: View {
                         .accessibilityLabel("bringt \(rabbit.rarity.income) Sterne")
                 }
                 .font(.footnote)
+                // Vermittlung
+                HStack(spacing: 8) {
+                    if rabbit.isReady {
+                        Label("Vermittlungsbereit", systemImage: "house.and.flag.fill")
+                            .font(.footnote.weight(.semibold)).foregroundStyle(MTheme.leaf)
+                    } else if let hint = game.readinessHint(rabbit) {
+                        Text(hint).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                    Button { game.takePhoto(of: rabbit.id) } label: {
+                        Label("Foto", systemImage: "camera.fill").font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12).frame(height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(MTheme.carrot.opacity(0.35)).interactive(), in: .capsule)
+                }
             }
 
             HStack(spacing: 8) {
@@ -703,6 +745,9 @@ private struct GardenShop: View {
                             Spacer()
                             if current {
                                 Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(MTheme.leaf)
+                            } else if !owned && game.level < style.unlockLevel {
+                                Label("Lv \(style.unlockLevel)", systemImage: "lock.fill")
+                                    .font(.caption.weight(.bold)).foregroundStyle(.secondary)
                             } else {
                                 Button(owned ? "Wählen" : "\(style.price) ★") { game.chooseHome(style) }
                                     .buttonStyle(.glassProminent)
@@ -726,13 +771,18 @@ private struct GardenShop: View {
                                     .font(.caption2.weight(.semibold)).foregroundStyle(MTheme.leaf)
                             }
                             Spacer()
-                            Button("\(kind.price) ★") {
-                                game.buy(kind)
-                                dismiss()
+                            if game.level < kind.unlockLevel {
+                                Label("Lv \(kind.unlockLevel)", systemImage: "lock.fill")
+                                    .font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                            } else {
+                                Button("\(kind.price) ★") {
+                                    game.buy(kind)
+                                    dismiss()
+                                }
+                                .buttonStyle(.glassProminent)
+                                .tint(MTheme.star)
+                                .disabled(stars < kind.price || owned >= kind.limit)
                             }
-                            .buttonStyle(.glassProminent)
-                            .tint(MTheme.star)
-                            .disabled(stars < kind.price || owned >= kind.limit)
                         }
                     }
                 }
@@ -815,7 +865,42 @@ private struct GardenAlbum: View {
                         }
                     }
                 } header: {
-                    Text("Deine Kaninchen · \(residents.count) von \(game.capacity)")
+                    Text("Deine Schützlinge · \(residents.count) von \(game.capacity) Plätzen")
+                }
+
+                Section {
+                    LabeledContent("Kombinationen entdeckt", value: "\(game.combosFound)")
+                    if let next = Progression.milestones.first(where: { $0 > game.combosFound }) {
+                        let r = Progression.milestoneReward(next)
+                        ProgressView(value: Double(game.combosFound), total: Double(next)) {
+                            Text("Nächster Meilenstein: \(next) – Belohnung \(r.stars) ★").font(.caption)
+                        }
+                        .tint(MTheme.star)
+                    }
+                } header: {
+                    Text("Sammelbuch")
+                } footer: {
+                    Text("Jede neue Kombination aus Fellfarbe, Zeichnung und Rasse zählt – über 600 sind möglich.")
+                }
+
+                if !game.adoptions.isEmpty {
+                    Section("Ehemalige Schützlinge · \(game.adoptions.count) vermittelt") {
+                        ForEach(game.adoptions) { rec in
+                            HStack(alignment: .top, spacing: 12) {
+                                RabbitPortrait(look: rec.look, size: 48)
+                                    .background(Circle().fill(rec.rarity.color.opacity(0.15)))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(rec.name) · bei \(rec.family)").font(.subheadline.weight(.semibold))
+                                    if Date.now.timeIntervalSince(rec.date) > 3600 {
+                                        Text("✉️ \(rec.postcard)").font(.footnote).italic()
+                                    } else {
+                                        Text("Postkarte ist unterwegs …").font(.footnote).foregroundStyle(.secondary)
+                                    }
+                                    Text(rec.date.formatted(date: .abbreviated, time: .omitted)).font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Section("Seltenheit") {
@@ -846,7 +931,8 @@ private struct GardenAlbum: View {
                 }
 
                 Section("So geht's") {
-                    tip("hare.fill", "Kaninchen kommen zufällig zu Besuch. Futter und sanftes Streicheln gewinnen ihr Vertrauen – bei vollem Kreis ziehen sie ein.")
+                    tip("hare.fill", "Fundtiere kommen in deiner Station an. Futter und sanftes Streicheln gewinnen ihr Vertrauen – bei vollem Kreis ziehen sie ein.")
+                    tip("camera.fill", "Päppel sie auf, mach schöne Fotos und poste sie auf Hoppelgram – so finden sich tolle Menschen, die ein Zuhause bieten.")
                     tip("crown.fill", "Es gibt vier Stufen: gewöhnlich, selten, super selten und legendär. Seltene sind scheuer, bringen aber mehr Sterne.")
                     tip("star.fill", "Glückliche Kaninchen sammeln Sterne. Im Shop gibt es dafür Deko und größere Zuhause.")
                     tip("paintbrush.fill", "Mit „Gestalten“ stellst du Deko auf und verschiebst sie. Mehr Gemütlichkeit lockt seltenere Gäste.")
@@ -929,7 +1015,7 @@ private struct SplashView: View {
                     .font(.system(size: 42, weight: .black, design: .rounded))
                     .foregroundStyle(LinearGradient(colors: [Color(hex: 0xFFE2A8), Color(hex: 0xFFB65E)], startPoint: .top, endPoint: .bottom))
                     .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-                Text("Dein Kaninchen-Garten")
+                Text("Deine Kaninchen-Auffangstation")
                     .font(.headline)
                     .foregroundStyle(.white.opacity(0.85))
             }
