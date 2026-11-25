@@ -1343,7 +1343,7 @@ final class GardenGame {
 
     /// Im Winter wächst kaum etwas – niemand soll ohne Futter dastehen.
     /// 1) Zu Beginn jedes Winters (und beim ersten Start im Winter) ein geschenkter Vorrat samt Heuraufe.
-    /// 2) Sind Heu und Zweige leer, hilft einmal am Tag die Nachbarin aus.
+    /// 2) Sind Heu und Zweige leer, hilft einmal am Tag Nachbarin Edith aus.
     func checkWinterSupplies() {
         let cal = Calendar.current
         let now = Date.now
@@ -1375,7 +1375,7 @@ final class GardenGame {
             save.lastAidDay = today
             inventory.heu += 15
             inventory.zweige += 3
-            showBanner("Die Nachbarin hat dir 15 Heu und 3 Apfelzweige vorbeigebracht 🧺", symbol: "gift.fill", duration: 6)
+            showBanner("Nachbarin Edith hat dir 15 Heu und 3 Apfelzweige vorbeigebracht 🧺", symbol: "gift.fill", duration: 6)
             hudTick &+= 1
             persist()
         }
