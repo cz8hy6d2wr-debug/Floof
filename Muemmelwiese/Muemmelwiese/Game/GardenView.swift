@@ -20,6 +20,10 @@ struct GardenView: View {
     @State private var importing = false
     @State private var confirmNewGame = false
     @State private var landscape = false
+    /// Faltbares iPhone aufgeklappt (Innendisplay ~4:3): Bedienung links und rechts vom Falz.
+    @State private var unfolded = false
+    /// Zwischenraum über dem Falz – hier liegt kein Knopf und kein Text.
+    private let hingeGutter: CGFloat = 32
     @State private var showsSplash = !GardenDemo.isActive
 
     var body: some View {
@@ -48,7 +52,10 @@ struct GardenView: View {
             )
             .onGeometryChange(for: CGSize.self) { $0.size } action: {
                 game.size = $0
-                landscape = $0.width > $0.height * 1.15
+                let short = min($0.width, $0.height), long = max($0.width, $0.height)
+                unfolded = long > 0 && short >= 500 && short / long >= 0.62
+                landscape = !unfolded && $0.width > $0.height * 1.15
+                game.unfolded = unfolded
             }
             .ignoresSafeArea()
             .accessibilityLabel("Mümmelwiese mit \(game.residents.count) Kaninchen")
@@ -81,8 +88,8 @@ struct GardenView: View {
             if phase == .active { Task { await RealWeather.shared.refresh() } }
         }
         .sensoryFeedback(.selection, trigger: game.tool)
-        .sheet(isPresented: $showsAlbum) { GardenAlbum(game: game) }
-        .sheet(isPresented: $showsShop) { GardenShop(game: game) }
+        .sheet(isPresented: $showsAlbum) { GardenAlbum(game: game).presentationSizing(.form) }
+        .sheet(isPresented: $showsShop) { GardenShop(game: game).presentationSizing(.form) }
         .fileExporter(isPresented: $exporting, document: exportDocument, contentType: .json,
                       defaultFilename: "Mümmelwiese \(Date.now.formatted(.dateTime.day().month().year()))") { result in
             if case .success = result { game.showBanner("In Dateien gesichert", symbol: "checkmark.circle.fill", duration: 3) }
@@ -107,7 +114,28 @@ struct GardenView: View {
 
     private var hud: some View {
         Group {
-            if landscape {
+            if unfolded {
+                // Aufgeklappt: zwei gleich breite Hälften, der Spalt dazwischen liegt genau auf dem Falz.
+                VStack(spacing: 10) {
+                    HStack(alignment: .top, spacing: hingeGutter) {
+                        topBar.frame(maxWidth: .infinity)
+                        VStack(spacing: 8) {
+                            weatherChip
+                            bannerView
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    Spacer(minLength: 0)
+                    HStack(alignment: .bottom, spacing: hingeGutter) {
+                        VStack(spacing: 10) { panels }
+                            .frame(maxWidth: .infinity, alignment: .bottom)
+                        toolbar(vertical: false)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 6)
+            } else if landscape {
                 // Querformat: Infos links, Werkzeuge senkrecht am rechten Rand, Wiese in voller Breite.
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 8) {

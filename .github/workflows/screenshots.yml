@@ -94,6 +94,24 @@ jobs:
             echo "📸 muemmelwiese-$screen"
           done
           xcrun simctl shutdown "$UDID"
+          # Aufgeklappt (iPad mini als Ersatz für das 4:3-Innendisplay)
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          devs=[d for rt,ds in json.load(sys.stdin)['devices'].items() if 'iOS' in rt for d in ds if d['name'].startswith('iPad mini')]
+          print(devs[-1]['udid'] if devs else '')")
+          if [ -n "$UDID" ]; then
+            xcrun simctl boot "$UDID" || true
+            xcrun simctl bootstatus "$UDID" -b
+            xcrun simctl install "$UDID" "$APP"
+            for screen in day wish; do
+              xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+              xcrun simctl launch "$UDID" "$BUNDLE" -MuemmelDemo YES -MuemmelScreen "$screen" -AppleLanguages "(de)" -AppleLocale de_DE >/dev/null
+              sleep 9
+              xcrun simctl io "$UDID" screenshot "shots/muemmelwiese-aufgeklappt-$screen.png" >/dev/null
+              echo "📸 muemmelwiese-aufgeklappt-$screen"
+            done
+            xcrun simctl shutdown "$UDID"
+          fi
 
       - name: Auf Branch ci-screenshots ablegen
         run: |

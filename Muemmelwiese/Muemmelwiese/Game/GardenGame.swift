@@ -177,9 +177,15 @@ final class GardenGame {
 
     // MARK: - Geometrie
 
-    var isLandscape: Bool { size.width > size.height * 1.15 }
-    var lawnTop: CGFloat { size.height * (isLandscape ? 0.3 : 0.34) }
-    var unit: CGFloat { min(max(min(size.width, size.height * (isLandscape ? 1.0 : 0.62)) / 390, 0.8), 1.7) }
+    /// Faltbares iPhone aufgeklappt – wird von der Oberfläche gesetzt.
+    @ObservationIgnored var unfolded = false
+    var isLandscape: Bool { !unfolded && size.width > size.height * 1.15 }
+    var lawnTop: CGFloat { size.height * (isLandscape || unfolded ? 0.3 : 0.34) }
+    var unit: CGFloat {
+        // Aufgeklappt nicht riesig zoomen, sondern mehr Wiese zeigen.
+        let base = unfolded ? min(size.width, size.height) * 0.72 : min(size.width, size.height * (isLandscape ? 1.0 : 0.62))
+        return min(max(base / 390, 0.8), 1.5)
+    }
 
     func screen(_ x: Double, _ y: Double) -> CGPoint {
         CGPoint(x: x * size.width, y: lawnTop + y * (size.height - lawnTop))
