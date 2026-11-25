@@ -743,6 +743,10 @@ struct GardenSave: Codable {
     var tutorialStep = 0
     /// Ausgewürfelter Besuch, während die App geschlossen ist.
     var pendingVisit: PendingVisit?
+    /// Winter, für den der Wintervorrat schon verschenkt wurde (Jahr, in dem er begann).
+    var winterGiftYear: Int?
+    /// Tag ("yyyy-MM-dd") der letzten Nachbarschaftshilfe.
+    var lastAidDay: String?
 
     func stock(_ kind: DecorKind) -> Int { decorStock[kind.rawValue] ?? 0 }
     func owned(_ kind: DecorKind) -> Int { stock(kind) + decor.filter { $0.kind == kind }.count }

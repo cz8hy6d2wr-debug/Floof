@@ -152,6 +152,7 @@ final class GardenGame {
     @ObservationIgnored private var lastInteraction: Double = 0
     @ObservationIgnored private var powerCheck: Double = 0
     @ObservationIgnored private var backdropTimer: Double = 0
+    @ObservationIgnored private var supplyTimer: Double = 60
     @ObservationIgnored private var weatherRefresh: Double = 2
 
     private let light = UIImpactFeedbackGenerator(style: .light)
@@ -172,7 +173,8 @@ final class GardenGame {
         if demo, GardenDemo.screen == "wish" { selectedID = save.rabbits.last?.id }
         for rabbit in save.rabbits { actors[rabbit.id] = RabbitActor() }
         if !demo { catchUp(seconds: Date.now.timeIntervalSince(save.lastSaved)) }
-        if save.rabbits.isEmpty { nextVisitor = 3 }
+        if !demo { checkWinterSupplies() }
+        if save.rabbits.isEmpty { nextVisitor = 8 }   // erst Begrüßung bzw. Wintervorrat lesen lassen
     }
 
     // MARK: - Geometrie
@@ -338,6 +340,11 @@ final class GardenGame {
         if hudTimer > 0.4 {
             hudTimer = 0
             hudTick &+= 1
+        }
+        supplyTimer -= dt
+        if supplyTimer <= 0 {
+            supplyTimer = 60
+            if !isDemo { checkWinterSupplies() }
         }
         if clock >= nextSave {
             nextSave = clock + 30
@@ -1332,6 +1339,46 @@ final class GardenGame {
     /// Futter, das gerade angezeigt wird: Zweige nur im Winter oder wenn welche da sind.
     var availableFoods: [GardenFoodKind] {
         GardenFoodKind.allCases.filter { $0 != .zweige || inventory.zweige > 0 || season == .winter }
+    }
+
+    /// Im Winter wächst kaum etwas – niemand soll ohne Futter dastehen.
+    /// 1) Zu Beginn jedes Winters (und beim ersten Start im Winter) ein geschenkter Vorrat samt Heuraufe.
+    /// 2) Sind Heu und Zweige leer, hilft einmal am Tag die Nachbarin aus.
+    func checkWinterSupplies() {
+        let cal = Calendar.current
+        let now = Date.now
+        guard season == .winter || snowCover > 0.6 else { return }
+        let month = cal.component(.month, from: now)
+        let winterYear = cal.component(.year, from: now) - (month <= 2 ? 1 : 0)
+
+        if season == .winter, save.winterGiftYear != winterYear {
+            save.winterGiftYear = winterYear
+            inventory.heu += 25
+            inventory.zweige += 8
+            inventory.moehre += 2
+            var extra = ""
+            if save.owned(.heuraufe) < DecorKind.heuraufe.limit && !save.decor.contains(where: { $0.kind == .heuraufe }) {
+                save.decorStock[DecorKind.heuraufe.rawValue] = save.stock(.heuraufe) + 1
+                extra = " und eine Heuraufe (unter „Gestalten“)"
+            }
+            notify.notificationOccurred(.success)
+            showBanner("Wintervorrat geschenkt: 25 Heu, 8 Apfelzweige, 2 Möhren\(extra) ❄️", symbol: "gift.fill", duration: 7)
+            hudTick &+= 1
+            persist()
+            return
+        }
+
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        let today = f.string(from: now)
+        if inventory.heu + inventory.zweige == 0, save.lastAidDay != today {
+            save.lastAidDay = today
+            inventory.heu += 15
+            inventory.zweige += 3
+            showBanner("Die Nachbarin hat dir 15 Heu und 3 Apfelzweige vorbeigebracht 🧺", symbol: "gift.fill", duration: 6)
+            hudTick &+= 1
+            persist()
+        }
     }
 
     func buyFood(_ kind: GardenFoodKind) {

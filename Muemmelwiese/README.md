@@ -36,7 +36,7 @@ Eigenständiges Kaninchen-Spiel (SwiftUI, iOS 26) – eine Art Tamagotchi auf ei
 ## Wetter, Jahreszeiten, Mitteilungen
 
 - Wetter von draußen über Open-Meteo (ungefährer Standort, kein Konto): Wolken, Regen, Schnee, Gewitter, Nebel, Wind, Temperatur, Sonnenauf- und -untergang.
-- Jahreszeiten nach Datum: im Winter kaum Gras – Heu und Apfelzweige füttern.
+- Jahreszeiten nach Datum: im Winter kaum Gras – Heu und Apfelzweige füttern. Zu Beginn jedes Winters gibt es einen geschenkten Vorrat (Heu, Zweige, Möhren, Heuraufe); sind Heu und Zweige leer, hilft einmal am Tag die Nachbarin aus.
 - Lokale Mitteilung, wenn ein super seltener oder legendärer Gast auftaucht, während die App zu ist.
 
 ## Aufbau
