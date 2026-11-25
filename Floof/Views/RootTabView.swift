@@ -19,7 +19,6 @@ struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: AppTab = DemoMode.startTab ?? .today
     @State private var size: CGSize = .zero
-    @State private var showsGarden = DemoMode.opensGarden
 
     var body: some View {
         let posture = DevicePosture.resolve(size: size, horizontalSizeClass: horizontalSizeClass)
@@ -67,7 +66,6 @@ struct RootTabView: View {
             do { store.pendingImport = try PendingImport(url: url) }
             catch { store.showToast("Datei konnte nicht gelesen werden") }
         }
-        .fullScreenCover(isPresented: $showsGarden) { GardenView() }
         .sheet(item: Binding(get: { store.pendingImport }, set: { store.pendingImport = $0 })) {
             ImportReviewSheet(pending: $0)
         }

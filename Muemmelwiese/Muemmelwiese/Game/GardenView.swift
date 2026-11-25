@@ -1,0 +1,677 @@
+import SwiftUI
+
+/// Mümmelwiese: ein Kaninchen-Spiel auf einer lebendigen Wiese.
+///
+/// Kaninchen hoppeln zufällig zu Besuch – gewöhnlich, selten, super selten oder legendär.
+/// Mit Futter und vorsichtigem Streicheln fassen sie Vertrauen und ziehen ein.
+/// Glückliche Kaninchen bringen Sterne; dafür gibt es Deko und größere Zuhause,
+/// und je gemütlicher die Wiese, desto seltener die Gäste.
+struct GardenView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var game = GardenGame()
+    @State private var dragging = false
+    @State private var showsAlbum = GardenDemo.isActive && GardenDemo.screen == "album"
+    @State private var showsShop = GardenDemo.isActive && GardenDemo.screen == "shop"
+    @State private var renamingID: UUID?
+    @State private var newName = ""
+
+    var body: some View {
+        ZStack {
+            TimelineView(.animation(paused: scenePhase != .active)) { timeline in
+                Canvas { ctx, size in
+                    GardenRenderer.draw(game, in: &ctx, size: size,
+                                        time: timeline.date.timeIntervalSinceReferenceDate)
+                }
+            }
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if !dragging {
+                            dragging = true
+                            game.touchBegan(value.startLocation)
+                        }
+                        game.touchMoved(value.location)
+                    }
+                    .onEnded { value in
+                        dragging = false
+                        game.touchEnded(value.location)
+                    }
+            )
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { game.size = $0 }
+            .ignoresSafeArea()
+            .accessibilityLabel("Mümmelwiese mit \(game.residents.count) Kaninchen")
+
+            hud
+        }
+        .preferredColorScheme(.light)
+        .statusBarHidden()
+        .task { await game.run() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { game.persist() }
+        }
+        .sensoryFeedback(.selection, trigger: game.tool)
+        .sheet(isPresented: $showsAlbum) { GardenAlbum(game: game) }
+        .sheet(isPresented: $showsShop) { GardenShop(game: game) }
+        .alert("Wie soll es heißen?", isPresented: Binding(get: { renamingID != nil }, set: { if !$0 { renamingID = nil } })) {
+            TextField("Name", text: $newName)
+            Button("Sichern") { if let id = renamingID { game.rename(id, to: newName) } }
+            Button("Abbrechen", role: .cancel) {}
+        }
+    }
+
+    // MARK: - Oberfläche
+
+    private var hud: some View {
+        VStack(spacing: 10) {
+            topBar
+            if let banner = game.banner {
+                Label(banner.text, systemImage: banner.symbol)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .glassEffect(.regular.tint(.white.opacity(0.25)), in: .capsule)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .id(banner.id)
+            }
+            Spacer(minLength: 0)
+            if game.tool == .gestalten {
+                decorBar.transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let rabbit = selectedRabbit {
+                RabbitCard(rabbit: rabbit, game: game) {
+                    newName = rabbit.name
+                    renamingID = rabbit.id
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .id(rabbit.id)
+            }
+            if game.tool == .futter { foodPicker.transition(.scale(scale: 0.9).combined(with: .opacity)) }
+            toolbar
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 4)
+        .frame(maxWidth: 560)
+        .animation(.spring(duration: 0.35), value: game.banner)
+        .animation(.spring(duration: 0.35), value: game.selectedID)
+        .animation(.spring(duration: 0.3), value: game.tool)
+    }
+
+    private var selectedRabbit: GardenRabbit? {
+        _ = game.hudTick
+        return game.selectedRabbit
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            Button { showsShop = true } label: {
+                Image(systemName: "bag.fill").font(.headline).frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .accessibilityLabel("Shop")
+
+            Spacer(minLength: 0)
+            HStack(spacing: 11) {
+                ForEach(GardenFoodKind.allCases) { kind in
+                    HStack(spacing: 3) {
+                        Image(systemName: kind.symbol).foregroundStyle(kind.tint)
+                        Text("\(game.inventory[kind])").monospacedDigit().contentTransition(.numericText())
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(game.inventory[kind]) \(kind.title)")
+                }
+                HStack(spacing: 3) {
+                    Image(systemName: "star.fill").foregroundStyle(MTheme.star)
+                    Text("\(game.inventory.sterne)").monospacedDigit().contentTransition(.numericText())
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(game.inventory.sterne) Sterne")
+            }
+            .font(.subheadline.weight(.bold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 14).frame(height: 44)
+            .glassEffect(.regular, in: .capsule)
+            .animation(.snappy, value: game.inventory)
+            Spacer(minLength: 0)
+
+            Button { showsAlbum = true } label: {
+                Image(systemName: "book.pages.fill").font(.headline).frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: .circle)
+            .accessibilityLabel("Mümmel-Album")
+        }
+        .padding(.top, 4)
+    }
+
+    private var foodPicker: some View {
+        HStack(spacing: 8) {
+            ForEach(GardenFoodKind.allCases) { kind in
+                Button { game.foodChoice = kind } label: {
+                    Label("\(kind.title) · \(game.inventory[kind])", systemImage: kind.symbol)
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 12).frame(height: 36)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(game.foodChoice == kind ? .regular.tint(kind.tint.opacity(0.55)).interactive() : .regular.interactive(),
+                             in: .capsule)
+            }
+        }
+    }
+
+    /// Gestalten: gekaufte Deko auswählen und auf die Wiese tippen, Aufgestelltes verschieben oder einpacken.
+    private var decorBar: some View {
+        let _ = game.hudTick
+        let stock = DecorKind.allCases.filter { game.save.stock($0) > 0 }
+        let selected = game.selectedDecorID.flatMap { id in game.save.decor.first { $0.id == id } }
+        return VStack(alignment: .leading, spacing: 10) {
+            if let selected {
+                HStack(spacing: 10) {
+                    Image(systemName: selected.kind.symbol).foregroundStyle(MTheme.leaf)
+                    Text(selected.kind.title).font(.subheadline.weight(.semibold))
+                    Text("– ziehen zum Verschieben").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Button("Einpacken") { game.packAway(selected.id) }
+                        .font(.footnote.weight(.semibold))
+                        .buttonStyle(.glass)
+                }
+            } else {
+                Text(stock.isEmpty ? "Kauf Deko im Shop – oder zieh Aufgestelltes an einen neuen Platz."
+                     : (game.placing.map { "Tipp auf die Wiese, um \($0.title) aufzustellen" } ?? "Wähle Deko zum Aufstellen"))
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Button { showsShop = true } label: {
+                        Label("Shop", systemImage: "bag.fill")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12).frame(height: 40)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(MTheme.star.opacity(0.5)).interactive(), in: .capsule)
+                    ForEach(stock) { kind in
+                        Button {
+                            game.placing = game.placing == kind ? nil : kind
+                            game.selectedDecorID = nil
+                        } label: {
+                            HStack(spacing: 6) {
+                                DecorPortrait(kind: kind, size: 30)
+                                Text("\(kind.title) ×\(game.save.stock(kind))").font(.footnote.weight(.semibold))
+                            }
+                            .padding(.horizontal, 10).frame(height: 40)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(game.placing == kind ? .regular.tint(MTheme.leaf.opacity(0.6)).interactive() : .regular.interactive(),
+                                     in: .capsule)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(14)
+        .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: 26))
+    }
+
+    private var toolbar: some View {
+        GlassEffectContainer(spacing: 6) {
+            HStack(spacing: 6) {
+                ForEach(GardenTool.allCases) { tool in
+                    Button { select(tool) } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: tool.symbol).font(.title3.weight(.semibold))
+                            Text(tool.title).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .foregroundStyle(game.tool == tool ? Color.white : Color.primary)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(game.tool == tool ? .regular.tint(MTheme.carrot.opacity(0.85)).interactive() : .regular.interactive(),
+                                 in: .rect(cornerRadius: 22))
+                    .accessibilityAddTraits(game.tool == tool ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    private func select(_ tool: GardenTool) {
+        game.tool = tool
+        if tool != .gestalten { game.placing = nil; game.selectedDecorID = nil }
+        switch tool {
+        case .hand: game.showBanner("Tippen zum Ansehen, wischen zum Streicheln", symbol: "hand.point.up.left.fill", duration: 2.5)
+        case .maeher: game.showBanner("Über den Rasen wischen – gibt Heu", symbol: "scissors", duration: 2.5)
+        case .giesskanne: game.showBanner("Nasser Rasen und Möhren wachsen doppelt so schnell", symbol: "drop.fill", duration: 2.5)
+        case .futter: game.showBanner("Tippen legt Futter auf den Rasen", symbol: "carrot.fill", duration: 2.5)
+        case .gestalten: game.showBanner("Gemütlichkeit \(game.cozy) – lockt seltenere Gäste", symbol: "sparkles", duration: 3)
+        }
+    }
+}
+
+// MARK: - Seltenheit
+
+struct RarityBadge: View {
+    let rarity: Rarity
+
+    var body: some View {
+        Label(rarity.title, systemImage: rarity.symbol)
+            .font(.caption2.weight(.heavy))
+            .textCase(.uppercase)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(rarity.color.gradient, in: .capsule)
+            .overlay {
+                if rarity == .legendaer {
+                    Capsule().strokeBorder(.white.opacity(0.7), lineWidth: 1)
+                }
+            }
+    }
+}
+
+// MARK: - Karte eines Kaninchens
+
+private struct RabbitCard: View {
+    let rabbit: GardenRabbit
+    let game: GardenGame
+    var onRename: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                RabbitPortrait(look: rabbit.look, size: 58)
+                    .background(Circle().fill(rabbit.rarity.color.opacity(rabbit.rarity == .gewoehnlich ? 0.18 : 0.32)))
+                    .overlay(Circle().strokeBorder(rabbit.rarity.color.opacity(0.7), lineWidth: rabbit.rarity >= .superSelten ? 2 : 0))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(rabbit.isVisitor ? "Zu Besuch" : rabbit.name)
+                            .font(MTheme.title(21))
+                        if !rabbit.isVisitor {
+                            Button(action: onRename) {
+                                Image(systemName: "pencil").font(.footnote.weight(.bold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Umbenennen")
+                        }
+                    }
+                    HStack(spacing: 6) {
+                        RarityBadge(rarity: rabbit.rarity)
+                        Text(rabbit.look.description)
+                            .font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Text("\(rabbit.personality.title.capitalized) – \(rabbit.personality.hint)")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Button { game.selectedID = nil } label: {
+                    Image(systemName: "xmark.circle.fill").font(.title2).symbolRenderingMode(.hierarchical)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Karte schließen")
+            }
+
+            if rabbit.isVisitor {
+                StatBar(title: "Vertrauen", symbol: "heart.fill", value: rabbit.trust, tint: rabbit.rarity.color)
+                Text(visitorHint)
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 10) {
+                    StatBar(title: "Satt", symbol: "fork.knife", value: rabbit.hunger, tint: Color(hex: 0xE2722B))
+                    StatBar(title: "Laune", symbol: "face.smiling", value: rabbit.mood, tint: Color(hex: 0xE0A82E))
+                    StatBar(title: "Energie", symbol: "bolt.fill", value: rabbit.energy, tint: Color(hex: 0x5E9BD6))
+                }
+                HStack(spacing: 3) {
+                    ForEach(0..<5) { k in
+                        Image(systemName: rabbit.friendship >= Double(k + 1) * 20 - 10 ? "heart.fill" : "heart")
+                            .foregroundStyle(Color(hex: 0xF27A9B))
+                    }
+                    Text(status).font(.footnote).foregroundStyle(.secondary).padding(.leading, 6).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Label("\(rabbit.rarity.income)", systemImage: "star.fill")
+                        .font(.caption.weight(.bold)).foregroundStyle(MTheme.star)
+                        .accessibilityLabel("bringt \(rabbit.rarity.income) Sterne")
+                }
+                .font(.footnote)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(GardenFoodKind.allCases) { kind in
+                    Button { game.feed(rabbit.id, kind: kind) } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: kind.symbol).foregroundStyle(kind.tint)
+                            Text("\(game.inventory[kind])").monospacedDigit()
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .opacity(game.inventory[kind] > 0 ? 1 : 0.45)
+                    .accessibilityLabel("\(kind.title) geben, \(game.inventory[kind]) übrig")
+                }
+            }
+        }
+        .padding(14)
+        .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: 26))
+    }
+
+    private var visitorHint: String {
+        if rabbit.rarity == .legendaer { return "Legendär – nur mit viel Geduld und Möhren zu gewinnen. Es bleibt nicht lange!" }
+        if rabbit.rarity == .superSelten { return "Super selten – Möhren und Löwenzahn wirken am besten." }
+        switch rabbit.personality {
+        case .schuechtern: return "Schüchtern – leg Futter in die Nähe und warte ab."
+        case .verfressen: return "Mit Futter gewinnst du es sofort."
+        case .verschmust: return "Ganz sanft streicheln wirkt Wunder."
+        default: return "Futter und vorsichtiges Streicheln schaffen Vertrauen. Möhren wirken am stärksten."
+        }
+    }
+
+    private var status: String {
+        if rabbit.hunger < 30 { return "hat Hunger" }
+        if rabbit.energy < 25 { return "ist müde" }
+        if rabbit.mood < 30 { return "langweilt sich" }
+        if rabbit.mood > 85 { return "ist überglücklich" }
+        return "fühlt sich wohl"
+    }
+}
+
+private struct StatBar: View {
+    let title: String
+    let symbol: String
+    let value: Double
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(title, systemImage: symbol)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.black.opacity(0.1))
+                    Capsule().fill(tint.gradient)
+                        .frame(width: max(6, proxy.size.width * value / 100))
+                }
+            }
+            .frame(height: 7)
+            .animation(.smooth, value: Int(value))
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue("\(Int(value)) Prozent")
+    }
+}
+
+// MARK: - Shop
+
+/// Kleines Bild einer Deko für Shop und Leiste.
+struct DecorPortrait: View {
+    let kind: DecorKind
+    var size: CGFloat = 56
+
+    var body: some View {
+        Canvas { ctx, sz in
+            let s = sz.width / (kind == .teich || kind == .feenring || kind == .tunnel ? 118 : 74)
+            ctx.translateBy(x: sz.width / 2, y: sz.height * 0.86)
+            ctx.scaleBy(x: s, y: s)
+            GardenRenderer.decorShape(&ctx, kind: kind, time: 0, seed: 7)
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Kleines Bild eines Zuhauses.
+struct HomePortrait: View {
+    let style: HomeStyle
+    var size: CGFloat = 64
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size * 0.5))
+            .foregroundStyle(tint.gradient)
+            .frame(width: size, height: size)
+            .background(tint.opacity(0.15), in: .rect(cornerRadius: 16))
+            .accessibilityHidden(true)
+    }
+
+    private var symbol: String {
+        switch style {
+        case .holzstall: "house.fill"
+        case .cottage: "house.lodge.fill"
+        case .pilzhaus: "circle.hexagongrid.fill"
+        case .schloss: "building.columns.fill"
+        }
+    }
+
+    private var tint: Color {
+        switch style {
+        case .holzstall: Color(hex: 0xB4503F)
+        case .cottage: Color(hex: 0x4F86C6)
+        case .pilzhaus: Color(hex: 0xE0392F)
+        case .schloss: Color(hex: 0x5B5FA8)
+        }
+    }
+}
+
+private struct GardenShop: View {
+    let game: GardenGame
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let _ = game.hudTick
+        let stars = game.inventory.sterne
+        NavigationStack {
+            List {
+                Section {
+                    HStack {
+                        Label("\(stars) Sterne", systemImage: "star.fill")
+                            .font(.headline).foregroundStyle(MTheme.star)
+                        Spacer()
+                        Label("Gemütlichkeit \(game.cozy)", systemImage: "sparkles")
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(MTheme.leaf)
+                    }
+                    OddsRow(odds: Rarity.odds(cozy: game.cozy, lucky: game.save.luckyClover))
+                } footer: {
+                    Text("Glückliche Kaninchen bringen regelmäßig Sterne – seltene mehr. Je gemütlicher die Wiese, desto seltener die Gäste.")
+                }
+
+                Section("Zuhause") {
+                    ForEach(HomeStyle.allCases) { style in
+                        let owned = game.save.ownedHomes.contains(style)
+                        let current = game.save.home == style
+                        HStack(spacing: 12) {
+                            HomePortrait(style: style, size: 52)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(style.title).font(.headline)
+                                Text("Platz für \(style.capacity) Kaninchen · Gemütlichkeit +\(style.cozy)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if current {
+                                Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(MTheme.leaf)
+                            } else {
+                                Button(owned ? "Wählen" : "\(style.price) ★") { game.chooseHome(style) }
+                                    .buttonStyle(.glassProminent)
+                                    .tint(owned ? MTheme.leaf : MTheme.star)
+                                    .disabled(!owned && stars < style.price)
+                            }
+                        }
+                    }
+                }
+
+                Section("Deko") {
+                    ForEach(DecorKind.allCases) { kind in
+                        let owned = game.save.owned(kind)
+                        HStack(spacing: 12) {
+                            DecorPortrait(kind: kind, size: 52)
+                                .background(MTheme.leaf.opacity(0.12), in: .rect(cornerRadius: 14))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(kind.title).font(.headline)
+                                Text(kind.detail).font(.caption).foregroundStyle(.secondary)
+                                Text("Gemütlichkeit +\(kind.cozy) · \(owned) von \(kind.limit)")
+                                    .font(.caption2.weight(.semibold)).foregroundStyle(MTheme.leaf)
+                            }
+                            Spacer()
+                            Button("\(kind.price) ★") {
+                                game.buy(kind)
+                                dismiss()
+                            }
+                            .buttonStyle(.glassProminent)
+                            .tint(MTheme.star)
+                            .disabled(stars < kind.price || owned >= kind.limit)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Shop")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
+            }
+        }
+        .presentationDetents([.large])
+    }
+}
+
+private struct OddsRow: View {
+    let odds: [Double]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Chance je Besuch").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                ForEach(Rarity.allCases) { rarity in
+                    VStack(spacing: 3) {
+                        Image(systemName: rarity.symbol).foregroundStyle(rarity.color)
+                        Text(odds[rarity.rawValue], format: .percent.precision(.fractionLength(rarity == .legendaer ? 1 : 0)))
+                            .font(.caption.weight(.bold)).monospacedDigit()
+                        Text(rarity.title).font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(rarity.color.opacity(0.12), in: .rect(cornerRadius: 10))
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Album
+
+private struct GardenAlbum: View {
+    let game: GardenGame
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let _ = game.hudTick
+        let save = game.save
+        let residents = game.residents.sorted { ($0.rarity, $0.joined) > ($1.rarity, $1.joined) }
+        NavigationStack {
+            List {
+                Section {
+                    if residents.isEmpty {
+                        Text("Noch niemand eingezogen. Warte auf Besuch und gewinne sein Vertrauen.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(residents) { rabbit in
+                        HStack(spacing: 12) {
+                            RabbitPortrait(look: rabbit.look, size: 52)
+                                .background(Circle().fill(rabbit.rarity.color.opacity(0.18)))
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Text(rabbit.name).font(.headline)
+                                    RarityBadge(rarity: rabbit.rarity)
+                                }
+                                Text("\(rabbit.look.description) · \(rabbit.personality.title)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Text("Auf der Wiese seit \(rabbit.joined.formatted(.relative(presentation: .named)))")
+                                    .font(.caption2).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("\(Int(rabbit.friendship)) ♥").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color(hex: 0xF27A9B))
+                        }
+                        .contentShape(.rect)
+                        .onTapGesture {
+                            game.tool = .hand
+                            game.selectedID = rabbit.id
+                            dismiss()
+                        }
+                    }
+                } header: {
+                    Text("Deine Kaninchen · \(residents.count) von \(game.capacity)")
+                }
+
+                Section("Seltenheit") {
+                    ForEach(Rarity.allCases) { rarity in
+                        let met = save.metRarities.indices.contains(rarity.rawValue) ? save.metRarities[rarity.rawValue] : 0
+                        let living = residents.filter { $0.rarity == rarity }.count
+                        HStack {
+                            RarityBadge(rarity: rarity)
+                            Spacer()
+                            Text("\(living) eingezogen · \(met) gesehen")
+                                .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                    }
+                }
+
+                Section("Entdeckt") {
+                    discovered("Fellfarben", all: GardenFur.allCases.map(\.title),
+                               found: Set(save.discoveredFurs.map(\.title)))
+                    discovered("Zeichnungen", all: GardenPattern.allCases.map(\.title),
+                               found: Set(save.discoveredPatterns.map(\.title)))
+                    discovered("Rassen", all: GardenBreed.allCases.map(\.title),
+                               found: Set(save.discoveredBreeds.map(\.title)))
+                    LabeledContent("Besuche bisher", value: "\(save.visitorsSeen)")
+                    if save.luckyClover {
+                        Label("Glücksklee aktiv – der nächste Besuch wird besonders", systemImage: "sparkles")
+                            .foregroundStyle(.green)
+                    }
+                }
+
+                Section("So geht's") {
+                    tip("hare.fill", "Kaninchen kommen zufällig zu Besuch. Futter und sanftes Streicheln gewinnen ihr Vertrauen – bei vollem Kreis ziehen sie ein.")
+                    tip("crown.fill", "Es gibt vier Stufen: gewöhnlich, selten, super selten und legendär. Seltene sind scheuer, bringen aber mehr Sterne.")
+                    tip("star.fill", "Glückliche Kaninchen sammeln Sterne. Im Shop gibt es dafür Deko und größere Zuhause.")
+                    tip("paintbrush.fill", "Mit „Gestalten“ stellst du Deko auf und verschiebst sie. Mehr Gemütlichkeit lockt seltenere Gäste.")
+                    tip("leaf.fill", "Langer Rasen ist Futter. Gemäht wird er zu Heu – eine Heuraufe verfüttert es automatisch.")
+                    tip("drop.fill", "Gießen lässt Rasen und Möhren doppelt so schnell wachsen. Regen hilft auch.")
+                    tip("sun.max.fill", "Löwenzahn pflücken, bevor du mähst. Ein leuchtender Glücksklee lockt besondere Gäste.")
+                    tip("moon.stars.fill", "Nachts schlafen die Kaninchen am Zuhause – die Wiese folgt deiner echten Uhr.")
+                }
+            }
+            .navigationTitle("Mümmel-Album")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func discovered(_ title: String, all: [String], found: Set<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent(title, value: "\(found.count) / \(all.count)")
+            Text(all.map { found.contains($0) ? $0 : "?" }.joined(separator: " · "))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func tip(_ symbol: String, _ text: String) -> some View {
+        Label {
+            Text(text).font(.subheadline)
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(MTheme.carrot)
+        }
+    }
+}
+
+#Preview {
+    GardenView()
+}

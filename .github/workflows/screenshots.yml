@@ -67,8 +67,8 @@ jobs:
           }
 
           xcrun simctl list devices available | grep -E "iPhone|iPad" | head -30
-          run_device "iPhone 17 Pro" "zugeklappt" today today_d2 today_d4 today_d5 today_d6 history pets more garden
-          run_device "iPad mini" "aufgeklappt" today history pets more garden
+          run_device "iPhone 17 Pro" "zugeklappt" today today_d2 today_d4 today_d5 today_d6 history pets more
+          run_device "iPad mini" "aufgeklappt" today history pets more
 
       - name: Auf Branch ci-screenshots ablegen
         run: |

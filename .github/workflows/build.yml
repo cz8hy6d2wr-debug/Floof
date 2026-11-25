@@ -4,7 +4,7 @@ name: Build
 # nur um sicherzustellen, dass der Code baut.
 on:
   push:
-    branches-ignore: [ci-screenshots]
+    branches-ignore: [ci-screenshots, ci-muemmelwiese-screenshots]
   pull_request:
   workflow_dispatch:
 
@@ -38,6 +38,19 @@ jobs:
             ONLY_ACTIVE_ARCH=YES ARCHS=arm64 \
             build 2>&1 | tee build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Mümmelwiese für den Simulator bauen
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Muemmelwiese/Muemmelwiese.xcodeproj \
+            -target Muemmelwiese \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES ARCHS=arm64 \
+            build 2>&1 | tee -a build.log | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          test "$(grep -c 'BUILD SUCCEEDED' build.log)" -ge 2
 
       - name: Fehler zusammenfassen
         if: failure()

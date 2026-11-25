@@ -71,11 +71,6 @@ enum DemoMode {
         return Calendar.current.date(byAdding: .day, value: offset, to: today) ?? today
     }
 
-    /// `-FloofTab garden` öffnet die Mümmelwiese (Kaninchen-Spiel).
-    static var opensGarden: Bool {
-        isActive && UserDefaults.standard.string(forKey: "FloofTab") == "garden"
-    }
-
     static var startTab: AppTab? {
         guard isActive else { return nil }
         return UserDefaults.standard.string(forKey: "FloofTab").flatMap(AppTab.init(rawValue:))

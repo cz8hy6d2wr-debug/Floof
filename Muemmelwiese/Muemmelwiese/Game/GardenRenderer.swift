@@ -41,6 +41,7 @@ enum GardenRenderer {
         for (i, r) in game.save.rabbits.enumerated() { items.append((r.y, 0, i)) }
         for (i, f) in game.save.foods.enumerated() { items.append((f.y, 1, i)) }
         for (i, f) in game.save.flowers.enumerated() { items.append((f.y, 2, i)) }
+        for (i, d) in game.save.decor.enumerated() { items.append((d.y, 3, i)) }
         items.sort { $0.y < $1.y }
         var next = 0
         let wind = CGFloat(1 + 0.8 * game.rainAmount)
@@ -51,6 +52,7 @@ enum GardenRenderer {
                 switch item.kind {
                 case 0: drawRabbit(game, index: item.index, &ctx, time: time)
                 case 1: drawFood(game.save.foods[item.index], game, &ctx)
+                case 3: drawDecor(game.save.decor[item.index], game, &ctx, time: time)
                 default: drawFlower(game.save.flowers[item.index], game, &ctx, time: time)
                 }
                 next += 1
@@ -278,60 +280,210 @@ enum GardenRenderer {
 
     // MARK: - Stall & Beet
 
+    /// Fenster des Zuhauses (leuchtet nachts).
+    @MainActor
+    static func homeWindow(_ game: GardenGame) -> CGRect {
+        let c = game.screen(GardenGame.hutch.x, GardenGame.hutch.y)
+        let s = game.scale(atY: GardenGame.hutch.y) * 1.25
+        switch game.save.home {
+        case .holzstall: return CGRect(x: c.x - 36 * s, y: c.y - 46 * s, width: 18 * s, height: 16 * s)
+        case .cottage: return CGRect(x: c.x - 36 * s, y: c.y - 46 * s, width: 20 * s, height: 20 * s)
+        case .pilzhaus: return CGRect(x: c.x - 22 * s, y: c.y - 40 * s, width: 14 * s, height: 14 * s)
+        case .schloss: return CGRect(x: c.x - 7 * s, y: c.y - 56 * s, width: 14 * s, height: 18 * s)
+        }
+    }
+
+    private static func archDoor(center x: CGFloat, ground y: CGFloat, width dw: CGFloat, height dh: CGFloat) -> Path {
+        var door = Path()
+        door.move(to: CGPoint(x: x - dw / 2, y: y))
+        door.addLine(to: CGPoint(x: x - dw / 2, y: y - dh + dw / 2))
+        door.addArc(center: CGPoint(x: x, y: y - dh + dw / 2), radius: dw / 2,
+                    startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+        door.addLine(to: CGPoint(x: x + dw / 2, y: y))
+        door.closeSubpath()
+        return door
+    }
+
     @MainActor
     static func drawHutch(_ game: GardenGame, _ ctx: inout GraphicsContext, night: CGFloat) {
         let c = game.screen(GardenGame.hutch.x, GardenGame.hutch.y)
         let s = game.scale(atY: GardenGame.hutch.y) * 1.25
-        let w = 92 * s, h = 58 * s
-        let body = CGRect(x: c.x - w / 2, y: c.y - h, width: w, height: h)
-        ctx.fill(Path(ellipseIn: CGRect(x: body.minX - 6, y: c.y - 6 * s, width: w + 12, height: 14 * s)),
+        let win = homeWindow(game)
+        ctx.fill(Path(ellipseIn: CGRect(x: c.x - 56 * s, y: c.y - 6 * s, width: 112 * s, height: 14 * s)),
                  with: .color(.black.opacity(0.18)))
-        ctx.fill(Path(roundedRect: body, cornerRadius: 4 * s), with: .color(Color(hex: 0xD9A877)))
-        // Bretter
-        var boards = Path()
-        var y = body.minY + 10 * s
-        while y < body.maxY {
-            boards.move(to: CGPoint(x: body.minX, y: y)); boards.addLine(to: CGPoint(x: body.maxX, y: y))
-            y += 10 * s
+        let hole = Color(hex: 0x3B2618)
+
+        switch game.save.home {
+        case .holzstall:
+            let w = 92 * s, h = 58 * s
+            let body = CGRect(x: c.x - w / 2, y: c.y - h, width: w, height: h)
+            ctx.fill(Path(roundedRect: body, cornerRadius: 4 * s), with: .color(Color(hex: 0xD9A877)))
+            var boards = Path()
+            var y = body.minY + 10 * s
+            while y < body.maxY {
+                boards.move(to: CGPoint(x: body.minX, y: y)); boards.addLine(to: CGPoint(x: body.maxX, y: y))
+                y += 10 * s
+            }
+            ctx.stroke(boards, with: .color(Color(hex: 0xB07F52).opacity(0.6)), lineWidth: 1)
+            var roof = Path()
+            roof.move(to: CGPoint(x: body.minX - 10 * s, y: body.minY + 4 * s))
+            roof.addLine(to: CGPoint(x: c.x, y: body.minY - 30 * s))
+            roof.addLine(to: CGPoint(x: body.maxX + 10 * s, y: body.minY + 4 * s))
+            roof.closeSubpath()
+            ctx.fill(roof, with: .color(Color(hex: 0xB4503F)))
+            ctx.stroke(roof, with: .color(Color(hex: 0x86362A)), lineWidth: 2 * s)
+            ctx.fill(archDoor(center: c.x + 12 * s, ground: c.y, width: 30 * s, height: 34 * s), with: .color(hole))
+            ctx.fill(Path(roundedRect: win, cornerRadius: 3 * s), with: .color(Color(hex: 0x5D4636)))
+
+        case .cottage:
+            let w = 98 * s, h = 60 * s
+            let body = CGRect(x: c.x - w / 2, y: c.y - h, width: w, height: h)
+            ctx.fill(Path(CGRect(x: body.maxX - 26 * s, y: body.minY - 34 * s, width: 12 * s, height: 30 * s)),
+                     with: .color(Color(hex: 0x9C5B48)))
+            ctx.fill(Path(roundedRect: body, cornerRadius: 3 * s), with: .color(Color(hex: 0x8EB9E0)))
+            ctx.fill(Path(CGRect(x: body.minX, y: body.minY, width: 5 * s, height: h)), with: .color(.white))
+            ctx.fill(Path(CGRect(x: body.maxX - 5 * s, y: body.minY, width: 5 * s, height: h)), with: .color(.white))
+            var roof = Path()
+            roof.move(to: CGPoint(x: body.minX - 12 * s, y: body.minY + 6 * s))
+            roof.addLine(to: CGPoint(x: body.minX + 14 * s, y: body.minY - 30 * s))
+            roof.addLine(to: CGPoint(x: body.maxX - 14 * s, y: body.minY - 30 * s))
+            roof.addLine(to: CGPoint(x: body.maxX + 12 * s, y: body.minY + 6 * s))
+            roof.closeSubpath()
+            ctx.fill(roof, with: .color(Color(hex: 0x4A5472)))
+            var tiles = Path()
+            for k in 1..<4 {
+                let y = body.minY + 6 * s - CGFloat(k) * 9 * s
+                tiles.move(to: CGPoint(x: body.minX - 12 * s + CGFloat(k) * 6.5 * s, y: y))
+                tiles.addLine(to: CGPoint(x: body.maxX + 12 * s - CGFloat(k) * 6.5 * s, y: y))
+            }
+            ctx.stroke(tiles, with: .color(Color(hex: 0x353D57)), lineWidth: 1.5 * s)
+            let door = archDoor(center: c.x + 14 * s, ground: c.y, width: 30 * s, height: 38 * s)
+            ctx.stroke(door, with: .color(.white), lineWidth: 4 * s)
+            ctx.fill(door, with: .color(Color(hex: 0x2F4E7A)))
+            ctx.fill(archDoor(center: c.x + 14 * s, ground: c.y, width: 18 * s, height: 22 * s), with: .color(hole))
+            ctx.fill(Path(ellipseIn: win.insetBy(dx: -3 * s, dy: -3 * s)), with: .color(.white))
+            ctx.fill(Path(ellipseIn: win), with: .color(Color(hex: 0x5D6E86)))
+            // Blumenkasten
+            let box = CGRect(x: win.minX - 4 * s, y: win.maxY + 3 * s, width: win.width + 8 * s, height: 6 * s)
+            ctx.fill(Path(roundedRect: box, cornerRadius: 2 * s), with: .color(Color(hex: 0x9C6B45)))
+            for k in 0..<4 {
+                let fx = box.minX + 4 * s + CGFloat(k) * 6 * s
+                ctx.fill(Path(ellipseIn: CGRect(x: fx - 2.5 * s, y: box.minY - 4 * s, width: 5 * s, height: 5 * s)),
+                         with: .color(k % 2 == 0 ? Color(hex: 0xF27A9B) : Color(hex: 0xF7D154)))
+            }
+
+        case .pilzhaus:
+            let stem = CGRect(x: c.x - 32 * s, y: c.y - 54 * s, width: 64 * s, height: 54 * s)
+            ctx.fill(Path(roundedRect: stem, cornerRadius: 14 * s), with: .color(Color(hex: 0xF3E6CF)))
+            ctx.fill(Path(roundedRect: stem.insetBy(dx: 4 * s, dy: 0).offsetBy(dx: 10 * s, dy: 0), cornerRadius: 12 * s),
+                     with: .color(Color(hex: 0xE2D0B2).opacity(0.6)))
+            var cap = Path()
+            cap.move(to: CGPoint(x: c.x - 64 * s, y: c.y - 44 * s))
+            cap.addCurve(to: CGPoint(x: c.x + 64 * s, y: c.y - 44 * s),
+                         control1: CGPoint(x: c.x - 64 * s, y: c.y - 124 * s),
+                         control2: CGPoint(x: c.x + 64 * s, y: c.y - 124 * s))
+            cap.addQuadCurve(to: CGPoint(x: c.x - 64 * s, y: c.y - 44 * s), control: CGPoint(x: c.x, y: c.y - 34 * s))
+            ctx.fill(cap, with: .linearGradient(Gradient(colors: [Color(hex: 0xE5453A), Color(hex: 0xB52C25)]),
+                                                startPoint: CGPoint(x: c.x, y: c.y - 104 * s), endPoint: CGPoint(x: c.x, y: c.y - 40 * s)))
+            let dots: [(CGFloat, CGFloat, CGFloat)] = [(-38, -62, 9), (-8, -86, 11), (26, -70, 8), (46, -54, 6), (-50, -50, 5), (8, -60, 6)]
+            for (dx, dy, r) in dots {
+                ctx.fill(Path(ellipseIn: CGRect(x: c.x + (dx - r) * s, y: c.y + (dy - r * 0.8) * s, width: r * 2 * s, height: r * 1.6 * s)),
+                         with: .color(.white))
+            }
+            ctx.fill(archDoor(center: c.x + 10 * s, ground: c.y, width: 24 * s, height: 30 * s), with: .color(Color(hex: 0x7A4A2A)))
+            ctx.fill(archDoor(center: c.x + 10 * s, ground: c.y, width: 16 * s, height: 20 * s), with: .color(hole))
+            ctx.fill(Path(ellipseIn: win.insetBy(dx: -2 * s, dy: -2 * s)), with: .color(Color(hex: 0x7A4A2A)))
+            ctx.fill(Path(ellipseIn: win), with: .color(Color(hex: 0x5D4636)))
+
+        case .schloss:
+            let stone = Color(hex: 0xB9B4AC), stoneDark = Color(hex: 0x8E887E), roofC = Color(hex: 0x5B5FA8)
+            let body = CGRect(x: c.x - 42 * s, y: c.y - 64 * s, width: 84 * s, height: 64 * s)
+            ctx.fill(Path(body), with: .color(stone))
+            for k in 0..<5 {
+                ctx.fill(Path(CGRect(x: body.minX + CGFloat(k) * 18 * s, y: body.minY - 8 * s, width: 10 * s, height: 9 * s)),
+                         with: .color(stone))
+            }
+            var bricks = Path()
+            for row in 1..<6 {
+                let y = body.minY + CGFloat(row) * 11 * s
+                bricks.move(to: CGPoint(x: body.minX, y: y)); bricks.addLine(to: CGPoint(x: body.maxX, y: y))
+            }
+            ctx.stroke(bricks, with: .color(stoneDark.opacity(0.5)), lineWidth: 1)
+            for side in [-1.0, 1.0] {
+                let tx = c.x + CGFloat(side) * 50 * s
+                let tower = CGRect(x: tx - 14 * s, y: c.y - 92 * s, width: 28 * s, height: 92 * s)
+                ctx.fill(Path(tower), with: .color(stone))
+                ctx.stroke(Path(tower), with: .color(stoneDark.opacity(0.6)), lineWidth: 1)
+                var cone = Path()
+                cone.move(to: CGPoint(x: tower.minX - 5 * s, y: tower.minY))
+                cone.addLine(to: CGPoint(x: tx, y: tower.minY - 36 * s))
+                cone.addLine(to: CGPoint(x: tower.maxX + 5 * s, y: tower.minY))
+                cone.closeSubpath()
+                ctx.fill(cone, with: .color(roofC))
+                var pole = Path()
+                pole.move(to: CGPoint(x: tx, y: tower.minY - 36 * s)); pole.addLine(to: CGPoint(x: tx, y: tower.minY - 52 * s))
+                ctx.stroke(pole, with: .color(Color(hex: 0x4A4A4A)), lineWidth: 1.5 * s)
+                var flag = Path()
+                flag.move(to: CGPoint(x: tx, y: tower.minY - 52 * s))
+                flag.addQuadCurve(to: CGPoint(x: tx + 16 * s, y: tower.minY - 47 * s),
+                                  control: CGPoint(x: tx + 8 * s, y: tower.minY - 55 * s))
+                flag.addLine(to: CGPoint(x: tx, y: tower.minY - 42 * s))
+                flag.closeSubpath()
+                ctx.fill(flag, with: .color(Color(hex: 0xF27A9B)))
+                ctx.fill(Path(roundedRect: CGRect(x: tx - 4 * s, y: tower.minY + 18 * s, width: 8 * s, height: 13 * s), cornerRadius: 4 * s),
+                         with: .color(Color(hex: 0x4A4038)))
+            }
+            let gate = archDoor(center: c.x + 6 * s, ground: c.y, width: 30 * s, height: 36 * s)
+            ctx.fill(gate, with: .color(Color(hex: 0x7A5230)))
+            var bars = Path()
+            for k in 0..<4 {
+                let x = c.x + 6 * s - 11 * s + CGFloat(k) * 7.3 * s
+                bars.move(to: CGPoint(x: x, y: c.y)); bars.addLine(to: CGPoint(x: x, y: c.y - 30 * s))
+            }
+            ctx.stroke(bars, with: .color(Color(hex: 0x4E341E)), lineWidth: 1.5 * s)
+            ctx.fill(Path(roundedRect: win, cornerRadius: 6 * s), with: .color(Color(hex: 0x4A4038)))
         }
-        ctx.stroke(boards, with: .color(Color(hex: 0xB07F52).opacity(0.6)), lineWidth: 1)
-        // Dach
-        var roof = Path()
-        roof.move(to: CGPoint(x: body.minX - 10 * s, y: body.minY + 4 * s))
-        roof.addLine(to: CGPoint(x: c.x, y: body.minY - 30 * s))
-        roof.addLine(to: CGPoint(x: body.maxX + 10 * s, y: body.minY + 4 * s))
-        roof.closeSubpath()
-        ctx.fill(roof, with: .color(Color(hex: 0xB4503F)))
-        ctx.stroke(roof, with: .color(Color(hex: 0x86362A)), lineWidth: 2 * s)
-        // Tür
-        var door = Path()
-        let dw = 30 * s, dh = 34 * s
-        door.move(to: CGPoint(x: c.x - dw / 2 + 12 * s, y: c.y))
-        door.addLine(to: CGPoint(x: c.x - dw / 2 + 12 * s, y: c.y - dh + dw / 2))
-        door.addArc(center: CGPoint(x: c.x + 12 * s, y: c.y - dh + dw / 2), radius: dw / 2,
-                    startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
-        door.addLine(to: CGPoint(x: c.x + dw / 2 + 12 * s, y: c.y))
-        door.closeSubpath()
-        ctx.fill(door, with: .color(Color(hex: 0x3B2618)))
-        // Fenster (leuchtet nachts, siehe drawHutchWindow)
-        let win = CGRect(x: body.minX + 10 * s, y: body.minY + 12 * s, width: 18 * s, height: 16 * s)
-        ctx.fill(Path(roundedRect: win, cornerRadius: 3 * s), with: .color(Color(hex: 0x5D4636)))
-        // Wassernapf
-        let bowl = CGRect(x: body.maxX + 6 * s, y: c.y - 8 * s, width: 22 * s, height: 10 * s)
-        ctx.fill(Path(ellipseIn: bowl), with: .color(Color(hex: 0x4F7FB0)))
-        ctx.fill(Path(ellipseIn: bowl.insetBy(dx: 3 * s, dy: 2 * s)), with: .color(Color(hex: 0x9FD3F2)))
+
+        if game.save.home != .schloss {
+            let bowl = CGRect(x: c.x + 54 * s, y: c.y - 8 * s, width: 22 * s, height: 10 * s)
+            ctx.fill(Path(ellipseIn: bowl), with: .color(Color(hex: 0x4F7FB0)))
+            ctx.fill(Path(ellipseIn: bowl.insetBy(dx: 3 * s, dy: 2 * s)), with: .color(Color(hex: 0x9FD3F2)))
+        }
     }
 
     @MainActor
     static func drawHutchWindow(_ game: GardenGame, _ ctx: inout GraphicsContext, night: CGFloat) {
-        let c = game.screen(GardenGame.hutch.x, GardenGame.hutch.y)
         let s = game.scale(atY: GardenGame.hutch.y) * 1.25
-        let w = 92 * s, h = 58 * s
-        let win = CGRect(x: c.x - w / 2 + 10 * s, y: c.y - h + 12 * s, width: 18 * s, height: 16 * s)
+        let win = homeWindow(game)
         ctx.fill(Path(ellipseIn: win.insetBy(dx: -24 * s, dy: -24 * s)),
                  with: .radialGradient(Gradient(colors: [Color(hex: 0xFFC56E).opacity(0.35 * Double(night)), .clear]),
                                        center: CGPoint(x: win.midX, y: win.midY), startRadius: 2, endRadius: 34 * s))
-        ctx.fill(Path(roundedRect: win, cornerRadius: 3 * s), with: .color(Color(hex: 0xFFCF7A).opacity(Double(night))))
+        ctx.fill(Path(roundedRect: win, cornerRadius: 4 * s), with: .color(Color(hex: 0xFFCF7A).opacity(Double(night))))
+        // Laternen leuchten
+        for d in game.save.decor where d.kind == .laterne {
+            let p = game.screen(d.x, d.y)
+            let ds = game.scale(atY: d.y)
+            let lamp = CGPoint(x: p.x, y: p.y - 40 * ds)
+            ctx.fill(Path(ellipseIn: CGRect(x: lamp.x - 60 * ds, y: lamp.y - 60 * ds, width: 120 * ds, height: 120 * ds)),
+                     with: .radialGradient(Gradient(colors: [Color(hex: 0xFFD27A).opacity(0.4 * Double(night)), .clear]),
+                                           center: lamp, startRadius: 2, endRadius: 60 * ds))
+            ctx.fill(Path(ellipseIn: CGRect(x: lamp.x - 5 * ds, y: lamp.y - 6 * ds, width: 10 * ds, height: 12 * ds)),
+                     with: .color(Color(hex: 0xFFE2A0).opacity(Double(night))))
+        }
+        for d in game.save.decor where d.kind == .feenring {
+            let p = game.screen(d.x, d.y)
+            let ds = game.scale(atY: d.y)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 60 * ds, y: p.y - 30 * ds, width: 120 * ds, height: 50 * ds)),
+                     with: .radialGradient(Gradient(colors: [Color(hex: 0xC9A6FF).opacity(0.35 * Double(night)), .clear]),
+                                           center: CGPoint(x: p.x, y: p.y - 5 * ds), startRadius: 2, endRadius: 60 * ds))
+        }
+        for r in game.save.rabbits where r.rarity == .legendaer {
+            let p = game.screen(r.x, r.y)
+            let rs = game.scale(atY: r.y)
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 40 * rs, y: p.y - 50 * rs, width: 80 * rs, height: 60 * rs)),
+                     with: .radialGradient(Gradient(colors: [r.look.fur.main.opacity(0.3 * Double(night)), .clear]),
+                                           center: CGPoint(x: p.x, y: p.y - 20 * rs), startRadius: 2, endRadius: 40 * rs))
+        }
     }
 
     @MainActor
@@ -479,6 +631,188 @@ enum GardenRenderer {
         }
     }
 
+    // MARK: - Deko
+
+    @MainActor
+    static func drawDecor(_ d: GardenDecor, _ game: GardenGame, _ ctx: inout GraphicsContext, time: Double) {
+        let p = game.screen(d.x, d.y)
+        let s = game.scale(atY: d.y)
+        if game.tool == .gestalten {
+            let selected = game.selectedDecorID == d.id
+            let w: CGFloat = (d.kind == .teich || d.kind == .feenring ? 110 : 64) * s
+            ctx.stroke(Path(ellipseIn: CGRect(x: p.x - w / 2, y: p.y - 10 * s, width: w, height: 20 * s)),
+                       with: .color(.white.opacity(selected ? 0.95 : 0.35)),
+                       style: StrokeStyle(lineWidth: selected ? 2.4 : 1.4, dash: [5, 4], dashPhase: selected ? CGFloat(time * 14) : 0))
+        }
+        ctx.drawLayer { l in
+            l.translateBy(x: p.x, y: p.y)
+            l.scaleBy(x: s, y: s)
+            decorShape(&l, kind: d.kind, time: time, seed: Int(d.x * 1000))
+        }
+    }
+
+    /// Deko am Boden bei y = 0, Einheit ≈ Punkte bei Maßstab 1.
+    static func decorShape(_ ctx: inout GraphicsContext, kind: DecorKind, time: Double, seed: Int) {
+        let shadow = Color.black.opacity(0.16)
+        func ellipse(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> Path {
+            Path(ellipseIn: CGRect(x: x - w / 2, y: y - h / 2, width: w, height: h))
+        }
+        switch kind {
+        case .stein:
+            ctx.fill(ellipse(0, 0, 46, 10), with: .color(shadow))
+            var rock = Path()
+            rock.move(to: CGPoint(x: -22, y: 0))
+            rock.addCurve(to: CGPoint(x: 22, y: 0), control1: CGPoint(x: -24, y: -34), control2: CGPoint(x: 20, y: -30))
+            rock.closeSubpath()
+            ctx.fill(rock, with: .linearGradient(Gradient(colors: [Color(hex: 0xBDB8AE), Color(hex: 0x8A857C)]),
+                                                 startPoint: CGPoint(x: -10, y: -26), endPoint: CGPoint(x: 10, y: 0)))
+            ctx.fill(ellipse(-6, -16, 12, 5), with: .color(.white.opacity(0.3)))
+            ctx.fill(ellipse(10, -6, 9, 4), with: .color(Color(hex: 0x7FA36E).opacity(0.8)))
+        case .busch:
+            ctx.fill(ellipse(0, 0, 60, 12), with: .color(shadow))
+            let greens = [Color(hex: 0x3F7A35), Color(hex: 0x4F8E3F), Color(hex: 0x62A34C)]
+            let blobs: [(CGFloat, CGFloat, CGFloat)] = [(-16, -14, 18), (14, -14, 18), (0, -26, 20), (-4, -12, 16)]
+            for (n, b) in blobs.enumerated() {
+                ctx.fill(ellipse(b.0, b.1, b.2 * 2, b.2 * 1.8), with: .color(greens[n % 3]))
+            }
+            for k in 0..<5 {
+                let x = -20 + hash(seed, k) * 40, y = -34 + hash(seed, k, 1) * 26
+                ctx.fill(ellipse(x, y, 5, 5), with: .color(Color(hex: 0xE24A5A)))
+            }
+        case .pilz:
+            ctx.fill(ellipse(0, 0, 30, 7), with: .color(shadow))
+            ctx.fill(Path(roundedRect: CGRect(x: -5, y: -20, width: 10, height: 20), cornerRadius: 4), with: .color(Color(hex: 0xF4ECDD)))
+            var cap = Path()
+            cap.move(to: CGPoint(x: -17, y: -18))
+            cap.addCurve(to: CGPoint(x: 17, y: -18), control1: CGPoint(x: -17, y: -42), control2: CGPoint(x: 17, y: -42))
+            cap.closeSubpath()
+            ctx.fill(cap, with: .color(Color(hex: 0xE0392F)))
+            for (x, y) in [(-8.0, -26.0), (5.0, -31.0), (9.0, -22.0), (-2.0, -21.0)] {
+                ctx.fill(ellipse(CGFloat(x), CGFloat(y), 4.5, 3.5), with: .color(.white))
+            }
+        case .sonnenblumen:
+            ctx.fill(ellipse(0, 0, 40, 8), with: .color(shadow))
+            for (k, h) in [(-10.0, 52.0), (4.0, 64.0), (14.0, 46.0)].enumerated() {
+                let x = CGFloat(h.0), top = -CGFloat(h.1)
+                let sway = CGFloat(sin(time * 1.4 + Double(k))) * 2
+                var stem = Path()
+                stem.move(to: CGPoint(x: x, y: 0)); stem.addQuadCurve(to: CGPoint(x: x + sway, y: top), control: CGPoint(x: x, y: top / 2))
+                ctx.stroke(stem, with: .color(Color(hex: 0x3F7F2C)), lineWidth: 2.5)
+                ctx.fill(ellipse(x + 6, top / 2, 10, 5), with: .color(Color(hex: 0x4E9A36)))
+                for i in 0..<12 {
+                    let a = Double(i) / 12 * 2 * .pi
+                    ctx.fill(ellipse(x + sway + CGFloat(cos(a)) * 8, top + CGFloat(sin(a)) * 8, 7, 7), with: .color(Color(hex: 0xF7C21E)))
+                }
+                ctx.fill(ellipse(x + sway, top, 10, 10), with: .color(Color(hex: 0x6B3E1E)))
+            }
+        case .blumenbeet:
+            ctx.fill(ellipse(0, -2, 64, 18), with: .color(Color(hex: 0x6B4429)))
+            ctx.stroke(ellipse(0, -2, 64, 18), with: .color(Color(hex: 0xA2A09A)), lineWidth: 3)
+            let colors = [Color(hex: 0xF27A9B), Color(hex: 0xB07CE8), Color(hex: 0xF7D154), Color(hex: 0xFFFFFF), Color(hex: 0xE24A5A)]
+            for k in 0..<11 {
+                let x = -24 + hash(seed, k, 3) * 48, y = -6 + hash(seed, k, 4) * 8
+                ctx.stroke(Path { $0.move(to: CGPoint(x: x, y: y)); $0.addLine(to: CGPoint(x: x, y: y - 9)) },
+                           with: .color(Color(hex: 0x3F7F2C)), lineWidth: 1.5)
+                ctx.fill(ellipse(x, y - 10, 6, 6), with: .color(colors[k % colors.count]))
+            }
+        case .gartenzwerg:
+            ctx.fill(ellipse(0, 0, 26, 6), with: .color(shadow))
+            ctx.fill(Path(roundedRect: CGRect(x: -9, y: -20, width: 18, height: 20), cornerRadius: 6), with: .color(Color(hex: 0x3F6FB5)))
+            ctx.fill(Path(CGRect(x: -9, y: -12, width: 18, height: 3)), with: .color(Color(hex: 0x5A3A22)))
+            ctx.fill(ellipse(0, -16, 14, 12), with: .color(.white))
+            ctx.fill(ellipse(0, -25, 12, 11), with: .color(Color(hex: 0xF2C9A8)))
+            ctx.fill(ellipse(0, -23, 4, 4), with: .color(Color(hex: 0xE59A84)))
+            var hat = Path()
+            hat.move(to: CGPoint(x: -8, y: -28)); hat.addLine(to: CGPoint(x: 3, y: -50)); hat.addLine(to: CGPoint(x: 8, y: -28))
+            hat.closeSubpath()
+            ctx.fill(hat, with: .color(Color(hex: 0xD6372E)))
+        case .baumstamm:
+            ctx.fill(ellipse(0, 0, 70, 10), with: .color(shadow))
+            ctx.fill(Path(roundedRect: CGRect(x: -32, y: -20, width: 60, height: 19), cornerRadius: 9), with: .color(Color(hex: 0x8A5B36)))
+            var bark = Path()
+            for k in 0..<4 {
+                let y = -16 + CGFloat(k) * 4.5
+                bark.move(to: CGPoint(x: -26, y: y)); bark.addLine(to: CGPoint(x: 18, y: y + 1))
+            }
+            ctx.stroke(bark, with: .color(Color(hex: 0x6B4429)), lineWidth: 1)
+            ctx.fill(ellipse(28, -10.5, 12, 19), with: .color(Color(hex: 0xE3C08E)))
+            ctx.stroke(ellipse(28, -10.5, 6, 10), with: .color(Color(hex: 0xB68B57)), lineWidth: 1)
+            ctx.fill(ellipse(-12, -21, 14, 5), with: .color(Color(hex: 0x6FA548)))
+        case .laterne:
+            ctx.fill(ellipse(0, 0, 22, 6), with: .color(shadow))
+            ctx.fill(Path(CGRect(x: -1.8, y: -34, width: 3.6, height: 34)), with: .color(Color(hex: 0x3A3A3A)))
+            ctx.fill(Path(roundedRect: CGRect(x: -7, y: -48, width: 14, height: 16), cornerRadius: 3), with: .color(Color(hex: 0xFFE7B0)))
+            ctx.stroke(Path(roundedRect: CGRect(x: -7, y: -48, width: 14, height: 16), cornerRadius: 3), with: .color(Color(hex: 0x3A3A3A)), lineWidth: 2)
+            var roof = Path()
+            roof.move(to: CGPoint(x: -10, y: -48)); roof.addLine(to: CGPoint(x: 0, y: -56)); roof.addLine(to: CGPoint(x: 10, y: -48))
+            roof.closeSubpath()
+            ctx.fill(roof, with: .color(Color(hex: 0x3A3A3A)))
+        case .tunnel:
+            ctx.fill(ellipse(0, 0, 86, 14), with: .color(shadow))
+            var arch = Path()
+            arch.move(to: CGPoint(x: -40, y: 0))
+            arch.addCurve(to: CGPoint(x: 40, y: 0), control1: CGPoint(x: -40, y: -48), control2: CGPoint(x: 40, y: -48))
+            arch.closeSubpath()
+            ctx.fill(arch, with: .color(Color(hex: 0xC69B5E)))
+            var weave = Path()
+            for k in 0..<7 {
+                let x = -33 + CGFloat(k) * 11
+                weave.move(to: CGPoint(x: x, y: 0)); weave.addQuadCurve(to: CGPoint(x: x * 0.4, y: -35), control: CGPoint(x: x * 0.9, y: -26))
+            }
+            ctx.stroke(weave, with: .color(Color(hex: 0x9C7442)), lineWidth: 1.5)
+            ctx.fill(ellipse(-40, -12, 10, 24), with: .color(Color(hex: 0x3B2618)))
+            ctx.fill(ellipse(40, -12, 10, 24), with: .color(Color(hex: 0x2F1E13)))
+        case .heuraufe:
+            ctx.fill(ellipse(0, 0, 50, 9), with: .color(shadow))
+            ctx.fill(Path(roundedRect: CGRect(x: -22, y: -40, width: 44, height: 40), cornerRadius: 3), with: .color(Color(hex: 0xB98A5A)))
+            ctx.fill(Path(CGRect(x: -18, y: -36, width: 36, height: 22)), with: .color(Color(hex: 0xDCC06A)))
+            var straws = Path()
+            for k in 0..<10 {
+                let x = -16 + CGFloat(k) * 3.6
+                straws.move(to: CGPoint(x: x, y: -36)); straws.addLine(to: CGPoint(x: x + 3, y: -44 - hash(seed, k) * 5))
+            }
+            ctx.stroke(straws, with: .color(Color(hex: 0xC9A646)), lineWidth: 1.4)
+            var bars = Path()
+            for k in 0..<6 {
+                let x = -18 + CGFloat(k) * 7.2
+                bars.move(to: CGPoint(x: x, y: -36)); bars.addLine(to: CGPoint(x: x, y: -14))
+            }
+            ctx.stroke(bars, with: .color(Color(hex: 0x7A5230)), lineWidth: 2)
+            ctx.fill(Path(CGRect(x: -24, y: -42, width: 48, height: 5)), with: .color(Color(hex: 0x8E6440)))
+        case .teich:
+            ctx.fill(ellipse(0, -4, 112, 34), with: .color(Color(hex: 0x8A857C)))
+            ctx.fill(ellipse(0, -4, 100, 26), with: .linearGradient(Gradient(colors: [Color(hex: 0x4E8FC7), Color(hex: 0x7CC0E8)]),
+                                                                  startPoint: CGPoint(x: 0, y: -17), endPoint: CGPoint(x: 0, y: 9)))
+            let ripple = CGFloat((time * 0.6).truncatingRemainder(dividingBy: 1))
+            ctx.stroke(ellipse(14, -2, 10 + 30 * ripple, 4 + 9 * ripple), with: .color(.white.opacity(0.5 * Double(1 - ripple))), lineWidth: 1)
+            ctx.fill(ellipse(-26, -8, 18, 7), with: .color(Color(hex: 0x4E9A36)))
+            ctx.fill(ellipse(-24, -10, 6, 4), with: .color(Color(hex: 0xF7B6CB)))
+            ctx.fill(ellipse(-38, 4, 14, 6), with: .color(Color(hex: 0x4E9A36)))
+            for k in 0..<3 {
+                let x = 42 + CGFloat(k) * 4
+                ctx.stroke(Path { $0.move(to: CGPoint(x: x, y: 2)); $0.addLine(to: CGPoint(x: x + 2, y: -26 + CGFloat(k) * 4)) },
+                           with: .color(Color(hex: 0x4F8A3C)), lineWidth: 2)
+            }
+            ctx.fill(Path(roundedRect: CGRect(x: 44, y: -30, width: 4, height: 10), cornerRadius: 2), with: .color(Color(hex: 0x6B4429)))
+        case .feenring:
+            let glow = 0.5 + 0.5 * sin(time * 2)
+            ctx.fill(ellipse(0, -2, 110, 36), with: .radialGradient(Gradient(colors: [Color(hex: 0xD8C2FF).opacity(0.25 + 0.2 * glow), .clear]),
+                                                                    center: CGPoint(x: 0, y: -2), startRadius: 4, endRadius: 56))
+            for k in 0..<11 {
+                let a = Double(k) / 11 * 2 * .pi
+                let x = CGFloat(cos(a)) * 48, y = CGFloat(sin(a)) * 15 - 2
+                let sc: CGFloat = 0.55 + 0.25 * CGFloat(sin(a)) + 0.2
+                ctx.fill(Path(roundedRect: CGRect(x: x - 2 * sc, y: y - 9 * sc, width: 4 * sc, height: 9 * sc), cornerRadius: 1.5),
+                         with: .color(Color(hex: 0xF4ECDD)))
+                var cap = Path()
+                cap.addEllipse(in: CGRect(x: x - 7 * sc, y: y - 14 * sc, width: 14 * sc, height: 9 * sc))
+                ctx.fill(cap, with: .color(Color(hex: 0xB18CF2)))
+                let tw = 0.5 + 0.5 * sin(time * 3 + Double(k))
+                ctx.fill(ellipse(x, y - 11 * sc, 3, 3), with: .color(.white.opacity(tw)))
+            }
+        }
+    }
+
     // MARK: - Kaninchen
 
     static func pose(for r: GardenRabbit, actor a: RabbitActor, clock: Double) -> RabbitPose {
@@ -533,8 +867,18 @@ enum GardenRenderer {
         let a = game.actors[r.id] ?? RabbitActor()
         let p = game.screen(r.x, r.y)
         let s = game.scale(atY: r.y) * r.look.breed.bodyScale * 0.92
+        if a.mode == .hide { return }
         let pose = GardenRenderer.pose(for: r, actor: a, clock: game.clock)
         let selected = game.selectedID == r.id
+
+        // Aura seltener Kaninchen
+        if r.rarity >= .superSelten {
+            let pulse = 0.75 + 0.25 * sin(time * 2.4 + r.x * 9)
+            let glow = r.rarity == .legendaer ? r.look.fur.main : r.rarity.color
+            ctx.fill(Path(ellipseIn: CGRect(x: p.x - 46 * s, y: p.y - 20 * s, width: 92 * s, height: 30 * s)),
+                     with: .radialGradient(Gradient(colors: [glow.opacity((r.rarity == .legendaer ? 0.55 : 0.3) * pulse), .clear]),
+                                           center: CGPoint(x: p.x, y: p.y - 4 * s), startRadius: 2, endRadius: 46 * s))
+        }
 
         // Schatten
         let shadowW = (pose.flop ? 64 : 52) * s * (1 - min(pose.lift, 40) / 90)
@@ -553,9 +897,10 @@ enum GardenRenderer {
             var arc = Path()
             arc.addArc(center: c, radius: 9, startAngle: .degrees(-90),
                        endAngle: .degrees(-90 + 360 * r.trust / 100), clockwise: false)
-            ctx.stroke(arc, with: .color(Color(hex: 0xF27A9B)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-            let heart = ctx.resolve(Text(Image(systemName: "heart.fill")).font(.system(size: 8)).foregroundStyle(Color(hex: 0xF27A9B)))
-            ctx.draw(heart, at: c)
+            ctx.stroke(arc, with: .color(r.rarity.color), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            let icon = ctx.resolve(Text(Image(systemName: r.rarity.symbol)).font(.system(size: 8, weight: .bold))
+                .foregroundStyle(r.rarity.color))
+            ctx.draw(icon, at: c)
         }
 
         ctx.drawLayer { layer in
@@ -655,6 +1000,15 @@ enum GardenRenderer {
             }
             // Keule
             l.fill(Path(ellipseIn: CGRect(x: -26, y: -27, width: 26, height: 24)), with: .color(pal.shade.opacity(0.16)))
+            if look.fur == .nacht && look.pattern != .russe {
+                for k in 0..<9 {
+                    let x = -24 + hash(k, 61) * 40, y = -31 + hash(k, 62) * 26, r = 0.7 + hash(k, 63) * 1.1
+                    l.fill(Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)), with: .color(.white.opacity(0.9)))
+                }
+            }
+            if look.fur == .mond || look.fur == .gold {
+                l.fill(Path(ellipseIn: CGRect(x: -14, y: -32, width: 24, height: 10)), with: .color(.white.opacity(0.45)))
+            }
         }
         // Brust
         ctx.fill(Path(ellipseIn: CGRect(x: 3, y: -21, width: 15, height: 17)), with: .color(pal.belly.opacity(0.9)))

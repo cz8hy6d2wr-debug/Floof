@@ -5,7 +5,6 @@ struct MoreView: View {
     @Environment(PetStore.self) private var store
     @State private var showsLexicon = false
     @State private var showsSettings = false
-    @State private var showsGarden = false
 
     private enum Route: Hashable { case cabinet, progress }
 
@@ -15,13 +14,6 @@ struct MoreView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     HandTitle(text: "Mehr", size: 32)
                         .padding(.top, 8)
-
-                    Button { showsGarden = true } label: {
-                        row("Mümmelwiese", symbol: "hare.fill",
-                            detail: "Spiel: Kaninchen zu Besuch, Rasen, Möhrenbeet")
-                    }
-                    .buttonStyle(.plain)
-                    .glassPanel()
 
                     VStack(spacing: 0) {
                         NavigationLink(value: Route.cabinet) {
@@ -72,7 +64,6 @@ struct MoreView: View {
             }
             .sheet(isPresented: $showsLexicon) { LexiconView() }
             .sheet(isPresented: $showsSettings) { SettingsView() }
-            .fullScreenCover(isPresented: $showsGarden) { GardenView() }
         }
     }
 
