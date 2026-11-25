@@ -17,7 +17,7 @@ struct MoreView: View {
                         .padding(.top, 8)
 
                     Button { showsGarden = true } label: {
-                        row("Floof-Garten", symbol: "hare.fill",
+                        row("Mümmelwiese", symbol: "hare.fill",
                             detail: "Spiel: Kaninchen zu Besuch, Rasen, Möhrenbeet")
                     }
                     .buttonStyle(.plain)

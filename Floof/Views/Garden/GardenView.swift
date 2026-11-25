@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Floof-Garten: ein kleines Kaninchen-Spiel im Vollbild.
+/// Mümmelwiese: ein kleines Kaninchen-Spiel im Vollbild.
 ///
 /// Kaninchen hoppeln zufällig zu Besuch. Mit Futter und vorsichtigem Streicheln
 /// fassen sie Vertrauen und ziehen ein. Danach wollen sie versorgt werden –
@@ -40,7 +40,7 @@ struct GardenView: View {
             )
             .onGeometryChange(for: CGSize.self) { $0.size } action: { game.size = $0 }
             .ignoresSafeArea()
-            .accessibilityLabel("Garten mit \(game.residents.count) Kaninchen")
+            .accessibilityLabel("Mümmelwiese mit \(game.residents.count) Kaninchen")
 
             hud
         }
@@ -105,7 +105,7 @@ struct GardenView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
-            .accessibilityLabel("Garten schließen")
+            .accessibilityLabel("Mümmelwiese schließen")
 
             Spacer(minLength: 0)
             HStack(spacing: 14) {
@@ -129,7 +129,7 @@ struct GardenView: View {
             }
             .buttonStyle(.plain)
             .glassEffect(.regular.interactive(), in: .circle)
-            .accessibilityLabel("Garten-Album")
+            .accessibilityLabel("Mümmel-Album")
         }
         .padding(.top, 4)
     }
@@ -333,7 +333,7 @@ private struct GardenAlbum: View {
                                 Text(rabbit.name).font(.headline)
                                 Text("\(rabbit.look.breed.title) · \(rabbit.look.fur.title) · \(rabbit.personality.title)")
                                     .font(.caption).foregroundStyle(.secondary)
-                                Text("Im Garten seit \(rabbit.joined.formatted(.relative(presentation: .named)))")
+                                Text("Auf der Wiese seit \(rabbit.joined.formatted(.relative(presentation: .named)))")
                                     .font(.caption2).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -373,7 +373,7 @@ private struct GardenAlbum: View {
                     tip("moon.stars.fill", "Nachts schlafen die Kaninchen am Stall – genau wie bei dir die Uhr läuft.")
                 }
             }
-            .navigationTitle("Garten-Album")
+            .navigationTitle("Mümmel-Album")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

@@ -553,7 +553,7 @@ final class GardenGame {
         guard r.isVisitor else { return }
         if residents.count >= Self.capacity {
             r.trust = 99
-            showBanner("Der Garten ist voll – \(Self.capacity) Kaninchen sind genug Trubel", symbol: "house.fill")
+            showBanner("Die Mümmelwiese ist voll – \(Self.capacity) Kaninchen sind genug Trubel", symbol: "house.fill")
             return
         }
         r.isVisitor = false
@@ -570,7 +570,7 @@ final class GardenGame {
         notify.notificationOccurred(.success)
         selectedID = r.id
         celebrate &+= 1
-        showBanner("\(r.name) zieht bei dir ein!", symbol: "heart.fill", duration: 5)
+        showBanner("\(r.name) zieht auf die Mümmelwiese!", symbol: "heart.fill", duration: 5)
         if save.tutorialStep < 2 {
             save.tutorialStep = 2
             Task { [weak self] in
