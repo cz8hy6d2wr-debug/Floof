@@ -67,6 +67,7 @@ struct GardenView: View {
         .preferredColorScheme(.light)
         .statusBarHidden()
         .task { await game.run() }
+        .task { if !GardenDemo.isActive { await RealWeather.shared.refresh() } }
         .onAppear {
             // Screenshots im Querformat
             if GardenDemo.isActive, GardenDemo.screen == "landscape",
@@ -76,7 +77,8 @@ struct GardenView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             game.isActive = phase == .active
-            if phase != .active { game.persist() }
+            if phase == .background { game.prepareForBackground() } else if phase != .active { game.persist() }
+            if phase == .active { Task { await RealWeather.shared.refresh() } }
         }
         .sensoryFeedback(.selection, trigger: game.tool)
         .sheet(isPresented: $showsAlbum) { GardenAlbum(game: game) }
@@ -110,6 +112,7 @@ struct GardenView: View {
                 HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 8) {
                         topBar
+                        weatherChip
                         bannerView
                         Spacer(minLength: 0)
                         panels
@@ -125,6 +128,7 @@ struct GardenView: View {
             } else {
                 VStack(spacing: 10) {
                     topBar
+                    weatherChip
                     bannerView
                     Spacer(minLength: 0)
                     panels
@@ -138,6 +142,27 @@ struct GardenView: View {
         .animation(.spring(duration: 0.35), value: game.banner)
         .animation(.spring(duration: 0.35), value: game.selectedID)
         .animation(.spring(duration: 0.3), value: game.tool)
+    }
+
+    /// Wetter von draußen und Jahreszeit
+    private var weatherChip: some View {
+        let isDay = game.daylight > 0.4
+        return HStack(spacing: 6) {
+            if let kind = game.weatherKind {
+                Image(systemName: kind.symbol(isDay: isDay)).symbolRenderingMode(.multicolor)
+                if let t = game.temperature { Text("\(Int(t.rounded()))°").monospacedDigit() }
+                Text(kind.title).foregroundStyle(.secondary)
+                Text("·").foregroundStyle(.secondary)
+            }
+            Image(systemName: game.season.symbol).foregroundStyle(MTheme.leaf)
+            Text(game.season.title).foregroundStyle(.secondary)
+        }
+        .font(.caption.weight(.semibold))
+        .lineLimit(1)
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .glassEffect(.regular, in: .capsule)
+        .frame(maxWidth: .infinity, alignment: landscape ? .leading : .center)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder private var bannerView: some View {
@@ -190,6 +215,15 @@ struct GardenView: View {
                     Button { importing = true } label: { Label("Spielstand laden …", systemImage: "tray.and.arrow.down.fill") }
                 }
                 Section {
+                    Toggle(isOn: Binding(get: { RealWeather.shared.enabled }, set: { RealWeather.shared.enabled = $0 })) {
+                        Label("Wetter von draußen", systemImage: "cloud.sun.fill")
+                    }
+                    Toggle(isOn: Binding(get: { GardenGame.notificationsEnabled },
+                                         set: { GardenGame.notificationsEnabled = $0; if $0 { game.requestNotificationPermission() } })) {
+                        Label("Mitteilung bei seltenen Gästen", systemImage: "bell.badge.fill")
+                    }
+                }
+                Section {
                     Button(role: .destructive) { confirmNewGame = true } label: { Label("Neues Spiel …", systemImage: "arrow.counterclockwise") }
                 }
             } label: {
@@ -201,7 +235,7 @@ struct GardenView: View {
 
             Spacer(minLength: 0)
             HStack(spacing: 11) {
-                ForEach(GardenFoodKind.allCases) { kind in
+                ForEach(game.availableFoods) { kind in
                     HStack(spacing: 3) {
                         Image(systemName: kind.symbol).foregroundStyle(kind.tint)
                         Text("\(game.inventory[kind])").monospacedDigit().contentTransition(.numericText())
@@ -236,7 +270,7 @@ struct GardenView: View {
 
     private var foodPicker: some View {
         HStack(spacing: 8) {
-            ForEach(GardenFoodKind.allCases) { kind in
+            ForEach(game.availableFoods) { kind in
                 Button { game.foodChoice = kind } label: {
                     Label("\(kind.title) · \(game.inventory[kind])", systemImage: kind.symbol)
                         .font(.footnote.weight(.semibold))
@@ -447,7 +481,7 @@ private struct RabbitCard: View {
             }
 
             HStack(spacing: 8) {
-                ForEach(GardenFoodKind.allCases) { kind in
+                ForEach(game.availableFoods) { kind in
                     Button { game.feed(rabbit.id, kind: kind) } label: {
                         HStack(spacing: 4) {
                             Image(systemName: kind.symbol).foregroundStyle(kind.tint)
@@ -588,6 +622,34 @@ private struct GardenShop: View {
                     OddsRow(odds: Rarity.odds(cozy: game.cozy, lucky: game.save.luckyClover))
                 } footer: {
                     Text("Glückliche Kaninchen bringen regelmäßig Sterne – seltene mehr. Je gemütlicher die Wiese, desto seltener die Gäste.")
+                }
+
+                Section {
+                    ForEach(GardenFoodKind.allCases.filter { $0.shopBundle != nil }) { kind in
+                        let bundle = kind.shopBundle!
+                        HStack(spacing: 12) {
+                            Image(systemName: kind.symbol)
+                                .font(.title2).foregroundStyle(kind.tint)
+                                .frame(width: 52, height: 52)
+                                .background(kind.tint.opacity(0.14), in: .rect(cornerRadius: 14))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(bundle.amount)× \(kind.title)").font(.headline)
+                                Text(kind == .zweige ? "Winterfutter – wenn kein frisches Grün wächst."
+                                     : (kind == .heu ? "Vorrat für Regentage und Winter." : "Das liebste Leckerli."))
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Text("Vorrat: \(game.inventory[kind])").font(.caption2.weight(.semibold)).foregroundStyle(MTheme.leaf)
+                            }
+                            Spacer()
+                            Button("\(bundle.price) ★") { game.buyFood(kind) }
+                                .buttonStyle(.glassProminent)
+                                .tint(MTheme.star)
+                                .disabled(stars < bundle.price)
+                        }
+                    }
+                } header: {
+                    Text("Futter")
+                } footer: {
+                    Text(game.season == .winter ? "Im Winter wächst kaum Gras – Heu und Zweige halten deine Kaninchen satt." : "")
                 }
 
                 Section("Zuhause") {

@@ -26,11 +26,13 @@ enum GardenRenderer {
     static func draw(_ game: GardenGame, in ctx: inout GraphicsContext, size: CGSize, time: Double) {
         let night = CGFloat(1 - game.daylight)
         let rain = CGFloat(game.rainAmount)
+        let grey = CGFloat(max(game.rainAmount, game.overcast * 0.85, game.snowAmount * 0.7))
         let top = game.lawnTop
 
-        drawBackdrop(game, &ctx, size: size, top: top, night: night, rain: rain)
-        drawSky(&ctx, size: size, top: top, night: night, rain: rain, hour: game.hour, time: time)
+        drawBackdrop(game, &ctx, size: size, top: top, night: night, rain: grey)
+        drawSky(&ctx, size: size, top: top, night: night, rain: grey, hour: game.hour, time: time)
         drawLawnBase(game, &ctx, size: size, top: top)
+        drawGroundWeather(game, &ctx, size: size, top: top, time: time)
         drawHutch(game, &ctx, night: night)
         drawBed(game, &ctx, time: time)
 
@@ -43,7 +45,7 @@ enum GardenRenderer {
         for (i, d) in game.save.decor.enumerated() { items.append((d.y, 3, i)) }
         items.sort { $0.y < $1.y }
         var next = 0
-        let wind = CGFloat(1 + 0.8 * game.rainAmount)
+        let wind = CGFloat(game.windFactor * (1 + 0.8 * game.rainAmount))
         for j in 0..<rows {
             let rowEnd = Double(j + 1) / Double(rows)
             while next < items.count, items[next].y < rowEnd || j == rows - 1 {
@@ -59,7 +61,9 @@ enum GardenRenderer {
             drawGrassRow(game, row: j, &ctx, time: time, wind: wind)
         }
 
-        drawButterflies(&ctx, size: size, top: top, time: time, day: 1 - night - rain * 0.6)
+        if game.season != .winter && game.snowCover < 0.3 {
+            drawButterflies(&ctx, size: size, top: top, time: time, day: 1 - night - grey * 0.8)
+        }
         drawParticles(game, &ctx)
 
         // Nacht und Regen dunkeln alles ab; Glühwürmchen und Fenster leuchten darüber.
@@ -68,7 +72,17 @@ enum GardenRenderer {
             drawHutchWindow(game, &ctx, night: night)
             drawFireflies(&ctx, size: size, top: top, time: time, night: night)
         }
-        if rain > 0.01 { drawRain(&ctx, size: size, time: time, amount: rain) }
+        if rain > 0.01 { drawRain(&ctx, size: size, time: time, amount: rain, wind: CGFloat(game.windFactor)) }
+        if game.snowAmount > 0.02 { drawSnowfall(&ctx, size: size, time: time, amount: CGFloat(game.snowAmount), wind: CGFloat(game.windFactor)) }
+        if game.fog > 0.02 {
+            // Nebel: in der Ferne dichter
+            ctx.fill(Path(CGRect(origin: .zero, size: size)),
+                     with: .linearGradient(Gradient(colors: [Color(hex: 0xDDE3E6).opacity(0.85 * game.fog), Color(hex: 0xDDE3E6).opacity(0.25 * game.fog)]),
+                                           startPoint: CGPoint(x: 0, y: top - 40), endPoint: CGPoint(x: 0, y: size.height)))
+        }
+        if game.lightning > 0 {
+            ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.white.opacity(min(0.75, game.lightning * 2.4))))
+        }
         drawToolCursor(game, &ctx, time: time)
     }
 
@@ -108,13 +122,16 @@ enum GardenRenderer {
         func prepare(_ game: GardenGame) {
             let size = game.size
             guard size.width > 10, size.height > 10 else { return }
-            let night = CGFloat(1 - game.daylight), rain = CGFloat(game.rainAmount), top = game.lawnTop
-            let k = "\(Int(size.width))x\(Int(size.height))-\(Int(game.hour * 6))-\(Int(rain * 4))-\(game.lowPower)"
+            let night = CGFloat(1 - game.daylight), top = game.lawnTop
+            let rain = CGFloat(max(game.rainAmount, game.overcast * 0.85, game.snowAmount * 0.7))
+            let season = game.season
+            let k = "\(Int(size.width))x\(Int(size.height))-\(Int(game.hour * 6))-\(Int(rain * 4))-\(game.lowPower)-\(season.rawValue)"
             if k != key || image == nil {
                 key = k
                 let hour = game.hour, unit = game.unit, low = game.lowPower
                 let content = Canvas(opaque: true) { c, s in
-                    GardenRenderer.drawStaticBackdrop(&c, size: s, top: top, night: night, rain: rain, hour: hour, unit: unit, detailed: !low)
+                    GardenRenderer.drawStaticBackdrop(&c, size: s, top: top, night: night, rain: rain, hour: hour, unit: unit,
+                                                      detailed: !low, season: season)
                 }
                 .frame(width: size.width, height: size.height)
                 let renderer = ImageRenderer(content: content)
@@ -133,12 +150,13 @@ enum GardenRenderer {
         if let image = cache.image, abs(cache.imageSize.width - size.width) < 2, abs(cache.imageSize.height - size.height) < 2 {
             ctx.draw(image, in: CGRect(origin: .zero, size: size))
         } else {
-            drawStaticBackdrop(&ctx, size: size, top: top, night: night, rain: rain, hour: game.hour, unit: game.unit, detailed: false)
+            drawStaticBackdrop(&ctx, size: size, top: top, night: night, rain: rain, hour: game.hour, unit: game.unit,
+                               detailed: false, season: game.season)
         }
     }
 
     static func drawStaticBackdrop(_ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, night: CGFloat, rain: CGFloat,
-                                   hour: Double, unit: CGFloat, detailed: Bool) {
+                                   hour: Double, unit: CGFloat, detailed: Bool, season: Season = .sommer) {
         let dusk = max(0, 1 - abs(night - 0.5) * 2.2)   // Abend- und Morgenrot
         // Himmel: tiefes Blau oben, dunstig-hell am Horizont
         var zenith = mix(Color(hex: 0x3F8FD8), Color(hex: 0x060C24), night)
@@ -207,9 +225,18 @@ enum GardenRenderer {
         // Baumreihe: viele Kronen, oben vom Licht getroffen, unten im Schatten
         ctx.drawLayer { l in
             if detailed { l.addFilter(.blur(radius: 0.6)) }
-            let dark = mix(Color(hex: 0x2F5A2C), Color(hex: 0x0A1414), night * 0.3)
-            let mid = mix(Color(hex: 0x41753A), Color(hex: 0x0F1C1C), night * 0.3)
-            let lit = mix(Color(hex: 0x6E9F4E), Color(hex: 0x16262A), night * 0.3)
+            // Laub je Jahreszeit: frisch, satt, golden-rot, kahl
+            let leaf: (UInt32, UInt32, UInt32) = {
+                switch season {
+                case .fruehling: return (0x3A6B30, 0x5A9A40, 0x9CCB6A)
+                case .sommer: return (0x2F5A2C, 0x41753A, 0x6E9F4E)
+                case .herbst: return (0x6B3E22, 0xB2602A, 0xE3A23C)
+                case .winter: return (0x4A4238, 0x6B6155, 0x8F877C)
+                }
+            }()
+            let dark = mix(Color(hex: leaf.0), Color(hex: 0x0A1414), night * 0.3)
+            let mid = mix(Color(hex: leaf.1), Color(hex: 0x0F1C1C), night * 0.3)
+            let lit = mix(Color(hex: leaf.2), Color(hex: 0x16262A), night * 0.3)
             var x: CGFloat = -10
             var k = 0
             while x < size.width + 20 {
@@ -269,8 +296,11 @@ enum GardenRenderer {
 
         // Boden: in der Ferne heller und bläulicher, vorn satt; dazu Struktur aus Flecken und Klee
         let lawnRect = CGRect(x: 0, y: top, width: size.width, height: size.height - top)
-        let far = mix(mix(Color(hex: 0x8DB967), haze, 0.25), Color(hex: 0x0E1A14), night * 0.3)
-        let near = mix(Color(hex: 0x4E8A35), Color(hex: 0x0A140E), night * 0.3)
+        // Wiese je Jahreszeit (Winter: blasser, olivfarben)
+        let lawnFar: UInt32 = season == .winter ? 0x9AA77A : (season == .herbst ? 0x9AAE5E : 0x8DB967)
+        let lawnNear: UInt32 = season == .winter ? 0x5F7046 : (season == .herbst ? 0x5C7E32 : 0x4E8A35)
+        let far = mix(mix(Color(hex: lawnFar), haze, 0.25), Color(hex: 0x0E1A14), night * 0.3)
+        let near = mix(Color(hex: lawnNear), Color(hex: 0x0A140E), night * 0.3)
         ctx.fill(Path(lawnRect), with: .linearGradient(Gradient(colors: [far, mix(far, near, 0.5), near]),
                                                        startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: size.height)))
         let blotches = detailed ? 1400 : 500
@@ -388,7 +418,7 @@ enum GardenRenderer {
                 let base = game.screen(Double(fx), Double(fy))
                 let s = game.scale(atY: Double(fy))
                 let variance = 0.55 + hash(i, j, b + 99) * 0.9
-                let height = (2.5 + 28 * h) * s * variance
+                let height = (2.5 + 28 * h) * s * variance * (1 - CGFloat(game.snowCover) * 0.85)
                 let width = (1.0 + hash(i, j, b + 3) * 0.8) * s
                 let lean = (hash(i, j, b + 5) - 0.5) * 6 * s * h
                 var sway = lean + CGFloat(sin(time * 1.5 + Double(base.x) * 0.022 + Double(b))) * (1 + 4 * h) * s * wind
@@ -408,7 +438,13 @@ enum GardenRenderer {
                 paths[shade].addPath(p)
             }
         }
-        for (n, p) in paths.enumerated() { ctx.fill(p, with: .color(shades[n])) }
+        let frost = CGFloat(game.isFreezing ? 0.45 : 0) + CGFloat(game.snowCover) * 0.3
+        let winterTint: CGFloat = game.season == .winter ? 0.25 : (game.season == .herbst ? 0.12 : 0)
+        for (n, p) in paths.enumerated() {
+            var c = mix(shades[n], Color(hex: 0xA09A5A), winterTint)
+            if frost > 0 { c = mix(c, Color(hex: 0xE8F1F4), frost) }
+            ctx.fill(p, with: .color(c))
+        }
     }
 
     // MARK: - Stall & Beet
@@ -702,6 +738,25 @@ enum GardenRenderer {
                 ctx.stroke(leaf, with: .color(Color(hex: 0x4E9A36)), style: StrokeStyle(lineWidth: 4 * s, lineCap: .round))
             }
             ctx.fill(Path(ellipseIn: CGRect(x: p.x - 6 * s, y: p.y - 12 * s, width: 12 * s, height: 12 * s)), with: .color(Color(hex: 0xF4C51C)))
+        case .zweige:
+            // Apfelzweige mit Knospen
+            var twigs = Path()
+            for k in 0..<4 {
+                let a = (hash(seed, k, 5) - 0.5) * 0.9
+                let len = (16 + hash(seed, k, 6) * 8) * s
+                let start = CGPoint(x: p.x - len / 2 * cos(a), y: p.y - 3 * s - len / 2 * sin(a))
+                let end = CGPoint(x: p.x + len / 2 * cos(a), y: p.y - 3 * s + len / 2 * sin(a))
+                twigs.move(to: start)
+                twigs.addQuadCurve(to: end, control: CGPoint(x: p.x, y: p.y - 6 * s))
+                twigs.move(to: CGPoint(x: p.x + (hash(seed, k, 7) - 0.5) * len * 0.6, y: p.y - 4 * s))
+                twigs.addLine(to: CGPoint(x: p.x + (hash(seed, k, 7) - 0.5) * len * 0.6 + 3 * s, y: p.y - 9 * s))
+            }
+            ctx.stroke(twigs, with: .color(Color(hex: 0x7A4E30)), style: StrokeStyle(lineWidth: 2 * s, lineCap: .round))
+            for k in 0..<5 {
+                let bx = p.x + (hash(seed, k, 8) - 0.5) * 20 * s, by = p.y - (3 + hash(seed, k, 9) * 6) * s
+                ctx.fill(Path(ellipseIn: CGRect(x: bx - 1.6 * s, y: by - 1.6 * s, width: 3.2 * s, height: 3.2 * s)),
+                         with: .color(Color(hex: 0x9BBF5A)))
+            }
         case .moehre:
             var carrot = Path()
             carrot.move(to: CGPoint(x: p.x - 13 * s, y: p.y - 6 * s))
@@ -1641,15 +1696,66 @@ enum GardenRenderer {
         }
     }
 
-    static func drawRain(_ ctx: inout GraphicsContext, size: CGSize, time: Double, amount: CGFloat) {
+    /// Schneedecke und Reif auf der Wiese.
+    @MainActor
+    static func drawGroundWeather(_ game: GardenGame, _ ctx: inout GraphicsContext, size: CGSize, top: CGFloat, time: Double) {
+        let cover = CGFloat(game.snowCover)
+        let lawn = CGRect(x: 0, y: top, width: size.width, height: size.height - top)
+        if cover > 0.01 {
+            ctx.fill(Path(lawn), with: .linearGradient(Gradient(colors: [Color(hex: 0xF4F8FB).opacity(Double(cover) * 0.95),
+                                                                        Color(hex: 0xE6EEF4).opacity(Double(cover) * 0.9)]),
+                                                       startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: size.height)))
+            // weiche Schneewellen und blaue Schatten
+            var drifts = Path()
+            for k in 0..<26 {
+                let fy = hash(k, 201)
+                let y = top + fy * fy * (size.height - top)
+                let x = hash(k, 202) * size.width
+                let w = (40 + hash(k, 203) * 90) * (0.5 + fy)
+                drifts.addEllipse(in: CGRect(x: x - w / 2, y: y - w * 0.06, width: w, height: w * 0.12))
+            }
+            ctx.fill(drifts, with: .color(Color(hex: 0xB9CBDD).opacity(Double(cover) * 0.35)))
+        } else if game.isFreezing {
+            // Reif glitzert
+            ctx.fill(Path(lawn), with: .color(Color(hex: 0xDDEAF0).opacity(0.25)))
+            var glints = Path()
+            for k in 0..<50 {
+                let tw = 0.5 + 0.5 * sin(time * 2 + Double(k))
+                guard tw > 0.8 else { continue }
+                let x = hash(k, 211) * size.width, y = top + hash(k, 212) * (size.height - top)
+                glints.addEllipse(in: CGRect(x: x - 1, y: y - 1, width: 2, height: 2))
+            }
+            ctx.fill(glints, with: .color(.white.opacity(0.9)))
+        }
+    }
+
+    static func drawSnowfall(_ ctx: inout GraphicsContext, size: CGSize, time: Double, amount: CGFloat, wind: CGFloat) {
+        var near = Path(), far = Path()
+        let count = Int(140 * amount)
+        for k in 0..<count {
+            let depth = hash(k, 221)                       // 0 = fern, 1 = nah
+            let speed = 22 + Double(depth) * 50
+            let y = CGFloat((Double(hash(k, 222)) * Double(size.height) + time * speed)
+                .truncatingRemainder(dividingBy: Double(size.height + 20))) - 10
+            let sway = CGFloat(sin(time * (0.8 + Double(depth)) + Double(k))) * 14 + y * 0.15 * (wind - 1)
+            let x = (hash(k, 223) * (size.width + 60) - 30 + sway).truncatingRemainder(dividingBy: size.width + 60)
+            let r = 1 + depth * 2.4
+            let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+            if depth > 0.6 { near.addEllipse(in: rect) } else { far.addEllipse(in: rect) }
+        }
+        ctx.fill(far, with: .color(.white.opacity(0.7)))
+        ctx.fill(near, with: .color(.white.opacity(0.95)))
+    }
+
+    static func drawRain(_ ctx: inout GraphicsContext, size: CGSize, time: Double, amount: CGFloat, wind: CGFloat = 1) {
         var drops = Path()
         let count = Int(90 * amount)
         for k in 0..<count {
             let speed = 520 + Double(hash(k, 41)) * 200
             let y = CGFloat((Double(hash(k, 42)) * Double(size.height) + time * speed).truncatingRemainder(dividingBy: Double(size.height + 40))) - 20
-            let x = hash(k, 43) * (size.width + 40) - 20 + y * 0.12
+            let x = hash(k, 43) * (size.width + 40) - 20 + y * 0.12 * wind
             drops.move(to: CGPoint(x: x, y: y))
-            drops.addLine(to: CGPoint(x: x - 3, y: y - 16))
+            drops.addLine(to: CGPoint(x: x - 3 * wind, y: y - 16))
         }
         ctx.stroke(drops, with: .color(Color(hex: 0xD6E6F5).opacity(0.55)), lineWidth: 1.2)
         ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(Color(hex: 0x4A5A6E).opacity(Double(amount) * 0.12)))

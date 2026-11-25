@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 enum GardenTool: String, CaseIterable, Identifiable {
     case hand, maeher, giesskanne, futter, gestalten
@@ -128,9 +129,30 @@ final class GardenGame {
     @ObservationIgnored var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     /// Läuft nur, solange die App im Vordergrund ist.
     @ObservationIgnored var isActive = true
+
+    // MARK: Wetter & Jahreszeit
+    /// 0 = blauer Himmel, 1 = grau bedeckt
+    @ObservationIgnored var overcast: Double = 0.15
+    @ObservationIgnored var fog: Double = 0
+    /// fallender Schnee (0…1) und Schneedecke auf der Wiese (0…1)
+    @ObservationIgnored var snowAmount: Double = 0
+    @ObservationIgnored var snowCover: Double = 0
+    @ObservationIgnored var windFactor: Double = 1
+    /// Restzeit eines Blitzes (Sekunden)
+    @ObservationIgnored var lightning: Double = 0
+    /// Außentemperatur (°C), wenn echtes Wetter da ist
+    var temperature: Double?
+    var weatherKind: RealWeather.Kind?
+    @ObservationIgnored var season: Season = .current
+    @ObservationIgnored private var weatherTimer: Double = 0
+    @ObservationIgnored private var targetRain: Double = 0
+    @ObservationIgnored private var targetSnow: Double = 0
+    @ObservationIgnored private var targetOvercast: Double = 0.15
+    @ObservationIgnored private var targetFog: Double = 0
     @ObservationIgnored private var lastInteraction: Double = 0
     @ObservationIgnored private var powerCheck: Double = 0
     @ObservationIgnored private var backdropTimer: Double = 0
+    @ObservationIgnored private var weatherRefresh: Double = 2
 
     private let light = UIImpactFeedbackGenerator(style: .light)
     private let soft = UIImpactFeedbackGenerator(style: .soft)
@@ -198,15 +220,34 @@ final class GardenGame {
     }
 
     /// 1 = heller Tag, 0 = tiefe Nacht.
+    /// Tageslicht nach echtem Sonnenauf- und -untergang (falls bekannt), sonst nach fester Uhrzeit.
     var daylight: Double {
         let h = hour
-        switch h {
-        case 7.5..<19: return 1
-        case 5..<7.5: return (h - 5) / 2.5
-        case 19..<21.5: return 1 - (h - 19) / 2.5
-        default: return 0
+        var rise = 6.5, set = 19.5
+        if fixedHour == nil, let real = RealWeather.shared.current, let sr = real.sunrise, let ss = real.sunset {
+            let cal = Calendar.current
+            rise = Double(cal.component(.hour, from: sr)) + Double(cal.component(.minute, from: sr)) / 60
+            set = Double(cal.component(.hour, from: ss)) + Double(cal.component(.minute, from: ss)) / 60
+        } else if fixedHour == nil {
+            switch season {
+            case .winter: rise = 8; set = 16.5
+            case .sommer: rise = 5.3; set = 21.3
+            case .fruehling, .herbst: rise = 6.7; set = 19
+            }
         }
+        // Dämmerung je etwa eine Stunde um Auf- und Untergang
+        if h < rise - 1 || h > set + 1.2 { return 0 }
+        if h < rise + 0.8 { return (h - (rise - 1)) / 1.8 }
+        if h > set - 0.6 { return 1 - (h - (set - 0.6)) / 1.8 }
+        return 1
     }
+
+    /// Kaninchen sind dämmerungsaktiv: morgens und abends am munterster.
+    var isTwilight: Bool { daylight > 0.15 && daylight < 0.9 }
+    /// Mittagshitze: dösen statt toben.
+    var isSiesta: Bool { (11.5..<15.5).contains(hour) && (season == .sommer || (temperature ?? 0) > 24) }
+    var isHot: Bool { (temperature ?? 0) >= 28 }
+    var isFreezing: Bool { (temperature ?? 5) < 0 || (season == .winter && snowCover > 0.3) }
 
     var isNight: Bool { daylight < 0.3 }
 
@@ -261,8 +302,8 @@ final class GardenGame {
         updateParticles(dt)
 
         if clock >= nextFlower {
-            nextFlower = clock + .random(in: 14...30)
-            spawnFlower()
+            nextFlower = clock + .random(in: 14...30) / max(season.flowers, 0.3)
+            if season.flowers > 0, snowCover < 0.4 { spawnFlower() }
         }
         if clock >= nextVisitor {
             // Besuch ist etwas Besonderes: etwa alle 4–9 Minuten.
@@ -275,6 +316,11 @@ final class GardenGame {
         if powerCheck > 2 {
             powerCheck = 0
             updateFrameRate()
+        }
+        weatherRefresh -= dt
+        if weatherRefresh <= 0 {
+            weatherRefresh = 1800
+            if !isDemo { Task { await RealWeather.shared.refresh() } }
         }
         backdropTimer -= dt
         if backdropTimer <= 0 {
@@ -296,6 +342,33 @@ final class GardenGame {
     // MARK: - Wetter, Rasen, Beet
 
     private func updateWeather(_ dt: Double) {
+        weatherTimer -= dt
+        if weatherTimer <= 0 {
+            weatherTimer = 1
+            season = .current
+            applyRealWeather()
+        }
+        let ease = min(1, dt * 0.3)
+        overcast += (targetOvercast - overcast) * ease
+        fog += (targetFog - fog) * ease
+        snowAmount += (targetSnow - snowAmount) * ease
+        if snowAmount > 0.25 {
+            snowCover = min(1, snowCover + dt / 150 * snowAmount)
+        } else if (temperature ?? 3) > 1.5 || season != .winter {
+            snowCover = max(0, snowCover - dt / 900)
+        }
+        if lightning > 0 { lightning -= dt }
+        if weatherKind == .gewitter, lightning <= 0, Double.random(in: 0...1) < dt * 0.06 {
+            lightning = 0.35
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.8)
+        }
+
+        guard weatherKind == nil else {
+            // echtes Wetter: Regen folgt draußen
+            rainAmount += (targetRain - rainAmount) * min(1, dt * 0.4)
+            raining = targetRain > 0.2
+            return
+        }
         if raining {
             rainAmount = min(1, rainAmount + dt * 0.4)
             if clock > rainUntil { raining = false }
@@ -312,13 +385,65 @@ final class GardenGame {
         }
     }
 
+    /// Übernimmt das Wetter von draußen (oder Demo-Wetter für Screenshots).
+    private func applyRealWeather() {
+        if isDemo {
+            switch GardenDemo.screen {
+            case "winter":
+                setWeather(.schnee, -3)
+                targetSnow = 0.8; snowCover = max(snowCover, 0.85); targetOvercast = 0.7; targetRain = 0
+            case "rain":
+                setWeather(.regen, 12); targetRain = 0.9; targetOvercast = 0.85
+            default:
+                setWeather(.leichtBewoelkt, 21); targetOvercast = 0.25
+            }
+            return
+        }
+        guard let real = RealWeather.shared.current else {
+            setWeather(nil, nil)
+            targetSnow = 0; targetFog = 0
+            targetOvercast = 0.15 + rainAmount * 0.7
+            windFactor = 1 + rainAmount * 0.8
+            return
+        }
+        let kind = RealWeather.kind(real)
+        if kind != weatherKind, weatherKind != nil || clock > 5 {
+            switch kind {
+            case .schnee: showBanner("Draußen schneit es – deine Wiese auch", symbol: "cloud.snow.fill", duration: 4)
+            case .regen, .starkregen: showBanner("Draußen regnet es – der Rasen freut sich", symbol: "cloud.rain.fill", duration: 4)
+            case .gewitter: showBanner("Gewitter! Die Kaninchen bleiben lieber am Zuhause", symbol: "cloud.bolt.rain.fill", duration: 4)
+            case .nebel: showBanner("Nebel liegt über der Wiese", symbol: "cloud.fog.fill", duration: 4)
+            default: break
+            }
+        }
+        setWeather(kind, real.temperature)
+        switch kind {
+        case .niesel: targetRain = 0.35
+        case .regen: targetRain = 0.7
+        case .starkregen, .gewitter: targetRain = 1
+        default: targetRain = 0
+        }
+        targetSnow = kind == .schnee ? (real.precipitation > 1 ? 1 : 0.6) : 0
+        targetFog = kind == .nebel ? 0.75 : 0
+        targetOvercast = max(real.cloudCover / 100, targetRain > 0 || targetSnow > 0 ? 0.8 : 0)
+        windFactor = min(3, 1 + real.wind / 18)
+    }
+
+    /// Nur bei echter Änderung setzen – sonst würde die Oberfläche jede Sekunde neu zeichnen.
+    private func setWeather(_ kind: RealWeather.Kind?, _ temp: Double?) {
+        if weatherKind != kind { weatherKind = kind }
+        let rounded = temp.map { ($0 * 2).rounded() / 2 }
+        if temperature != rounded { temperature = rounded }
+    }
+
     /// Ganz kurzer Rasen braucht etwa 12 Minuten bis hoch – nass doppelt so schnell.
     private func updateGrass(_ dt: Double) {
         let base = dt / 720
         for k in save.grass.indices {
             if rainAmount > 0.5 { save.wet[k] = min(1, save.wet[k] + dt * 0.2) }
             let w = save.wet[k]
-            save.grass[k] = min(1, save.grass[k] + base * (1 + 1.5 * w))
+            let growth = season.growth * (snowCover > 0.5 ? 0 : 1) * (isFreezing ? 0.3 : 1)
+            save.grass[k] = min(1, save.grass[k] + base * (1 + 1.5 * w) * growth)
             if w > 0 { save.wet[k] = max(0, w - dt / 300) }
         }
     }
@@ -345,14 +470,17 @@ final class GardenGame {
         // Bedürfnisse
         if !r.isVisitor {
             let p = r.personality
-            let hungerRate = (p == .verfressen ? 0.03 : 0.02)
+            let hungerRate = (p == .verfressen ? 0.03 : 0.02) * season.appetite * (isFreezing ? 1.15 : 1)
             var moodRate = (p == .verspielt ? 0.018 : 0.012)
             if r.hunger < 30 { moodRate *= 2 }
             r.hunger = max(0, r.hunger - hungerRate * dt)
             if a.mode == .sleep {
                 r.energy = min(100, r.energy + 0.3 * dt)
             } else {
-                r.energy = max(0, r.energy - (p == .verschlafen ? 0.016 : 0.01) * dt)
+                r.energy = max(0, r.energy - (p == .verschlafen ? 0.016 : 0.01) * dt * (isTwilight ? 0.6 : 1) * (isSiesta ? 1.5 : 1))
+                if isHot, !save.decor.contains(where: { [.busch, .teich, .tunnel].contains($0.kind) && hypot($0.x - r.x, $0.y - r.y) < 0.15 }) {
+                    r.mood = max(0, r.mood - 0.01 * dt)   // Hitze ohne Schatten
+                }
             }
             r.mood = max(0, r.mood - moodRate * dt)
             if save.decor.contains(where: { hypot($0.x - r.x, $0.y - r.y) < 0.13 }) {
@@ -564,7 +692,7 @@ final class GardenGame {
             return
         }
 
-        if r.energy < 22 || (night && r.energy < 85) {
+        if weatherKind == .gewitter || (r.energy < 22 || (night && r.energy < 85)) {
             a.mode = .sleep
             a.goal = sleepSpot(for: r.id)
             return
@@ -589,7 +717,22 @@ final class GardenGame {
             a.goal = CGPoint(x: c.x + .random(in: -0.025...0.025), y: min(maxY, c.y + .random(in: -0.02...0.02)))
             return
         }
-        let playful = r.personality == .verspielt ? 0.3 : 0.15
+        // Hitze: in den Schatten (Busch, Teich, Tunnel)
+        if isHot, roll < 0.5, let shade = save.decor.filter({ [.busch, .teich, .tunnel].contains($0.kind) }).randomElement() {
+            a.mode = .seekDecor
+            a.decorID = shade.id
+            let side: Double = r.x < shade.x ? -1 : 1
+            a.goal = clampToLawn(CGPoint(x: shade.x + side * 0.07, y: shade.y + 0.01))
+            return
+        }
+        var playful = r.personality == .verspielt ? 0.3 : 0.15
+        if isTwilight { playful *= 2 }               // morgens und abends am muntersten
+        if isSiesta || isFreezing { playful *= 0.4 }
+        if isSiesta, roll < 0.35 {
+            a.mode = .flop
+            a.timer = .random(in: 10...20)
+            return
+        }
         if r.mood > 75 && roll < playful {
             binky(&r, &a)
             return
@@ -714,6 +857,7 @@ final class GardenGame {
                    : "\(r.rarity.title)! \(r.name) zieht auf die Mümmelwiese!", symbol: r.rarity.symbol, duration: 5)
         if save.tutorialStep < 2 {
             save.tutorialStep = 2
+            requestNotificationPermission()
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(6))
                 self?.showBanner("Langer Rasen ist Futter. Gemähter Rasen gibt Heu.", symbol: "scissors", duration: 6)
@@ -759,6 +903,7 @@ final class GardenGame {
     }
 
     private func grassCell(near r: GardenRabbit) -> Int? {
+        if snowCover > 0.6 { return nil }   // unter Schnee kein Gras – jetzt hilft nur Heu
         var best: (Int, Double)?
         for k in save.grass.indices where save.grass[k] > 0.42 {
             let c = cellCenter(k)
@@ -789,14 +934,15 @@ final class GardenGame {
 
     // MARK: - Besuch & Blumen
 
-    private func spawnVisitor() {
+    private func spawnVisitor(preset: PendingVisit? = nil) {
         let lucky = save.luckyClover
-        save.luckyClover = false
-        let rarity = Rarity.roll(cozy: cozy, lucky: lucky)
-        let look = RabbitLook.random(rarity)
+        if preset == nil { save.luckyClover = false }
+        let rarity = preset?.rarity ?? Rarity.roll(cozy: cozy, lucky: lucky)
+        let look = preset?.look ?? RabbitLook.random(rarity)
         let fromLeft = Bool.random()
         let y = Double.random(in: 0.25...min(0.7, maxY))
-        var r = GardenRabbit(name: "Gast", look: look, rarity: rarity, personality: GardenPersonality.allCases.randomElement()!)
+        var r = GardenRabbit(name: "Gast", look: look, rarity: rarity,
+                             personality: preset?.personality ?? GardenPersonality.allCases.randomElement()!)
         r.x = fromLeft ? -0.06 : 1.06
         r.y = y
         r.isVisitor = true
@@ -1177,6 +1323,19 @@ final class GardenGame {
         hudTick &+= 1
     }
 
+    /// Futter, das gerade angezeigt wird: Zweige nur im Winter oder wenn welche da sind.
+    var availableFoods: [GardenFoodKind] {
+        GardenFoodKind.allCases.filter { $0 != .zweige || inventory.zweige > 0 || season == .winter }
+    }
+
+    func buyFood(_ kind: GardenFoodKind) {
+        guard let bundle = kind.shopBundle, inventory.sterne >= bundle.price else { return }
+        inventory.sterne -= bundle.price
+        inventory[kind] += bundle.amount
+        notify.notificationOccurred(.success)
+        hudTick &+= 1
+    }
+
     func buy(_ kind: DecorKind) {
         guard inventory.sterne >= kind.price, save.owned(kind) < kind.limit else { return }
         inventory.sterne -= kind.price
@@ -1209,9 +1368,13 @@ final class GardenGame {
     func placeFood(at w: CGPoint, kind: GardenFoodKind? = nil) {
         let kind = kind ?? foodChoice
         guard inventory[kind] > 0 else {
-            showBanner(kind == .moehre ? "Keine Möhren – säe welche im Beet oben rechts" :
-                       kind == .heu ? "Kein Heu – mäh den Rasen" : "Kein Löwenzahn – pflück gelbe Blüten",
-                       symbol: kind.symbol)
+            let text: String = switch kind {
+            case .moehre: "Keine Möhren – säe welche im Beet oder kauf sie im Shop"
+            case .heu: season == .winter ? "Kein Heu – im Shop gibt es Nachschub" : "Kein Heu – mäh den Rasen"
+            case .loewenzahn: "Kein Löwenzahn – pflück gelbe Blüten"
+            case .zweige: "Keine Apfelzweige – die gibt es im Shop"
+            }
+            showBanner(text, symbol: kind.symbol)
             return
         }
         guard save.foods.count < 8 else { showBanner("Erst mal aufessen lassen", symbol: "hare.fill"); return }
@@ -1322,7 +1485,7 @@ final class GardenGame {
         clock += 0.001
 
         for k in save.grass.indices {
-            save.grass[k] = min(1, save.grass[k] + t / 720 * (1 + save.wet[k]))
+            save.grass[k] = min(1, save.grass[k] + t / 720 * (1 + save.wet[k]) * season.growth * (snowCover > 0.5 ? 0 : 1))
             save.wet[k] = max(0, save.wet[k] - t / 300)
         }
         for i in save.bed.indices where save.bed[i].planted != nil {
@@ -1351,18 +1514,78 @@ final class GardenGame {
         let earned = min(400, Int(t / 180) * residents.reduce(0) { $0 + $1.rarity.income })
         if earned > 0 { inventory.sterne += earned }
 
-        let newFlowers = min(6, Int(t / 90))
+        let newFlowers = season.flowers > 0 ? min(6, Int(t / 90 * season.flowers)) : 0
         for _ in 0..<newFlowers { spawnFlower() }
 
+        let resolved = resolveAwayVisit()
         if t > 1200 {
             // Manchmal wartet schon jemand, wenn man zurückkommt.
-            if Double.random(in: 0...1) < 0.6 { nextVisitor = min(nextVisitor, clock + 3) }
+            if !resolved, visitor == nil, Double.random(in: 0...1) < 0.4 { nextVisitor = min(nextVisitor, clock + 3) }
             if !residents.isEmpty {
                 showBanner(earned > 0 ? "Willkommen zurück! Deine Kaninchen haben \(earned) ★ gesammelt."
                            : "Willkommen zurück! Der Rasen ist gewachsen.", symbol: "star.fill", duration: 5)
             }
         }
         hudTick &+= 1
+    }
+
+    // MARK: Besuch während die App zu ist (mit Mitteilung bei seltenen Gästen)
+
+    static let notifyKey = "muemmelwiese.notifyRare"
+    static var notificationsEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: notifyKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: notifyKey) }
+    }
+
+    func requestNotificationPermission() {
+        guard !isDemo, Self.notificationsEnabled else { return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    /// Beim Verlassen der App: den nächsten Besuch schon auswürfeln.
+    /// Super seltene und legendäre Gäste melden sich zur Ankunft mit einer Mitteilung.
+    func prepareForBackground() {
+        persist()
+        guard !isDemo, visitor == nil, save.tutorialStep >= 1 else { return }
+        let rarity = Rarity.roll(cozy: cozy, lucky: save.luckyClover)
+        if save.luckyClover { save.luckyClover = false }
+        let pending = PendingVisit(arrive: Date.now.addingTimeInterval(.random(in: 20 * 60...90 * 60)),
+                                   rarity: rarity, look: RabbitLook.random(rarity),
+                                   personality: GardenPersonality.allCases.randomElement()!)
+        save.pendingVisit = pending
+        persist()
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["visit"])
+        guard rarity >= .superSelten, Self.notificationsEnabled else { return }
+        let content = UNMutableNotificationContent()
+        if rarity == .legendaer {
+            content.title = "👑 Legendärer Besuch!"
+            content.body = "Ein \(pending.look.fur.title)-Kaninchen hoppelt über deine Mümmelwiese – es bleibt nicht lange."
+        } else {
+            content.title = "⭐ Super seltener Besuch"
+            content.body = "Ein \(pending.look.description) schaut auf deiner Mümmelwiese vorbei."
+        }
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: pending.arrive.timeIntervalSinceNow, repeats: false)
+        center.add(UNNotificationRequest(identifier: "visit", content: content, trigger: trigger))
+    }
+
+    /// Beim Zurückkommen: Ist der ausgewürfelte Gast schon da (und noch nicht wieder weg)?
+    @discardableResult
+    private func resolveAwayVisit() -> Bool {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["visit"])
+        guard let pending = save.pendingVisit else { return false }
+        save.pendingVisit = nil
+        guard Date.now >= pending.arrive else { return false }
+        if Date.now < pending.arrive.addingTimeInterval(45 * 60), visitor == nil {
+            spawnVisitor(preset: pending)
+            return true
+        }
+        if pending.rarity >= .superSelten {
+            showBanner("Verpasst: Ein \(pending.rarity.title.lowercased())er Gast war da, während du weg warst.",
+                       symbol: pending.rarity.symbol, duration: 5)
+        }
+        return false
     }
 
     // MARK: Speicherort

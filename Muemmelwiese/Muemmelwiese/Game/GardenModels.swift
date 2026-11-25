@@ -329,6 +329,48 @@ struct RabbitLook: Codable, Hashable {
     }
 }
 
+// MARK: - Jahreszeiten
+
+enum Season: String, CaseIterable {
+    case fruehling, sommer, herbst, winter
+
+    static var current: Season {
+        if GardenDemo.isActive, GardenDemo.screen == "winter" { return .winter }
+        switch Calendar.current.component(.month, from: .now) {
+        case 3...5: return .fruehling
+        case 6...8: return .sommer
+        case 9...11: return .herbst
+        default: return .winter
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .fruehling: "Frühling"
+        case .sommer: "Sommer"
+        case .herbst: "Herbst"
+        case .winter: "Winter"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .fruehling: "camera.macro"
+        case .sommer: "sun.max.fill"
+        case .herbst: "leaf.fill"
+        case .winter: "snowflake"
+        }
+    }
+
+    private var index: Int { Season.allCases.firstIndex(of: self)! }
+    /// Wie schnell das Gras wächst.
+    var growth: Double { [1.3, 1, 0.65, 0.2][index] }
+    /// Wie oft Blumen sprießen (0 = gar nicht).
+    var flowers: Double { [1.5, 1, 0.5, 0][index] }
+    /// Wie schnell Hunger wächst.
+    var appetite: Double { [1, 1, 1.1, 1.35][index] }
+}
+
 // MARK: - Wünsche
 
 /// Besondere Gäste wollen etwas, bevor sie einziehen.
@@ -343,6 +385,7 @@ enum VisitorWish: Codable, Hashable {
         case .futter(.heu): "Möchte frisches Heu"
         case .futter(.loewenzahn): "Hätte gern Löwenzahn"
         case .futter(.moehre): "Wünscht sich eine Möhre"
+        case .futter(.zweige): "Möchte an Apfelzweigen knabbern"
         case .deko(let kind): "Sucht auf der Wiese: \(kind.title)"
         case .streicheln: "Will ausgiebig gestreichelt werden"
         case .kurzerRasen: "Mag nur frisch gemähten Rasen"
@@ -351,6 +394,7 @@ enum VisitorWish: Codable, Hashable {
 
     var hint: String {
         switch self {
+        case .futter(.zweige): "Apfelzweige gibt es im Shop."
         case .futter(let kind): "Leg \(kind.title) in seine Nähe."
         case .deko(let kind): "Stell \(kind.title) auf (Shop → Gestalten)."
         case .streicheln: "Streichle es mit der Hand, bis die Herzen voll sind."
@@ -367,7 +411,11 @@ enum VisitorWish: Codable, Hashable {
         }
     }
 
-    static func random(for rarity: Rarity) -> VisitorWish {
+    static func random(for rarity: Rarity, season: Season = .current) -> VisitorWish {
+        // Im Winter gibt es kein frisches Grün – Gäste wünschen sich dann oft Zweige oder Heu.
+        if season == .winter, Double.random(in: 0...1) < 0.5 {
+            return [.futter(.zweige), .futter(.heu), .futter(.zweige)].randomElement()!
+        }
         switch rarity {
         case .gewoehnlich:
             return [.futter(.loewenzahn), .futter(.heu), .streicheln, .kurzerRasen].randomElement()!
@@ -558,7 +606,7 @@ struct GardenFlower: Codable, Identifiable, Hashable {
 }
 
 enum GardenFoodKind: String, Codable, CaseIterable, Identifiable {
-    case heu, loewenzahn, moehre
+    case heu, loewenzahn, moehre, zweige
     var id: String { rawValue }
 
     var title: String {
@@ -566,6 +614,7 @@ enum GardenFoodKind: String, Codable, CaseIterable, Identifiable {
         case .heu: "Heu"
         case .loewenzahn: "Löwenzahn"
         case .moehre: "Möhre"
+        case .zweige: "Apfelzweige"
         }
     }
 
@@ -574,6 +623,7 @@ enum GardenFoodKind: String, Codable, CaseIterable, Identifiable {
         case .heu: "square.stack.3d.down.forward.fill"
         case .loewenzahn: "sun.max.fill"
         case .moehre: "carrot.fill"
+        case .zweige: "tree.fill"
         }
     }
 
@@ -582,13 +632,24 @@ enum GardenFoodKind: String, Codable, CaseIterable, Identifiable {
         case .heu: Color(hex: 0xC9A646)
         case .loewenzahn: Color(hex: 0xF0C419)
         case .moehre: Color(hex: 0xE2722B)
+        case .zweige: Color(hex: 0x8A5A3A)
         }
     }
 
     /// Wie viel eine Portion satt macht, glücklich macht und Vertrauen schenkt.
-    var nourishment: Double { switch self { case .heu: 30; case .loewenzahn: 18; case .moehre: 25 } }
-    var joy: Double { switch self { case .heu: 4; case .loewenzahn: 14; case .moehre: 25 } }
-    var trust: Double { switch self { case .heu: 30; case .loewenzahn: 45; case .moehre: 80 } }
+    var nourishment: Double { switch self { case .heu: 30; case .loewenzahn: 18; case .moehre: 25; case .zweige: 26 } }
+    var joy: Double { switch self { case .heu: 4; case .loewenzahn: 14; case .moehre: 25; case .zweige: 18 } }
+    var trust: Double { switch self { case .heu: 30; case .loewenzahn: 45; case .moehre: 80; case .zweige: 60 } }
+
+    /// Kauf im Shop: Menge pro Kauf und Preis in Sternen.
+    var shopBundle: (amount: Int, price: Int)? {
+        switch self {
+        case .heu: (10, 12)
+        case .zweige: (3, 10)
+        case .moehre: (2, 15)
+        case .loewenzahn: nil
+        }
+    }
 }
 
 struct GardenFood: Codable, Identifiable, Hashable {
@@ -612,6 +673,21 @@ struct GardenInventory: Codable, Hashable {
     var loewenzahn = 2
     var moehre = 1
     var sterne = 30
+    var zweige = 0
+
+    init(heu: Int = 10, loewenzahn: Int = 2, moehre: Int = 1, sterne: Int = 30, zweige: Int = 0) {
+        self.heu = heu; self.loewenzahn = loewenzahn; self.moehre = moehre; self.sterne = sterne; self.zweige = zweige
+    }
+
+    /// Ältere Spielstände kennen manche Felder noch nicht.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        heu = try c.decodeIfPresent(Int.self, forKey: .heu) ?? 10
+        loewenzahn = try c.decodeIfPresent(Int.self, forKey: .loewenzahn) ?? 2
+        moehre = try c.decodeIfPresent(Int.self, forKey: .moehre) ?? 1
+        sterne = try c.decodeIfPresent(Int.self, forKey: .sterne) ?? 30
+        zweige = try c.decodeIfPresent(Int.self, forKey: .zweige) ?? 0
+    }
 
     subscript(kind: GardenFoodKind) -> Int {
         get {
@@ -619,6 +695,7 @@ struct GardenInventory: Codable, Hashable {
             case .heu: heu
             case .loewenzahn: loewenzahn
             case .moehre: moehre
+            case .zweige: zweige
             }
         }
         set {
@@ -626,9 +703,17 @@ struct GardenInventory: Codable, Hashable {
             case .heu: heu = newValue
             case .loewenzahn: loewenzahn = newValue
             case .moehre: moehre = newValue
+            case .zweige: zweige = newValue
             }
         }
     }
+}
+
+struct PendingVisit: Codable, Hashable {
+    var arrive: Date
+    var rarity: Rarity
+    var look: RabbitLook
+    var personality: GardenPersonality
 }
 
 struct GardenSave: Codable {
@@ -656,6 +741,8 @@ struct GardenSave: Codable {
     var hayProgress: Double = 0
     var lastSaved: Date = .now
     var tutorialStep = 0
+    /// Ausgewürfelter Besuch, während die App geschlossen ist.
+    var pendingVisit: PendingVisit?
 
     func stock(_ kind: DecorKind) -> Int { decorStock[kind.rawValue] ?? 0 }
     func owned(_ kind: DecorKind) -> Int { stock(kind) + decor.filter { $0.kind == kind }.count }
