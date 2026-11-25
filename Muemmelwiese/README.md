@@ -28,4 +28,4 @@ Muemmelwiese/
 Alles wird mit `Canvas` gezeichnet – keine Bilddateien außer dem App-Icon.
 Spielstand liegt in den UserDefaults (`muemmelwiese.save.v1`).
 
-Screenshots: Workflow *Mümmelwiese-Screenshots* (Demo-Start mit `-MuemmelDemo YES -MuemmelScreen day|night|shop|album`).
+Screenshots: Workflow *Screenshots* (zusammen mit Floof) (Demo-Start mit `-MuemmelDemo YES -MuemmelScreen day|night|shop|album`).

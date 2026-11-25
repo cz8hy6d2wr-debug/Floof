@@ -2,7 +2,8 @@ name: Screenshots
 
 # Startet Floof im Simulator mit Beispieldaten und fotografiert alle Tabs –
 # iPhone (zugeklappt) und iPad mini (als Ersatz für das aufgeklappte 4:3-Display),
-# jeweils hell und dunkel. Die Bilder landen auf dem Branch "ci-screenshots".
+# jeweils hell und dunkel – dazu die Mümmelwiese (Tag, Nacht, Shop, Album).
+# Die Bilder landen auf dem Branch "ci-screenshots".
 on:
   workflow_dispatch:
 
@@ -69,6 +70,30 @@ jobs:
           xcrun simctl list devices available | grep -E "iPhone|iPad" | head -30
           run_device "iPhone 17 Pro" "zugeklappt" today today_d2 today_d4 today_d5 today_d6 history pets more
           run_device "iPad mini" "aufgeklappt" today history pets more
+
+      - name: Mümmelwiese bauen und fotografieren
+        run: |
+          set -e
+          xcodebuild -project Muemmelwiese/Muemmelwiese.xcodeproj -target Muemmelwiese -sdk iphonesimulator \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=YES ARCHS=arm64 build 2>&1 | tail -3
+          APP="Muemmelwiese/build/Debug-iphonesimulator/Muemmelwiese.app"
+          BUNDLE="app.floof.muemmelwiese"
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          devs=[d for rt,ds in json.load(sys.stdin)['devices'].items() if 'iOS' in rt for d in ds if d['name'].startswith('iPhone 17 Pro')]
+          print(devs[-1]['udid'])")
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 10:24 --batteryState charged --batteryLevel 100
+          xcrun simctl install "$UDID" "$APP"
+          for screen in day night shop album; do
+            xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+            xcrun simctl launch "$UDID" "$BUNDLE" -MuemmelDemo YES -MuemmelScreen "$screen" -AppleLanguages "(de)" -AppleLocale de_DE >/dev/null
+            sleep 9
+            xcrun simctl io "$UDID" screenshot "shots/muemmelwiese-$screen.png" >/dev/null
+            echo "📸 muemmelwiese-$screen"
+          done
+          xcrun simctl shutdown "$UDID"
 
       - name: Auf Branch ci-screenshots ablegen
         run: |
