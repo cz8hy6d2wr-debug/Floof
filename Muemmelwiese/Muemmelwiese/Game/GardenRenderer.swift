@@ -216,21 +216,18 @@ enum GardenRenderer {
                 let h = (22 + hash(k, 71) * 26 + (hash(k, 72) > 0.85 ? 22 : 0)) * unit
                 let w = (16 + hash(k, 73) * 16) * unit
                 let base = top - 6 * unit
-                for (n, color) in [dark, mid, lit].enumerated() {
-                    let shrink = CGFloat(n) * 0.18
-                    let rect = CGRect(x: x - w * (1 - shrink) + CGFloat(n) * 2, y: base - h * (1 - shrink * 0.4) - CGFloat(n) * 1.5,
-                                      width: w * 2 * (1 - shrink), height: h * (1 - shrink * 0.6))
-                    l.fill(Path(ellipseIn: rect), with: .color(color))
-                }
-                // Blattwerk
-                if detailed {
-                    for b in 0..<10 {
-                        let bx = x + (hash(k, b, 74) - 0.5) * w * 1.6
-                        let by = base - hash(k, b, 75) * h
-                        let br = (2.5 + hash(k, b, 76) * 3) * unit
-                        l.fill(Path(ellipseIn: CGRect(x: bx - br, y: by - br, width: br * 2, height: br * 2)),
-                               with: .color((b % 3 == 0 ? lit : dark).opacity(0.8)))
-                    }
+                // Krone aus vielen Laubbüscheln: unten dunkel, oben vom Licht getroffen
+                l.fill(Path(ellipseIn: CGRect(x: x - w * 0.8, y: base - h * 0.85, width: w * 1.6, height: h * 0.85)),
+                       with: .color(dark))
+                let tufts = detailed ? 22 : 10
+                for b in 0..<tufts {
+                    let u = hash(k, b, 74), v = hash(k, b, 75)
+                    let bx = x + (u - 0.5) * w * 1.7 * (0.6 + v * 0.4)
+                    let by = base - v * h
+                    let br = (4 + hash(k, b, 76) * 6) * unit * (1.1 - v * 0.4)
+                    let color = v > 0.62 ? lit : (v > 0.3 ? mid : dark)
+                    l.fill(Path(ellipseIn: CGRect(x: bx - br, y: by - br * 0.85, width: br * 2, height: br * 1.7)),
+                           with: .color(color.opacity(0.92)))
                 }
                 x += w * (1.1 + hash(k, 77) * 0.5)
                 k += 1
@@ -284,7 +281,7 @@ enum GardenRenderer {
             let x = hash(k, 92) * size.width
             let sc = 0.5 + fy * 1.2
             let r = (1.5 + hash(k, 93) * 5) * sc
-            let rect = CGRect(x: x - r * 1.6, y: y - r * 0.55, width: r * 3.2, height: r * 1.1)
+            let rect = CGRect(x: x - r * 2.4, y: y - r * 0.4, width: r * 4.8, height: r * 0.8)
             let pick = hash(k, 94)
             if pick < 0.45 { darkDots.addEllipse(in: rect) }
             else if pick < 0.88 { lightDots.addEllipse(in: rect) }
@@ -298,8 +295,8 @@ enum GardenRenderer {
                 }
             }
         }
-        ctx.fill(darkDots, with: .color(mix(Color(hex: 0x3B6E2A), .black, night * 0.3).opacity(0.35)))
-        ctx.fill(lightDots, with: .color(mix(Color(hex: 0xA9CF7C), .black, night * 0.3).opacity(0.3)))
+        ctx.fill(darkDots, with: .color(mix(Color(hex: 0x3B6E2A), .black, night * 0.3).opacity(0.16)))
+        ctx.fill(lightDots, with: .color(mix(Color(hex: 0xA9CF7C), .black, night * 0.3).opacity(0.14)))
         ctx.fill(soil, with: .color(mix(Color(hex: 0x7A6244), .black, night * 0.3).opacity(0.35)))
         ctx.fill(clover, with: .color(mix(Color(hex: 0x5C9A3E), .black, night * 0.3).opacity(0.8)))
         // Dunst über dem fernen Rasen
