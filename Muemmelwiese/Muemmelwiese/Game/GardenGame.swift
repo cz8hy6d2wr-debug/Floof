@@ -1347,7 +1347,7 @@ final class GardenGame {
             GardenDecor(kind: .sonnenblumen, x: 0.9, y: 0.8),
             GardenDecor(kind: .pilz, x: 0.6, y: 0.76),
             GardenDecor(kind: .gartenzwerg, x: 0.58, y: 0.13),
-            GardenDecor(kind: .feenring, x: 0.2, y: 0.82),
+            GardenDecor(kind: .feenring, x: 0.2, y: 0.7),
             GardenDecor(kind: .heuraufe, x: 0.5, y: 0.22),
         ]
         s.home = .cottage
