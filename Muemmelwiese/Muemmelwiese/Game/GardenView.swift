@@ -462,6 +462,7 @@ private struct RabbitCard: View {
     let game: GardenGame
     var compact = false
     var onRename: () -> Void
+    @State private var confirmKeep = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -541,15 +542,25 @@ private struct RabbitCard: View {
                         .accessibilityLabel("bringt \(rabbit.rarity.income) Sterne")
                 }
                 .font(.footnote)
-                // Vermittlung
+                // Vermittlung oder für immer behalten
                 HStack(spacing: 8) {
-                    if rabbit.isReady {
+                    if rabbit.isKept {
+                        Label("Für immer zuhause", systemImage: "heart.circle.fill")
+                            .font(.footnote.weight(.semibold)).foregroundStyle(Color(hex: 0xE84A6F))
+                    } else if rabbit.isReady {
                         Label("Vermittlungsbereit", systemImage: "house.and.flag.fill")
                             .font(.footnote.weight(.semibold)).foregroundStyle(MTheme.leaf)
                     } else if let hint = game.readinessHint(rabbit) {
                         Text(hint).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
                     }
                     Spacer(minLength: 0)
+                    Button { confirmKeep = true } label: {
+                        Label(rabbit.isKept ? "Freigeben" : "Behalten", systemImage: rabbit.isKept ? "arrow.uturn.left" : "heart.fill")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12).frame(height: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.tint(Color(hex: 0xF27A9B).opacity(rabbit.isKept ? 0.1 : 0.35)).interactive(), in: .capsule)
                     Button { game.takePhoto(of: rabbit.id) } label: {
                         Label("Foto", systemImage: "camera.fill").font(.footnote.weight(.semibold))
                             .padding(.horizontal, 12).frame(height: 32)
@@ -579,6 +590,14 @@ private struct RabbitCard: View {
         }
         .padding(14)
         .glassEffect(.regular.tint(.white.opacity(0.2)), in: .rect(cornerRadius: 26))
+        .confirmationDialog(rabbit.isKept ? "\(rabbit.name) wieder zur Vermittlung freigeben?" : "\(rabbit.name) für immer behalten?",
+                            isPresented: $confirmKeep, titleVisibility: .visible) {
+            Button(rabbit.isKept ? "Zur Vermittlung freigeben" : "Für immer behalten 💛") { game.setKept(rabbit.id, !rabbit.isKept) }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text(rabbit.isKept ? "Es zieht zurück in die Station und kann vermittelt werden."
+                 : "Es zieht in dein eigenes Gehege (\(game.keptRabbits.count)/\(game.keepCapacity) belegt), wird nicht vermittelt, bringt doppelt Sterne und beruhigt Neuankömmlinge.")
+        }
     }
 
     private var visitorHint: String {
@@ -846,6 +865,10 @@ private struct GardenAlbum: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack(spacing: 6) {
                                     Text(rabbit.name).font(.headline)
+                                    if rabbit.isKept {
+                                        Image(systemName: "heart.circle.fill").foregroundStyle(Color(hex: 0xE84A6F))
+                                            .accessibilityLabel("für immer behalten")
+                                    }
                                     RarityBadge(rarity: rabbit.rarity)
                                 }
                                 Text("\(rabbit.look.description) · \(rabbit.personality.title)")
@@ -865,7 +888,7 @@ private struct GardenAlbum: View {
                         }
                     }
                 } header: {
-                    Text("Deine Schützlinge · \(residents.count) von \(game.capacity) Plätzen")
+                    Text("Schützlinge \(game.stationResidents.count)/\(game.capacity) · eigene \(game.keptRabbits.count)/\(game.keepCapacity)")
                 }
 
                 Section {

@@ -76,7 +76,8 @@ struct StationSheet: View {
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                         HStack {
-                            stat("\(game.residents.count)/\(game.capacity)", "Schützlinge", "hare.fill")
+                            stat("\(game.stationResidents.count)/\(game.capacity)", "Schützlinge", "hare.fill")
+                            stat("\(game.keptRabbits.count)/\(game.keepCapacity)", "eigene", "heart.circle.fill")
                             stat("\(game.adoptions.count)", "vermittelt", "house.and.flag.fill")
                             stat("\(game.followers)", "Follower", "person.3.fill")
                         }
@@ -129,6 +130,7 @@ struct StationSheet: View {
                     step("camera.fill", "Mach schöne Fotos (Luftsprung, goldene Stunde, Deko im Bild) und poste sie auf Hoppelgram.")
                     step("envelope.fill", "Menschen, die deine Posts sehen, fragen an. Wähle passende Schützlinge aus.")
                     step("house.and.flag.fill", "Nach der Vermittlung kommen Postkarten aus dem neuen Zuhause – und Platz für das nächste Fundtier.")
+                    step("heart.circle.fill", "Einige darfst du für immer behalten: Sie leben in deinem eigenen Gehege, bringen doppelt Sterne und beruhigen Neuankömmlinge.")
                 }
             }
             .navigationTitle("Station")
@@ -244,7 +246,7 @@ struct AdoptionSheet: View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(game.residents) { r in
+                    ForEach(game.stationResidents) { r in
                         let fitting = adopter.wishes.contains { $0.fits(r) }
                         Button {
                             if chosen.contains(r.id) { chosen.remove(r.id) }

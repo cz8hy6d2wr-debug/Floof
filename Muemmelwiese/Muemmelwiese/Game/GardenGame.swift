@@ -325,7 +325,7 @@ final class GardenGame {
             // Besuch ist etwas Besonderes: etwa alle 4–9 Minuten.
             nextVisitor = clock + .random(in: 240...540) / arrivalFactor
             if visitor == nil {
-                if residents.count < capacity { spawnVisitor() }
+                if stationResidents.count < capacity { spawnVisitor() }
                 else if !isDemo { showBanner("Die Station ist voll – vermittle Schützlinge, damit neue Fundtiere Platz haben", symbol: "house.fill", duration: 5) }
             }
         }
@@ -520,7 +520,7 @@ final class GardenGame {
             if a.incomeTimer <= 0 {
                 a.incomeTimer = .random(in: 70...100)
                 if r.mood > 55 && a.mode != .sleep {
-                    let n = r.rarity.income
+                    let n = r.rarity.income * (r.isKept ? 2 : 1)
                     inventory.sterne += n
                     let sp = screen(r.x, r.y)
                     floatLabel("+\(n) ★", at: CGPoint(x: sp.x, y: sp.y - 60 * scale(atY: r.y)))
@@ -860,7 +860,7 @@ final class GardenGame {
 
     private func befriend(_ r: inout GardenRabbit, _ a: inout RabbitActor) {
         guard r.isVisitor else { return }
-        if residents.count >= capacity {
+        if stationResidents.count >= capacity {
             r.trust = 99
             showBanner("Kein Platz mehr – ein größeres Zuhause gibt's im Shop", symbol: "house.fill", duration: 5)
             return
@@ -900,7 +900,9 @@ final class GardenGame {
     private func addTrust(_ r: inout GardenRabbit, _ a: inout RabbitActor, _ amount: Double) {
         let cap: Double = r.hasOpenWish ? 60 : 100
         let before = r.trust
-        r.trust = min(cap, r.trust + amount)
+        // Eigene Kaninchen beruhigen Neuankömmlinge – wie echte Begleitkaninchen.
+        let calm = 1 + min(0.6, Double(keptRabbits.count) * 0.15)
+        r.trust = min(cap, r.trust + amount * calm)
         if r.hasOpenWish, before < cap, r.trust >= cap, r.id == selectedID || save.tutorialStep < 3 {
             showBanner("Fast! Erst den Wunsch erfüllen: \(r.wish!.text.lowercased())", symbol: r.wish!.symbol, duration: 4)
         }
@@ -1699,7 +1701,7 @@ final class GardenGame {
         guard let pending = save.pendingVisit else { return false }
         save.pendingVisit = nil
         guard Date.now >= pending.arrive else { return false }
-        if visitor == nil, residents.count < capacity {
+        if visitor == nil, stationResidents.count < capacity {
             spawnVisitor(preset: pending)
             return true
         }

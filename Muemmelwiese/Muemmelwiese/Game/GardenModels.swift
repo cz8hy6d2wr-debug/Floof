@@ -582,7 +582,12 @@ struct GardenRabbit: Codable, Identifiable, Hashable {
     var hasOpenWish: Bool { isVisitor && wish != nil && wishFulfilled != true }
 
     /// Aufgepäppelt und bereit für ein neues Zuhause.
-    var isReady: Bool { !isVisitor && hunger >= 55 && mood >= 60 && friendship >= 45 && Date.now.timeIntervalSince(joined) > 8 * 60 }
+    /// Für immer behalten (eigenes Gehege, wird nicht vermittelt).
+    var kept: Bool?
+    var isKept: Bool { kept == true }
+
+    /// Aufgepäppelt und bereit für ein neues Zuhause.
+    var isReady: Bool { !isVisitor && !isKept && hunger >= 55 && mood >= 60 && friendship >= 45 && Date.now.timeIntervalSince(joined) > 8 * 60 }
 
     static let names = [
         "Mümmel", "Flocke", "Hoppel", "Krümel", "Möhrchen", "Wuschel", "Puschel", "Stups",

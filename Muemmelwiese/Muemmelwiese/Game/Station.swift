@@ -17,6 +17,38 @@ extension GardenGame {
     var combosFound: Int { save.combos?.count ?? 0 }
     var claimableQuests: Int { quests.filter { $0.done && !$0.claimed }.count }
 
+    // MARK: - Eigene Kaninchen
+
+    /// Schützlinge in der Station (ohne die eigenen Kaninchen).
+    var stationResidents: [GardenRabbit] { residents.filter { !$0.isKept } }
+    var keptRabbits: [GardenRabbit] { residents.filter(\.isKept) }
+    /// Plätze im eigenen Gehege: 2, alle 4 Level einer mehr.
+    var keepCapacity: Int { 2 + level / 4 }
+
+    /// Für immer behalten – oder wieder zur Vermittlung freigeben.
+    func setKept(_ id: UUID, _ keep: Bool) {
+        guard let i = index(of: id), !save.rabbits[i].isVisitor else { return }
+        if keep {
+            guard keptRabbits.count < keepCapacity else {
+                showBanner("Dein Gehege ist voll (\(keepCapacity) Plätze) – mehr gibt es mit höherem Level", symbol: "house.fill", duration: 4)
+                return
+            }
+            save.rabbits[i].kept = true
+            save.rabbits[i].mood = min(100, save.rabbits[i].mood + 20)
+            let p = screen(save.rabbits[i].x, save.rabbits[i].y)
+            burst(.heart, at: CGPoint(x: p.x, y: p.y - 40), count: 10, color: .pink)
+            notify.notificationOccurred(.success)
+            showBanner("\(save.rabbits[i].name) bleibt für immer bei dir 💛 – und hilft Neuankömmlingen, Vertrauen zu fassen",
+                       symbol: "heart.circle.fill", duration: 5)
+            gainXP(10)
+        } else {
+            save.rabbits[i].kept = nil
+            showBanner("\(save.rabbits[i].name) wird wieder vermittelt", symbol: "house.and.flag.fill", duration: 3)
+        }
+        hudTick &+= 1
+        persist()
+    }
+
     func gainXP(_ amount: Int) {
         guard amount > 0, !isDemo else { return }
         var total = xp + amount
@@ -254,8 +286,8 @@ extension GardenGame {
         guard !isDemo else { return }
         var list = (save.adopters ?? []).filter { $0.expires > .now }
         let postedIDs = Set(posts.filter { !$0.adopted }.map(\.rabbitID))
-        let posted = residents.filter { postedIDs.contains($0.id) }
-        if list.count < 3, !posted.isEmpty {
+        let posted = stationResidents.filter { postedIDs.contains($0.id) }
+        if list.count < 3, !posted.filter({ !$0.isKept }).isEmpty {
             let due = save.nextAdopterAt ?? Date.now.addingTimeInterval(adopterInterval())
             if save.nextAdopterAt == nil { save.nextAdopterAt = due }
             if Date.now >= due {
@@ -265,7 +297,7 @@ extension GardenGame {
                     let sb = posts.first { $0.rabbitID == b.id }?.score ?? 0
                     return Double(sa) * Double.random(in: 0.6...1) < Double(sb) * Double.random(in: 0.6...1)
                 }
-                let adopter = Adopter.random(level: level, residents: residents, taken: Set(list.map(\.name)), via: weighted)
+                let adopter = Adopter.random(level: level, residents: stationResidents, taken: Set(list.map(\.name)), via: weighted)
                 list.append(adopter)
                 save.nextAdopterAt = Date.now.addingTimeInterval(adopterInterval())
                 showBanner("\(adopter.name) interessiert sich\(adopter.viaPost.map { " für \($0)" } ?? "")! 💌",
@@ -318,7 +350,7 @@ extension GardenGame {
 
     /// Was einem Schützling noch fehlt, bis er vermittelt werden kann.
     func readinessHint(_ r: GardenRabbit) -> String? {
-        guard !r.isVisitor, !r.isReady else { return nil }
+        guard !r.isVisitor, !r.isReady, !r.isKept else { return nil }
         var missing: [String] = []
         if r.hunger < 55 { missing.append("Futter") }
         if r.mood < 60 { missing.append("gute Laune") }
