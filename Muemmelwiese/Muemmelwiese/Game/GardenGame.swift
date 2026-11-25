@@ -136,6 +136,9 @@ final class GardenGame {
     @ObservationIgnored var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     /// Läuft nur, solange die App im Vordergrund ist.
     @ObservationIgnored var isActive = true
+    @ObservationIgnored private var cachedHour: Double = 12
+    @ObservationIgnored private var cachedDaylight: Double = 1
+    @ObservationIgnored private var clockTimer: Double = 0
 
     // MARK: Wetter & Jahreszeit
     /// 0 = blauer Himmel, 1 = grau bedeckt
@@ -177,6 +180,7 @@ final class GardenGame {
             save = Self.freshSave()
         }
         inventory = save.inventory
+        refreshClock()
         if demo, GardenDemo.screen == "wish" { selectedID = save.rabbits.last?.id }
         for rabbit in save.rabbits { actors[rabbit.id] = RabbitActor() }
         if !demo { catchUp(seconds: Date.now.timeIntervalSince(save.lastSaved)) }
@@ -229,15 +233,19 @@ final class GardenGame {
 
     // MARK: - Tageszeit
 
-    var hour: Double {
-        if let fixedHour { return fixedHour }
-        let c = Calendar.current.dateComponents([.hour, .minute], from: .now)
-        return Double(c.hour ?? 12) + Double(c.minute ?? 0) / 60
+    /// Uhrzeit und Tageslicht werden zweimal pro Sekunde berechnet, nicht bei jedem Zugriff.
+    var hour: Double { fixedHour ?? cachedHour }
+    var daylight: Double { cachedDaylight }
+
+    func refreshClock() {
+        let c = Calendar.current.dateComponents([.hour, .minute, .second], from: .now)
+        cachedHour = Double(c.hour ?? 12) + Double(c.minute ?? 0) / 60 + Double(c.second ?? 0) / 3600
+        cachedDaylight = computeDaylight()
     }
 
     /// 1 = heller Tag, 0 = tiefe Nacht.
     /// Tageslicht nach echtem Sonnenauf- und -untergang (falls bekannt), sonst nach fester Uhrzeit.
-    var daylight: Double {
+    private func computeDaylight() -> Double {
         let h = hour
         var rise = 6.5, set = 19.5
         if fixedHour == nil, let real = RealWeather.shared.current, let sr = real.sunrise, let ss = real.sunset {
@@ -351,6 +359,11 @@ final class GardenGame {
         if hudTimer > 0.4 {
             hudTimer = 0
             hudTick &+= 1
+        }
+        clockTimer -= dt
+        if clockTimer <= 0 {
+            clockTimer = 0.5
+            refreshClock()
         }
         stationTimer -= dt
         if stationTimer <= 0 {
@@ -769,6 +782,13 @@ final class GardenGame {
         if r.mood > 65 && !raining && daylight > 0.6 && roll < playful + 0.12 {
             a.mode = .flop
             a.timer = .random(in: 6...14)
+            return
+        }
+        // Partner suchen die Nähe des anderen
+        if let pid = r.partner, roll < 0.32, let partner = save.rabbits.first(where: { $0.id == pid }) {
+            a.mode = .wander
+            let side: Double = r.x < partner.x ? -1 : 1
+            a.goal = clampToLawn(CGPoint(x: partner.x + side * 0.07, y: partner.y + .random(in: -0.02...0.02)))
             return
         }
         if roll < 0.2, let d = save.decor.randomElement() {

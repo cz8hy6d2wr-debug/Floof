@@ -130,6 +130,7 @@ struct StationSheet: View {
                     step("camera.fill", "Mach schöne Fotos (Luftsprung, goldene Stunde, Deko im Bild) und poste sie auf Hoppelgram.")
                     step("envelope.fill", "Menschen, die deine Posts sehen, fragen an. Wähle passende Schützlinge aus.")
                     step("house.and.flag.fill", "Nach der Vermittlung kommen Postkarten aus dem neuen Zuhause – und Platz für das nächste Fundtier.")
+                    step("heart.fill", "Kaninchen, die viel Zeit miteinander verbringen, werden unzertrennlich – Partner werden nur zusammen vermittelt.")
                     step("heart.circle.fill", "Einige darfst du für immer behalten: Sie leben in deinem eigenen Gehege, bringen doppelt Sterne und beruhigen Neuankömmlinge.")
                 }
             }
@@ -248,9 +249,13 @@ struct AdoptionSheet: View {
                 Section {
                     ForEach(game.stationResidents) { r in
                         let fitting = adopter.wishes.contains { $0.fits(r) }
+                        let partnerID = r.partner
+                        let blocked = partnerID != nil && adopter.count == 1
                         Button {
-                            if chosen.contains(r.id) { chosen.remove(r.id) }
-                            else if chosen.count < adopter.count { chosen.insert(r.id) }
+                            // Partner immer gemeinsam aus- und abwählen
+                            let group = Set(partnerID.map { [r.id, $0] } ?? [r.id])
+                            if chosen.contains(r.id) { chosen.subtract(group) }
+                            else if chosen.count + group.count <= adopter.count { chosen.formUnion(group) }
                         } label: {
                             HStack(spacing: 12) {
                                 RabbitPortrait(look: r.look, size: 46)
@@ -263,6 +268,10 @@ struct AdoptionSheet: View {
                                     Text(r.isReady ? "Vermittlungsbereit" : (game.readinessHint(r) ?? ""))
                                         .font(.caption2.weight(.semibold))
                                         .foregroundStyle(r.isReady ? MTheme.leaf : .secondary)
+                                    if let partner = game.partnerName(of: r) {
+                                        Text(blocked ? "💞 Nur zusammen mit \(partner)" : "💞 Partner: \(partner)")
+                                            .font(.caption2.weight(.semibold)).foregroundStyle(Color(hex: 0xE84A6F))
+                                    }
                                 }
                                 Spacer()
                                 Image(systemName: chosen.contains(r.id) ? "checkmark.circle.fill" : "circle")
@@ -270,14 +279,14 @@ struct AdoptionSheet: View {
                             }
                         }
                         .buttonStyle(.plain)
-                        .disabled(!r.isReady)
-                        .opacity(r.isReady ? 1 : 0.5)
+                        .disabled(!r.isReady || blocked)
+                        .opacity(r.isReady && !blocked ? 1 : 0.5)
                     }
                 } header: {
                     Text("\(adopter.name) wünscht sich: " + adopter.wishes.map(\.text).joined(separator: ", "))
                 } footer: {
-                    Text(adopter.count == 2 ? "Wähle zwei Schützlinge. Jeder Wunsch muss von mindestens einem erfüllt werden."
-                                            : "Wähle einen Schützling, der alle Wünsche erfüllt.")
+                    Text(adopter.count == 2 ? "Wähle zwei Schützlinge. Jeder Wunsch muss von mindestens einem erfüllt werden. Ein unzertrennliches Paar bringt 40 % Bonus."
+                                            : "Wähle einen Schützling, der alle Wünsche erfüllt. Partner werden nicht getrennt.")
                 }
             }
             .navigationTitle("Auswählen")

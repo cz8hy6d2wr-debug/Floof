@@ -542,6 +542,10 @@ private struct RabbitCard: View {
                         .accessibilityLabel("bringt \(rabbit.rarity.income) Sterne")
                 }
                 .font(.footnote)
+                if let partner = game.partnerName(of: rabbit) {
+                    Label("Unzertrennlich mit \(partner) – nur zusammen vermittelbar", systemImage: "heart.circle.fill")
+                        .font(.footnote.weight(.semibold)).foregroundStyle(Color(hex: 0xE84A6F))
+                }
                 // Vermittlung oder für immer behalten
                 HStack(spacing: 8) {
                     if rabbit.isKept {

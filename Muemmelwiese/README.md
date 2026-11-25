@@ -23,6 +23,7 @@ Eigenständiges Kaninchen-Spiel (SwiftUI, iOS 26) – eine Art Tamagotchi auf ei
 - **Pflege:** Satt, Laune, Energie und Freundschaft. Langer Rasen ist Futter, gemäht wird er zu Heu, im Beet wachsen Möhren, Löwenzahn wird gepflückt.
 - **Sterne & Shop:** Glückliche Kaninchen sammeln Sterne. Dafür gibt es Deko (Teich, Weidentunnel, Heuraufe, Laterne, Feenring …) und größere Zuhause (Holzstall → Blaues Häuschen → Pilzhaus → Hasenschloss) mit mehr Platz.
 - **Gestalten:** Deko aufstellen, verschieben, einpacken. Gemütlichkeit erhöht die Chance auf seltene Gäste.
+- **Partner:** Kaninchen, die viel Zeit miteinander verbringen, werden unzertrennlich und werden nur zusammen vermittelt.
 - **Tag & Nacht** folgen der echten Uhr; Regen, Glühwürmchen, Schmetterlinge. Niemand verhungert – der Garten bleibt sanft.
 
 ## Faltbares iPhone

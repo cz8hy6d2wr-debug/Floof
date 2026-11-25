@@ -340,7 +340,8 @@ struct Adopter: Codable, Identifiable, Hashable {
     /// Neue Anfrage. Meist passt sie zu einem Schützling, der gerade da ist – so bleibt alles lösbar.
     static func random(level: Int, residents: [GardenRabbit], taken: Set<String>, via: GardenRabbit? = nil) -> Adopter {
         let person = people.filter { !taken.contains($0.0) }.randomElement() ?? people.randomElement()!
-        let count = Double.random(in: 0...1) < 0.45 && residents.count >= 2 ? 2 : 1
+        // Partner gibt es nur zu zweit – sonst nehmen viele ohnehin zwei.
+        let count = via?.partner != nil ? 2 : (Double.random(in: 0...1) < 0.45 && residents.count >= 2 ? 2 : 1)
         var wishes: [AdopterWish] = []
         if let base = via ?? residents.randomElement(), via != nil || Double.random(in: 0...1) < 0.7 {
             wishes.append(AdopterWish.matching(base))

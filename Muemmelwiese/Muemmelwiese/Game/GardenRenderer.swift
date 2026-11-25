@@ -46,6 +46,7 @@ enum GardenRenderer {
         items.sort { $0.y < $1.y }
         var next = 0
         let wind = CGFloat(game.windFactor * (1 + 0.8 * game.rainAmount))
+        let grassColors = grassPalette(game)
         for j in 0..<rows {
             let rowEnd = Double(j + 1) / Double(rows)
             while next < items.count, items[next].y < rowEnd || j == rows - 1 {
@@ -58,7 +59,7 @@ enum GardenRenderer {
                 }
                 next += 1
             }
-            drawGrassRow(game, row: j, &ctx, time: time, wind: wind)
+            drawGrassRow(game, row: j, &ctx, time: time, wind: wind, colors: grassColors)
         }
 
         if game.season != .winter && game.snowCover < 0.3 {
@@ -396,55 +397,85 @@ enum GardenRenderer {
         ctx.fill(wetPath, with: .color(Color(hex: 0x1F4A2A).opacity(0.2)))
     }
 
-    @MainActor
-    static func drawGrassRow(_ game: GardenGame, row j: Int, _ ctx: inout GraphicsContext, time: Double, wind: CGFloat) {
+    /// Feste Eigenschaften jedes Halms – einmal berechnet statt in jedem Bild.
+    struct Blade {
+        let fx: CGFloat, fy: CGFloat
+        let variance: CGFloat, width: CGFloat, lean: CGFloat
+        let phase: Double
+        let shade: Int
+    }
+
+    static let bladesPerCell = 18
+    static let bladeTable: [[Blade]] = {
         let cols = GardenSave.cols, rows = GardenSave.rows
-        // dunkel am Grund … hell, und trockene, gelbliche Spitzen bei hohem Gras
+        var table: [[Blade]] = []
+        for k in 0..<(cols * rows) {
+            let i = k % cols, j = k / cols
+            table.append((0..<bladesPerCell).map { b in
+                Blade(fx: (CGFloat(i) + hash(i, j, b)) / CGFloat(cols),
+                      fy: (CGFloat(j) + hash(i, j, b + 50)) / CGFloat(rows),
+                      variance: 0.55 + hash(i, j, b + 99) * 0.9,
+                      width: 1.0 + hash(i, j, b + 3) * 0.8,
+                      lean: (hash(i, j, b + 5) - 0.5) * 6,
+                      phase: Double(b),
+                      shade: Int(hash(i, j, b + 7) * 3.999))
+            })
+        }
+        return table
+    }()
+
+    /// Grasfarben für dieses Bild (Jahreszeit, Frost) – einmal pro Bild statt pro Reihe gemischt.
+    @MainActor
+    static func grassPalette(_ game: GardenGame) -> [Color] {
         let shades = [Color(hex: 0x3D7A2A), Color(hex: 0x4F8E35), Color(hex: 0x65A244), Color(hex: 0x82B957), Color(hex: 0xA9C66A)]
+        let frost = CGFloat(game.isFreezing ? 0.45 : 0) + CGFloat(game.snowCover) * 0.3
+        let winterTint: CGFloat = game.season == .winter ? 0.25 : (game.season == .herbst ? 0.12 : 0)
+        guard frost > 0 || winterTint > 0 else { return shades }
+        return shades.map { c in
+            var m = mix(c, Color(hex: 0xA09A5A), winterTint)
+            if frost > 0 { m = mix(m, Color(hex: 0xE8F1F4), frost) }
+            return m
+        }
+    }
+
+    @MainActor
+    static func drawGrassRow(_ game: GardenGame, row j: Int, _ ctx: inout GraphicsContext, time: Double, wind: CGFloat,
+                             colors: [Color]) {
+        let cols = GardenSave.cols, rows = GardenSave.rows
         var paths = [Path(), Path(), Path(), Path(), Path()]
         let touch = game.toolPoint
         let bed = GardenGame.bedRect.insetBy(dx: -0.01, dy: -0.01)
-        let cw = game.size.width / CGFloat(cols)
-        let ch = (game.size.height - game.lawnTop) / CGFloat(rows)
+        let W = game.size.width, top = game.lawnTop, H = game.size.height - top, unit = game.unit
+        let cw = W / CGFloat(cols), ch = H / CGFloat(rows)
         let density = cw * ch / (game.lowPower ? 150 : 75)
+        let snow = 1 - CGFloat(game.snowCover) * 0.85
         for i in 0..<cols {
             let k = j * cols + i
             let h = CGFloat(game.save.grass[k])
-            let blades = Int(min(18, max(3, density * (h < 0.2 ? 0.6 : 1))))
-            for b in 0..<blades {
-                let fx = (CGFloat(i) + hash(i, j, b)) / CGFloat(cols)
-                let fy = (CGFloat(j) + hash(i, j, b + 50)) / CGFloat(rows)
-                if bed.contains(CGPoint(x: fx, y: fy)) { continue }
-                let base = game.screen(Double(fx), Double(fy))
-                let s = game.scale(atY: Double(fy))
-                let variance = 0.55 + hash(i, j, b + 99) * 0.9
-                let height = (2.5 + 28 * h) * s * variance * (1 - CGFloat(game.snowCover) * 0.85)
-                let width = (1.0 + hash(i, j, b + 3) * 0.8) * s
-                let lean = (hash(i, j, b + 5) - 0.5) * 6 * s * h
-                var sway = lean + CGFloat(sin(time * 1.5 + Double(base.x) * 0.022 + Double(b))) * (1 + 4 * h) * s * wind
+            let count = Int(min(CGFloat(bladesPerCell), max(3, density * (h < 0.2 ? 0.6 : 1))))
+            let swayAmp = (1 + 4 * h) * wind
+            for blade in bladeTable[k].prefix(count) {
+                if bed.contains(CGPoint(x: blade.fx, y: blade.fy)) { continue }
+                let bx = blade.fx * W, by = top + blade.fy * H
+                let s = unit * (0.62 + 0.55 * blade.fy)
+                let height = (2.5 + 28 * h) * s * blade.variance * snow
+                let width = blade.width * s
+                var sway = blade.lean * s * h + CGFloat(sin(time * 1.5 + Double(bx) * 0.022 + blade.phase)) * swayAmp * s
                 if let touch {
-                    let dx = base.x - touch.x, dy = base.y - touch.y
-                    let d = hypot(dx, dy)
-                    if d < 60 { sway += (dx > 0 ? 1 : -1) * (60 - d) * 0.25 * h }
+                    let dx = bx - touch.x, dy = by - touch.y
+                    let d2 = dx * dx + dy * dy
+                    if d2 < 3600 { sway += (dx > 0 ? 1 : -1) * (60 - d2.squareRoot()) * 0.25 * h }
                 }
-                let tip = CGPoint(x: base.x + sway, y: base.y - height)
                 var p = Path()
-                p.move(to: CGPoint(x: base.x - width, y: base.y))
-                p.addQuadCurve(to: tip, control: CGPoint(x: base.x - width * 0.2 + sway * 0.25, y: base.y - height * 0.6))
-                p.addQuadCurve(to: CGPoint(x: base.x + width, y: base.y),
-                               control: CGPoint(x: base.x + width * 0.4 + sway * 0.25, y: base.y - height * 0.55))
-                var shade = Int(hash(i, j, b + 7) * 3.999)
-                if h > 0.75 && variance > 1.25 { shade = 4 }          // trockene Spitzen
+                p.move(to: CGPoint(x: bx - width, y: by))
+                p.addQuadCurve(to: CGPoint(x: bx + sway, y: by - height),
+                               control: CGPoint(x: bx - width * 0.2 + sway * 0.25, y: by - height * 0.6))
+                p.addLine(to: CGPoint(x: bx + width, y: by))
+                let shade = h > 0.75 && blade.variance > 1.25 ? 4 : blade.shade   // trockene Spitzen
                 paths[shade].addPath(p)
             }
         }
-        let frost = CGFloat(game.isFreezing ? 0.45 : 0) + CGFloat(game.snowCover) * 0.3
-        let winterTint: CGFloat = game.season == .winter ? 0.25 : (game.season == .herbst ? 0.12 : 0)
-        for (n, p) in paths.enumerated() {
-            var c = mix(shades[n], Color(hex: 0xA09A5A), winterTint)
-            if frost > 0 { c = mix(c, Color(hex: 0xE8F1F4), frost) }
-            ctx.fill(p, with: .color(c))
-        }
+        for (n, p) in paths.enumerated() { ctx.fill(p, with: .color(colors[n])) }
     }
 
     // MARK: - Stall & Beet
@@ -1279,7 +1310,8 @@ enum GardenRenderer {
                    style: StrokeStyle(lineWidth: width * 1.4, lineCap: .round, dash: [1.5, width * 0.4], dashPhase: 2))
     }
 
-    private static func bodyPath() -> Path {
+    private static func bodyPath() -> Path { bodyShape }
+    private static let bodyShape: Path = {
         var p = Path()
         p.move(to: CGPoint(x: 13, y: -1))
         p.addCurve(to: CGPoint(x: 14, y: -18), control1: CGPoint(x: 17, y: -5), control2: CGPoint(x: 17, y: -12))
@@ -1289,10 +1321,11 @@ enum GardenRenderer {
         p.addCurve(to: CGPoint(x: -23, y: -1), control1: CGPoint(x: -31, y: -4), control2: CGPoint(x: -28, y: -1))
         p.closeSubpath()
         return p
-    }
+    }()
 
     /// Kopf mit Schnauze, Ursprung in der Kopfmitte, Nase bei etwa (17, -1).
-    private static func headPath() -> Path {
+    private static func headPath() -> Path { headShape }
+    private static let headShape: Path = {
         var p = Path()
         p.move(to: CGPoint(x: -12, y: 0))
         p.addCurve(to: CGPoint(x: 2, y: -12), control1: CGPoint(x: -12, y: -8), control2: CGPoint(x: -6, y: -12))
@@ -1302,10 +1335,22 @@ enum GardenRenderer {
         p.addCurve(to: CGPoint(x: -12, y: 0), control1: CGPoint(x: -10, y: 8.5), control2: CGPoint(x: -12, y: 5))
         p.closeSubpath()
         return p
-    }
+    }()
 
     /// Kurze, leicht gebogene Haarstriche – Fell statt glatter Fläche.
+    /// Fellstriche hängen nur von Rasse, Farbe und Fläche ab – einmal bauen, dann wiederverwenden.
+    nonisolated(unsafe) private static var furCache: [String: Path] = [:]
+
     private static func furPath(in r: CGRect, count: Int, seed: Int, length: CGFloat = 4.5, angle: CGFloat = 2.6) -> Path {
+        let key = "\(seed)|\(count)|\(r.minX),\(r.minY),\(r.width),\(r.height)|\(length)|\(angle)"
+        if let cached = furCache[key] { return cached }
+        let path = buildFurPath(in: r, count: count, seed: seed, length: length, angle: angle)
+        if furCache.count > 400 { furCache.removeAll() }
+        furCache[key] = path
+        return path
+    }
+
+    private static func buildFurPath(in r: CGRect, count: Int, seed: Int, length: CGFloat, angle: CGFloat) -> Path {
         var p = Path()
         for k in 0..<count {
             let x = r.minX + hash(seed, k, 11) * r.width
@@ -1335,12 +1380,18 @@ enum GardenRenderer {
         }
         // Wildfarbene Kaninchen haben gesprenkeltes ("geticktes") Fell.
         if look.fur == .wildfarben || look.fur == .sand || look.fur == .silber {
-            var dots = Path()
-            for k in 0..<70 {
+            let key = "tick|\(seed)|\(rect.minX),\(rect.minY),\(rect.width),\(rect.height)"
+            let dots: Path
+            if let cached = furCache[key] { dots = cached } else {
+            var built = Path()
+            for k in 0..<45 {
                 let x = rect.minX + hash(seed, k, 21) * rect.width
                 let y = rect.minY + hash(seed, k, 22) * rect.height * 0.8
                 let r: CGFloat = 0.45 + hash(seed, k, 23) * 0.45
-                dots.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+                built.addEllipse(in: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+            }
+            furCache[key] = built
+            dots = built
             }
             l.fill(dots, with: .color((look.fur == .silber ? Color.white : Color(hex: 0x2E2018)).opacity(0.35)))
         }

@@ -584,6 +584,8 @@ struct GardenRabbit: Codable, Identifiable, Hashable {
     /// Aufgepäppelt und bereit für ein neues Zuhause.
     /// Für immer behalten (eigenes Gehege, wird nicht vermittelt).
     var kept: Bool?
+    /// Unzertrennlicher Partner – wird nur gemeinsam vermittelt.
+    var partner: UUID?
     var isKept: Bool { kept == true }
 
     /// Aufgepäppelt und bereit für ein neues Zuhause.
@@ -768,6 +770,8 @@ struct GardenSave: Codable {
     var adoptions: [AdoptionRecord]?
     var nextAdopterAt: Date?
     var posts: [SocialPost]?
+    /// Wie gut sich zwei Kaninchen kennen (0…100, Schlüssel "idA|idB").
+    var bonds: [String: Double]?
     var followers: Int?
 
     func stock(_ kind: DecorKind) -> Int { decorStock[kind.rawValue] ?? 0 }

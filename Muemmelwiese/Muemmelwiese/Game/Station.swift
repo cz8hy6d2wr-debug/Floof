@@ -28,13 +28,17 @@ extension GardenGame {
     /// Für immer behalten – oder wieder zur Vermittlung freigeben.
     func setKept(_ id: UUID, _ keep: Bool) {
         guard let i = index(of: id), !save.rabbits[i].isVisitor else { return }
+        // Partner bleiben zusammen – behalten oder freigeben nur gemeinsam.
+        let partnerIndex = save.rabbits[i].partner.flatMap { index(of: $0) }
         if keep {
-            guard keptRabbits.count < keepCapacity else {
+            let needed = partnerIndex != nil && save.rabbits[partnerIndex!].isKept == false ? 2 : 1
+            guard keptRabbits.count + needed <= keepCapacity else {
                 showBanner("Dein Gehege ist voll (\(keepCapacity) Plätze) – mehr gibt es mit höherem Level", symbol: "house.fill", duration: 4)
                 return
             }
             save.rabbits[i].kept = true
             save.rabbits[i].mood = min(100, save.rabbits[i].mood + 20)
+            if let pi = partnerIndex { save.rabbits[pi].kept = true; save.rabbits[pi].mood = min(100, save.rabbits[pi].mood + 20) }
             let p = screen(save.rabbits[i].x, save.rabbits[i].y)
             burst(.heart, at: CGPoint(x: p.x, y: p.y - 40), count: 10, color: .pink)
             notify.notificationOccurred(.success)
@@ -43,6 +47,7 @@ extension GardenGame {
             gainXP(10)
         } else {
             save.rabbits[i].kept = nil
+            if let pi = partnerIndex { save.rabbits[pi].kept = nil }
             showBanner("\(save.rabbits[i].name) wird wieder vermittelt", symbol: "house.and.flag.fill", duration: 3)
         }
         hudTick &+= 1
@@ -315,7 +320,10 @@ extension GardenGame {
         guard var list = save.adopters, let ai = list.firstIndex(where: { $0.id == adopterID }) else { return false }
         let adopter = list[ai]
         let chosen = save.rabbits.filter { ids.contains($0.id) }
-        guard adopter.fits(chosen), chosen.allSatisfy(\.isReady) else { return false }
+        // Partner werden nicht getrennt.
+        let together = chosen.allSatisfy { r in r.partner.map { p in ids.contains(p) } ?? true }
+        guard adopter.fits(chosen), chosen.allSatisfy(\.isReady), together else { return false }
+        let bondedPair = chosen.count == 2 && chosen[0].partner == chosen[1].id
         list.remove(at: ai)
         save.adopters = list
         var records = save.adoptions ?? []
@@ -337,6 +345,7 @@ extension GardenGame {
             track(.vermitteln)
         }
         save.adoptions = records
+        if bondedPair { bonus += adopter.stars * 2 / 5 }
         inventory.sterne += adopter.stars + bonus
         notify.notificationOccurred(.success)
         let names = chosen.map(\.name).formatted(.list(type: .and))
@@ -361,8 +370,67 @@ extension GardenGame {
 
     // MARK: - Takt (aus dem Spieltakt alle paar Sekunden)
 
+    // MARK: - Partnerschaften
+
+    static func bondKey(_ a: UUID, _ b: UUID) -> String {
+        a.uuidString < b.uuidString ? "\(a.uuidString)|\(b.uuidString)" : "\(b.uuidString)|\(a.uuidString)"
+    }
+
+    func partnerName(of r: GardenRabbit) -> String? {
+        r.partner.flatMap { id in save.rabbits.first { $0.id == id }?.name }
+    }
+
+    /// Wer viel Zeit nebeneinander verbringt, freundet sich an – bis die beiden unzertrennlich sind.
+    func updateBonds(elapsed: Double) {
+        let list = residents
+        guard list.count >= 2 else { return }
+        var bonds = save.bonds ?? [:]
+        for a in 0..<list.count {
+            for b in (a + 1)..<list.count {
+                let r1 = list[a], r2 = list[b]
+                let near = hypot(r1.x - r2.x, r1.y - r2.y) < 0.14
+                if r1.partner == r2.id {
+                    // Partner zeigen sich ab und zu ihre Zuneigung
+                    if near, Double.random(in: 0...1) < 0.15 {
+                        let p = screen((r1.x + r2.x) / 2, (r1.y + r2.y) / 2)
+                        burst(.heart, at: CGPoint(x: p.x, y: p.y - 40), count: 1, color: .pink)
+                    }
+                    continue
+                }
+                guard r1.partner == nil, r2.partner == nil, near else { continue }
+                let key = Self.bondKey(r1.id, r2.id)
+                let value = (bonds[key] ?? 0) + elapsed * 0.08 * (r1.personality == .schuechtern || r2.personality == .schuechtern ? 0.7 : 1)
+                bonds[key] = value
+                if value >= 100, let i1 = index(of: r1.id), let i2 = index(of: r2.id) {
+                    save.rabbits[i1].partner = r2.id
+                    save.rabbits[i2].partner = r1.id
+                    // Wer behalten wird, nimmt den Partner mit – oder beide gehen in die Vermittlung.
+                    if r1.isKept != r2.isKept {
+                        if keptRabbits.count < keepCapacity { save.rabbits[i1].kept = true; save.rabbits[i2].kept = true }
+                        else { save.rabbits[i1].kept = nil; save.rabbits[i2].kept = nil }
+                    }
+                    bonds[key] = nil
+                    let p = screen((r1.x + r2.x) / 2, (r1.y + r2.y) / 2)
+                    burst(.heart, at: CGPoint(x: p.x, y: p.y - 40), count: 12, color: .pink)
+                    showBanner("\(r1.name) und \(r2.name) sind jetzt unzertrennlich 💞 – sie werden nur zusammen vermittelt",
+                               symbol: "heart.circle.fill", duration: 6)
+                    notify.notificationOccurred(.success)
+                    gainXP(15)
+                }
+            }
+        }
+        // verwaiste Einträge aufräumen
+        let ids = Set(list.map(\.id.uuidString))
+        save.bonds = bonds.filter { k, _ in k.split(separator: "|").allSatisfy { ids.contains(String($0)) } }
+        // Partner, deren Gegenstück nicht mehr da ist, wieder lösen
+        for i in save.rabbits.indices where save.rabbits[i].partner != nil {
+            if !save.rabbits.contains(where: { $0.id == save.rabbits[i].partner }) { save.rabbits[i].partner = nil }
+        }
+    }
+
     func stationTick(elapsed: Double) {
         refreshQuestsIfNeeded()
+        updateBonds(elapsed: elapsed)
         updateSocial(elapsed: elapsed)
         updateAdopters()
     }
