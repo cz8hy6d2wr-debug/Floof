@@ -246,6 +246,7 @@ struct GardenView: View {
             .id(rabbit.id)
         }
         if game.tool == .futter { foodPicker.transition(.scale(scale: 0.9).combined(with: .opacity)) }
+        if game.tool == .maeher || game.tool == .giesskanne { lawnPicker.transition(.scale(scale: 0.9).combined(with: .opacity)) }
     }
 
     private var selectedRabbit: GardenRabbit? {
@@ -402,21 +403,41 @@ struct GardenView: View {
         let layout = vertical ? AnyLayout(VStackLayout(spacing: 6)) : AnyLayout(HStackLayout(spacing: 6))
         return GlassEffectContainer(spacing: 6) {
             layout {
-                ForEach(GardenTool.allCases) { tool in
-                    Button { select(tool) } label: {
+                // Mähen und Gießen teilen sich den Platz „Rasen“ (Umschalter darüber).
+                ForEach([GardenTool.hand, .buerste, .maeher, .futter, .foto, .gestalten]) { tool in
+                    let isLawn = tool == .maeher
+                    let active = isLawn ? (game.tool == .maeher || game.tool == .giesskanne) : game.tool == tool
+                    Button { select(isLawn && active ? game.tool : tool) } label: {
                         VStack(spacing: 3) {
-                            Image(systemName: tool.symbol).font(.title3.weight(.semibold))
-                            Text(tool.title).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                            Image(systemName: isLawn && game.tool == .giesskanne ? GardenTool.giesskanne.symbol : tool.symbol)
+                                .font(.title3.weight(.semibold))
+                            Text(isLawn ? "Rasen" : tool.title).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
                         }
-                        .frame(maxWidth: .infinity, minHeight: vertical ? 50 : 54)
-                        .foregroundStyle(game.tool == tool ? Color.white : Color.primary)
+                        .frame(maxWidth: .infinity, minHeight: vertical ? 46 : 54)
+                        .foregroundStyle(active ? Color.white : Color.primary)
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .glassEffect(game.tool == tool ? .regular.tint(MTheme.carrot.opacity(0.85)).interactive() : .regular.interactive(),
+                    .glassEffect(active ? .regular.tint(MTheme.carrot.opacity(0.85)).interactive() : .regular.interactive(),
                                  in: .rect(cornerRadius: 22))
-                    .accessibilityAddTraits(game.tool == tool ? .isSelected : [])
+                    .accessibilityLabel(isLawn ? "Rasen" : tool.title)
+                    .accessibilityAddTraits(active ? .isSelected : [])
                 }
+            }
+        }
+    }
+
+    private var lawnPicker: some View {
+        HStack(spacing: 8) {
+            ForEach([GardenTool.maeher, .giesskanne]) { tool in
+                Button { select(tool) } label: {
+                    Label(tool.title, systemImage: tool.symbol)
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 14).frame(height: 36)
+                }
+                .buttonStyle(.plain)
+                .glassEffect(game.tool == tool ? .regular.tint(MTheme.leaf.opacity(0.55)).interactive() : .regular.interactive(),
+                             in: .capsule)
             }
         }
     }
@@ -426,6 +447,7 @@ struct GardenView: View {
         if tool != .gestalten { game.placing = nil; game.selectedDecorID = nil }
         switch tool {
         case .hand: game.showBanner("Tippen zum Ansehen, wischen zum Streicheln", symbol: "hand.point.up.left.fill", duration: 2.5)
+        case .buerste: game.showBanner("Sanft übers Fell wischen – Angoras und Löwenköpfe brauchen besonders viel Pflege", symbol: "comb.fill", duration: 3)
         case .maeher: game.showBanner("Über den Rasen wischen – gibt Heu", symbol: "scissors", duration: 2.5)
         case .giesskanne: game.showBanner("Nasser Rasen und Möhren wachsen doppelt so schnell", symbol: "drop.fill", duration: 2.5)
         case .futter: game.showBanner("Tippen legt Futter auf den Rasen", symbol: "carrot.fill", duration: 2.5)
@@ -529,6 +551,7 @@ private struct RabbitCard: View {
                     StatBar(title: "Satt", symbol: "fork.knife", value: rabbit.hunger, tint: Color(hex: 0xE2722B))
                     StatBar(title: "Laune", symbol: "face.smiling", value: rabbit.mood, tint: Color(hex: 0xE0A82E))
                     StatBar(title: "Energie", symbol: "bolt.fill", value: rabbit.energy, tint: Color(hex: 0x5E9BD6))
+                    StatBar(title: "Fell", symbol: "comb.fill", value: rabbit.coatValue, tint: Color(hex: 0xB0855A))
                 }
                 HStack(spacing: 3) {
                     ForEach(0..<5) { k in
@@ -617,6 +640,7 @@ private struct RabbitCard: View {
 
     private var status: String {
         if rabbit.hunger < 30 { return "hat Hunger" }
+        if rabbit.coatValue < 30 { return "Fell ist verfilzt" }
         if rabbit.energy < 25 { return "ist müde" }
         if rabbit.mood < 30 { return "langweilt sich" }
         if rabbit.mood > 85 { return "ist überglücklich" }

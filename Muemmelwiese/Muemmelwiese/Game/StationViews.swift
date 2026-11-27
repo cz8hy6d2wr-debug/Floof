@@ -126,7 +126,8 @@ struct StationSheet: View {
 
                 Section("So funktioniert die Station") {
                     step("hare.fill", "Fundtiere kommen an – ängstlich, hungrig, manchmal mit besonderem Bedarf. Gewinne ihr Vertrauen.")
-                    step("heart.fill", "Päppel sie auf: satt, gut gelaunt, zutraulich und eingewöhnt = vermittlungsbereit.")
+                    step("heart.fill", "Päppel sie auf: satt, gut gelaunt, zutraulich, gebürstet und eingewöhnt = vermittlungsbereit.")
+                    step("comb.fill", "Bürsten nicht vergessen: Angora und Löwenkopf verfilzen schnell, im Frühling und Herbst ist Fellwechsel.")
                     step("camera.fill", "Mach schöne Fotos (Luftsprung, goldene Stunde, Deko im Bild) und poste sie auf Hoppelgram.")
                     step("envelope.fill", "Menschen, die deine Posts sehen, fragen an. Wähle passende Schützlinge aus.")
                     step("house.and.flag.fill", "Nach der Vermittlung kommen Postkarten aus dem neuen Zuhause – und Platz für das nächste Fundtier.")

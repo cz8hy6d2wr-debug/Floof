@@ -12,6 +12,8 @@ struct RabbitPose {
     var earsBack: CGFloat = 0
     var earTwitch: CGFloat = 0
     var groom: CGFloat = -1
+    /// Fellzustand 0…100 (verfilzt … glänzend)
+    var coat: CGFloat = 80
     var flop = false
     var breath: CGFloat = 1
     var nose: CGFloat = 0
@@ -1036,6 +1038,7 @@ enum GardenRenderer {
 
     static func pose(for r: GardenRabbit, actor a: RabbitActor, clock: Double) -> RabbitPose {
         var pose = RabbitPose()
+        pose.coat = CGFloat(r.coatValue)
         if a.isHopping {
             let t = a.hopT
             pose.lift = CGFloat(sin(.pi * t)) * CGFloat(a.hopHeight)
@@ -1148,6 +1151,7 @@ enum GardenRenderer {
                     case .futter(let k): return k.tint
                     case .deko: return MTheme.leaf
                     case .streicheln: return Color(hex: 0xF27A9B)
+                    case .buersten: return Color(hex: 0x8A6A4A)
                     case .kurzerRasen: return Color(hex: 0x5E9A3E)
                     }
                 }()
@@ -1270,6 +1274,20 @@ enum GardenRenderer {
         // flauschige Fellkante statt harter Linie
         ctx.stroke(body, with: .color(mix(pal.main, .white, 0.1).opacity(0.9)),
                    style: StrokeStyle(lineWidth: look.breed == .rex ? 0.8 : 1.8, lineCap: .round, dash: [0.5, 1.7]))
+        // Verfilztes Fell: zottelige, abstehende Büschel. Frisch gebürstet: seidiger Glanz.
+        if pose.coat < 40 {
+            let messy = (40 - pose.coat) / 40
+            ctx.stroke(body, with: .color(mix(pal.main, pal.shade, 0.45).opacity(0.9)),
+                       style: StrokeStyle(lineWidth: 3 + 5 * messy, lineCap: .round, dash: [0.8, 2.6 - messy]))
+            ctx.stroke(furPath(in: CGRect(x: -32, y: -33, width: 48, height: 30), count: 18, seed: 77, length: 6, angle: 1.6),
+                       with: .color(pal.shade.opacity(0.35 * messy)), lineWidth: 1.1)
+        } else if pose.coat > 90 {
+            var sheen = Path()
+            sheen.move(to: CGPoint(x: -24, y: -27))
+            sheen.addCurve(to: CGPoint(x: 4, y: -28), control1: CGPoint(x: -18, y: -33), control2: CGPoint(x: -6, y: -33))
+            ctx.stroke(sheen, with: .color(.white.opacity(0.5 * Double((pose.coat - 90) / 10))),
+                       style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
+        }
 
         // Hinterpfote und Vorderpfoten
         let footColor = look.pattern == .russe ? pal.spot : (look.pattern == .hollaender ? pal.spot : mix(pal.main, pal.belly, 0.2))
@@ -1848,6 +1866,17 @@ enum GardenRenderer {
                     l.stroke(p, with: .color(part.color), style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 case .drop:
                     l.fill(Path(ellipseIn: CGRect(x: part.p.x - 2.2, y: part.p.y - 3, width: 4.4, height: 6)), with: .color(part.color))
+                case .fluff:
+                    l.translateBy(x: part.p.x, y: part.p.y)
+                    l.rotate(by: .radians(part.rotation))
+                    var tuft = Path()
+                    for k in 0..<4 {
+                        let a = Double(k) * .pi / 2
+                        tuft.move(to: .zero)
+                        tuft.addQuadCurve(to: CGPoint(x: CGFloat(cos(a)) * 5, y: CGFloat(sin(a)) * 5),
+                                          control: CGPoint(x: CGFloat(cos(a + 0.6)) * 3, y: CGFloat(sin(a + 0.6)) * 3))
+                    }
+                    l.stroke(tuft, with: .color(part.color), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
                 case .petal:
                     l.translateBy(x: part.p.x, y: part.p.y)
                     l.rotate(by: .radians(part.rotation))
@@ -1887,6 +1916,22 @@ enum GardenRenderer {
             handle.move(to: CGPoint(x: p.x - 8 * u, y: p.y - 46 * u))
             handle.addLine(to: CGPoint(x: p.x + 16 * u, y: p.y - 46 * u))
             ctx.stroke(handle, with: .color(Color(hex: 0x3A3A3A)), style: StrokeStyle(lineWidth: 3 * u, lineCap: .round))
+        case .buerste:
+            // Bürste mit Holzrücken und Borsten
+            ctx.drawLayer { l in
+                l.translateBy(x: p.x + 14 * u, y: p.y - 26 * u)
+                l.rotate(by: .radians(-0.5 + sin(time * 12) * 0.08))
+                l.fill(Path(roundedRect: CGRect(x: -16 * u, y: -6 * u, width: 32 * u, height: 10 * u), cornerRadius: 5 * u),
+                       with: .color(Color(hex: 0xA8743E)))
+                l.fill(Path(roundedRect: CGRect(x: 14 * u, y: -3.5 * u, width: 18 * u, height: 5 * u), cornerRadius: 2.5 * u),
+                       with: .color(Color(hex: 0x8A5A2E)))
+                var bristles = Path()
+                for k in 0..<9 {
+                    let x = -14 * u + CGFloat(k) * 3.5 * u
+                    bristles.move(to: CGPoint(x: x, y: 4 * u)); bristles.addLine(to: CGPoint(x: x, y: 10 * u))
+                }
+                l.stroke(bristles, with: .color(Color(hex: 0xF4EAD8)), lineWidth: 1.4 * u)
+            }
         case .giesskanne:
             let can = ctx.resolve(Text(Image(systemName: "drop.fill")).font(.system(size: 30 * u)).foregroundStyle(Color(hex: 0x6FB7EC)))
             ctx.draw(can, at: CGPoint(x: p.x + 18 * u, y: p.y - 34 * u))

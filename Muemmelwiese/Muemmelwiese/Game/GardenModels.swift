@@ -218,6 +218,17 @@ enum GardenBreed: String, Codable, CaseIterable {
         }
     }
 
+    /// Wie schnell das Fell verfilzt (Angora braucht viel Pflege, Rex kaum).
+    var coatCare: Double {
+        switch self {
+        case .angora: 3
+        case .loewenkopf: 2
+        case .rex: 0.5
+        case .riese: 1.2
+        default: 1
+        }
+    }
+
     var earLength: CGFloat {
         switch self {
         case .hermelin: 13
@@ -378,6 +389,7 @@ enum VisitorWish: Codable, Hashable {
     case futter(GardenFoodKind)
     case deko(DecorKind)
     case streicheln
+    case buersten
     case kurzerRasen
 
     var text: String {
@@ -388,6 +400,7 @@ enum VisitorWish: Codable, Hashable {
         case .futter(.zweige): "Möchte an Apfelzweigen knabbern"
         case .deko(let kind): "Sucht auf der Wiese: \(kind.title)"
         case .streicheln: "Will ausgiebig gestreichelt werden"
+        case .buersten: "Hat ganz verfilztes Fell – bitte bürsten"
         case .kurzerRasen: "Mag nur frisch gemähten Rasen"
         }
     }
@@ -398,6 +411,7 @@ enum VisitorWish: Codable, Hashable {
         case .futter(let kind): "Leg \(kind.title) in seine Nähe."
         case .deko(let kind): "Stell \(kind.title) auf (Shop → Gestalten)."
         case .streicheln: "Streichle es mit der Hand, bis die Herzen voll sind."
+        case .buersten: "Nimm die Bürste und wisch sanft übers Fell, bis es glänzt."
         case .kurzerRasen: "Mäh den Rasen rund um den Gast."
         }
     }
@@ -407,6 +421,7 @@ enum VisitorWish: Codable, Hashable {
         case .futter(let kind): kind.symbol
         case .deko(let kind): kind.symbol
         case .streicheln: "hand.raised.fill"
+        case .buersten: "comb.fill"
         case .kurzerRasen: "scissors"
         }
     }
@@ -418,9 +433,9 @@ enum VisitorWish: Codable, Hashable {
         }
         switch rarity {
         case .gewoehnlich:
-            return [.futter(.loewenzahn), .futter(.heu), .streicheln, .kurzerRasen].randomElement()!
+            return [.futter(.loewenzahn), .futter(.heu), .streicheln, .kurzerRasen, .buersten].randomElement()!
         case .selten:
-            return [.futter(.loewenzahn), .futter(.moehre), .streicheln, .kurzerRasen,
+            return [.futter(.loewenzahn), .futter(.moehre), .streicheln, .kurzerRasen, .buersten,
                     .deko(.stein), .deko(.busch), .deko(.blumenbeet), .deko(.sonnenblumen), .deko(.pilz)].randomElement()!
         case .superSelten:
             return [.futter(.moehre), .streicheln, .deko(.tunnel), .deko(.laterne), .deko(.baumstamm),
@@ -584,12 +599,18 @@ struct GardenRabbit: Codable, Identifiable, Hashable {
     /// Aufgepäppelt und bereit für ein neues Zuhause.
     /// Für immer behalten (eigenes Gehege, wird nicht vermittelt).
     var kept: Bool?
+    /// Fellzustand 0…100 (100 = frisch gebürstet, glänzt)
+    var coat: Double?
+    var coatValue: Double { coat ?? 80 }
     /// Unzertrennlicher Partner – wird nur gemeinsam vermittelt.
     var partner: UUID?
     var isKept: Bool { kept == true }
 
     /// Aufgepäppelt und bereit für ein neues Zuhause.
-    var isReady: Bool { !isVisitor && !isKept && hunger >= 55 && mood >= 60 && friendship >= 45 && Date.now.timeIntervalSince(joined) > 8 * 60 }
+    var isReady: Bool {
+        !isVisitor && !isKept && hunger >= 55 && mood >= 60 && friendship >= 45 && coatValue >= 50
+            && Date.now.timeIntervalSince(joined) > 8 * 60
+    }
 
     static let names = [
         "Mümmel", "Flocke", "Hoppel", "Krümel", "Möhrchen", "Wuschel", "Puschel", "Stups",

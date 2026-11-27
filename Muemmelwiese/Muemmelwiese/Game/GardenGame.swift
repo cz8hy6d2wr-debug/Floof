@@ -3,7 +3,7 @@ import UIKit
 import UserNotifications
 
 enum GardenTool: String, CaseIterable, Identifiable {
-    case hand, maeher, giesskanne, futter, foto, gestalten
+    case hand, buerste, maeher, giesskanne, futter, foto, gestalten
     var id: String { rawValue }
 
     var title: String {
@@ -12,6 +12,7 @@ enum GardenTool: String, CaseIterable, Identifiable {
         case .maeher: "Mähen"
         case .giesskanne: "Gießen"
         case .futter: "Futter"
+        case .buerste: "Bürste"
         case .foto: "Foto"
         case .gestalten: "Gestalten"
         }
@@ -23,6 +24,7 @@ enum GardenTool: String, CaseIterable, Identifiable {
         case .maeher: "scissors"
         case .giesskanne: "drop.fill"
         case .futter: "carrot.fill"
+        case .buerste: "comb.fill"
         case .foto: "camera.fill"
         case .gestalten: "paintbrush.fill"
         }
@@ -65,7 +67,7 @@ struct RabbitActor {
 }
 
 struct GardenParticle {
-    enum Kind { case heart, sparkle, clip, drop, zzz, confetti, label(String), petal }
+    enum Kind { case heart, sparkle, clip, drop, zzz, confetti, label(String), petal, fluff }
     var kind: Kind
     var p: CGPoint
     var v: CGVector
@@ -123,6 +125,8 @@ final class GardenGame {
     @ObservationIgnored private var touchStart: CGPoint?
     @ObservationIgnored private var lastTouch: CGPoint?
     @ObservationIgnored private var pettingID: UUID?
+    @ObservationIgnored private var brushingID: UUID?
+    @ObservationIgnored private var brushDistance: Double = 0
     @ObservationIgnored private var draggingDecorID: UUID?
     @ObservationIgnored private var lastCutHaptic: Double = 0
     let isDemo: Bool
@@ -515,6 +519,10 @@ final class GardenGame {
             let hungerRate = (p == .verfressen ? 0.03 : 0.02) * season.appetite * (isFreezing ? 1.15 : 1)
             var moodRate = (p == .verspielt ? 0.018 : 0.012)
             if r.hunger < 30 { moodRate *= 2 }
+            // Fell verfilzt mit der Zeit – je nach Rasse und im Fellwechsel (Frühling, Herbst) schneller.
+            let molt = season == .fruehling || season == .herbst ? 1.8 : 1
+            r.coat = max(0, r.coatValue - 0.004 * r.look.breed.coatCare * molt * dt)
+            if r.coatValue < 30 { moodRate *= 1.5 }
             r.hunger = max(0, r.hunger - hungerRate * dt)
             if a.mode == .sleep {
                 r.energy = min(100, r.energy + 0.3 * dt)
@@ -1003,11 +1011,13 @@ final class GardenGame {
         r.isVisitor = true
         r.leaveAt = nil   // Fundtiere bleiben, bis sie Vertrauen gefasst haben
         r.trust = 0
+        r.coat = .random(in: 40...85)
         if save.tutorialStep > 0, Double.random(in: 0...1) < rarity.wishChance {
             r.wish = VisitorWish.random(for: rarity)
             r.wishFulfilled = false
             r.wishProgress = 0
         }
+        if r.wish == .buersten { r.coat = 12 }
         var a = RabbitActor()
         a.mode = .enter
         a.facing = fromLeft ? 1 : -1
@@ -1074,6 +1084,8 @@ final class GardenGame {
         touchStart = p
         lastTouch = p
         pettingID = tool == .hand ? rabbitID(at: p) : nil
+        brushingID = tool == .buerste ? rabbitID(at: p) : nil
+        if tool == .buerste { toolPoint = p }
         if tool == .gestalten {
             draggingDecorID = decorID(at: p)
             if let id = draggingDecorID { selectedDecorID = id; placing = nil }
@@ -1095,6 +1107,10 @@ final class GardenGame {
             if let id = pettingID { pet(id, distance: hypot(p.x - last.x, p.y - last.y), at: p) }
         case .futter, .foto:
             break
+        case .buerste:
+            toolPoint = p
+            if brushingID == nil { brushingID = rabbitID(at: p) }
+            if let id = brushingID { brush(id, distance: hypot(p.x - last.x, p.y - last.y), at: p) }
         case .gestalten:
             if let id = draggingDecorID, let i = save.decor.firstIndex(where: { $0.id == id }) {
                 let w = clampToLawn(world(p))
@@ -1111,6 +1127,7 @@ final class GardenGame {
         touchStart = nil
         lastTouch = nil
         pettingID = nil
+        brushingID = nil
         let dragged = draggingDecorID
         draggingDecorID = nil
         guard isTap else {
@@ -1237,6 +1254,51 @@ final class GardenGame {
                 actors[save.rabbits[k].id] = a
             }
         }
+    }
+
+    /// Bürsten: lose Haare fliegen, das Fell wird glatt und glänzt.
+    private func brush(_ id: UUID, distance: Double, at p: CGPoint) {
+        guard let i = index(of: id) else { return }
+        var r = save.rabbits[i]
+        var a = actors[id] ?? RabbitActor()
+        guard a.mode != .startled, !a.isHopping else { return }
+        // Scheue Neuankömmlinge erschrecken sich anfangs leicht.
+        if r.isVisitor && r.trust < 30 && r.personality == .schuechtern && Double.random(in: 0...1) < 0.02 {
+            startle(&r, &a, from: world(p))
+            brushingID = nil
+            save.rabbits[i] = r
+            actors[id] = a
+            return
+        }
+        a.pettedUntil = clock + 0.7
+        if a.mode == .wander { a.goal = nil; a.mode = .idle }
+        a.timer = max(a.timer, 1)
+        brushDistance += distance
+        if Double.random(in: 0...1) < 0.35 {
+            burst(.fluff, at: CGPoint(x: p.x + .random(in: -8...8), y: p.y - 6), count: 1, color: r.look.fur.main)
+        }
+        if brushDistance > 34 {
+            brushDistance = 0
+            let before = r.coatValue
+            let gain = r.personality == .verschmust ? 7.0 : 5.5
+            r.coat = min(100, before + gain)
+            r.mood = min(100, r.mood + 1.5)
+            soft.impactOccurred(intensity: 0.45)
+            if r.isVisitor {
+                if r.wish == .buersten, r.wishFulfilled != true, r.coatValue >= 85 { fulfillWish(&r, &a) }
+                addTrust(&r, &a, 2.5 * r.rarity.trustFactor)
+            } else {
+                r.friendship = min(100, r.friendship + 0.4)
+            }
+            track(.buersten)
+            gainXPFraction(0.4)
+            if before < 100, r.coatValue >= 100 {
+                burst(.sparkle, at: CGPoint(x: p.x, y: p.y - 20), count: 8, color: .white)
+                floatLabel("Glänzt ✨", at: CGPoint(x: p.x, y: p.y - 40))
+            }
+        }
+        save.rabbits[i] = r
+        actors[id] = a
     }
 
     private func pet(_ id: UUID, distance: Double, at p: CGPoint) {
@@ -1588,6 +1650,12 @@ final class GardenGame {
                 part.v = CGVector(dx: .random(in: -60...60), dy: .random(in: -90 ... -30))
                 part.gravity = 120
                 part.life = 1
+            case .fluff:
+                // lose Fellbüschel schweben langsam davon
+                part.v = CGVector(dx: .random(in: -35...35), dy: .random(in: -40 ... -5))
+                part.gravity = 18
+                part.spin = .random(in: -1.5...1.5)
+                part.life = .random(in: 1.2...2)
             case .zzz, .label:
                 part.v = CGVector(dx: 0, dy: -30)
                 part.life = 1.4
@@ -1645,6 +1713,7 @@ final class GardenGame {
             var r = save.rabbits[i]
             let floor = lawn > 0.35 ? 60.0 : 20.0
             r.hunger = max(min(r.hunger, floor), r.hunger - t * 0.02) + share
+            r.coat = max(min(r.coatValue, 25), r.coatValue - t * 0.004 * r.look.breed.coatCare)
             r.hunger = min(100, r.hunger)
             r.mood = max(min(r.mood, 40), r.mood - t * 0.012)
             r.energy = t > 1800 ? max(r.energy, 85) : r.energy

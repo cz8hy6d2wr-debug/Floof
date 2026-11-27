@@ -196,6 +196,8 @@ extension GardenGame {
         if rainAmount > 0.5 { score -= 5 }
         if snowCover > 0.5 { score += 6; notes.append("Winterzauber ❄️") }
         if save.decor.contains(where: { hypot($0.x - r.x, $0.y - r.y) < 0.16 }) { score += 8; notes.append("Schöne Deko im Bild") }
+        if r.coatValue >= 85 { score += 8; notes.append("Glänzendes Fell") }
+        else if r.coatValue < 35 { score -= 10; notes.append("Fell verfilzt – vorher bürsten") }
         score += r.mood / 10
         score += Double(r.rarity.rawValue) * 3
         if r.isVisitor { score -= 15; notes.append("Noch scheu – erst Vertrauen gewinnen") }
@@ -364,6 +366,7 @@ extension GardenGame {
         if r.hunger < 55 { missing.append("Futter") }
         if r.mood < 60 { missing.append("gute Laune") }
         if r.friendship < 45 { missing.append("Zuneigung") }
+        if r.coatValue < 50 { missing.append("Fellpflege") }
         if Date.now.timeIntervalSince(r.joined) <= 8 * 60 { missing.append("Zeit zum Eingewöhnen") }
         return "Braucht noch: " + missing.joined(separator: ", ")
     }
