@@ -381,11 +381,12 @@ extension GardenGame {
 
     /// Eine Pfote: Krallen schneiden. Zutrauliche Kaninchen halten still, scheue zappeln manchmal.
     /// Gibt zurück, ob es geklappt hat.
-    func clipClaws(_ id: UUID) -> Bool {
+    func clipClaws(_ id: UUID, stress: Double = 0) -> Bool {
         guard let i = index(of: id) else { return false }
         var r = save.rabbits[i]
         let calm = r.isVisitor ? r.trust : r.friendship
-        if calm < 35, Double.random(in: 0...1) < 0.35 {
+        let wriggle = (calm < 35 ? 0.35 : 0.05) + stress * 0.6
+        if Double.random(in: 0...1) < wriggle {
             r.mood = max(0, r.mood - 2)
             save.rabbits[i] = r
             light.impactOccurred()
@@ -396,6 +397,59 @@ extension GardenGame {
         save.rabbits[i] = r
         soft.impactOccurred(intensity: 0.7)
         gainXPFraction(0.8)
+        hudTick &+= 1
+        return true
+    }
+
+    /// Pflegeraum: einmal Bürsten (lose Haare raus, Fell glatter).
+    func careBrush(_ id: UUID) {
+        guard let i = index(of: id) else { return }
+        var r = save.rabbits[i]
+        let before = r.coatValue
+        r.coat = min(100, before + (r.personality == .verschmust ? 7 : 5.5))
+        r.mood = min(100, r.mood + 1.5)
+        if r.isVisitor {
+            if r.wish == .buersten, r.wishFulfilled != true, r.coatValue >= 85 {
+                r.wishFulfilled = true
+                track(.wunsch)
+                gainXP(20)
+                showBanner("Wunsch erfüllt! Das Fell glänzt wieder.", symbol: "checkmark.seal.fill", duration: 3)
+            }
+            r.trust = min(r.hasOpenWish ? 60 : 100, r.trust + 2 * r.rarity.trustFactor)
+        } else {
+            r.friendship = min(100, r.friendship + 0.4)
+        }
+        save.rabbits[i] = r
+        track(.buersten)
+        gainXPFraction(0.4)
+        hudTick &+= 1
+    }
+
+    /// Pflegeraum: streicheln beruhigt und stärkt die Bindung.
+    func carePet(_ id: UUID) {
+        guard let i = index(of: id) else { return }
+        if save.rabbits[i].isVisitor {
+            save.rabbits[i].trust = min(save.rabbits[i].hasOpenWish ? 60 : 100, save.rabbits[i].trust + 1.5)
+        } else {
+            save.rabbits[i].friendship = min(100, save.rabbits[i].friendship + 0.5)
+        }
+        save.rabbits[i].mood = min(100, save.rabbits[i].mood + 1)
+        track(.streicheln)
+        gainXPFraction(0.3)
+        hudTick &+= 1
+    }
+
+    /// Pflegeraum: ein Leckerli (Löwenzahn, sonst Möhre). Gibt zurück, ob eins da war.
+    func careTreat(_ id: UUID) -> Bool {
+        guard let i = index(of: id) else { return false }
+        let kind: GardenFoodKind
+        if inventory.loewenzahn > 0 { kind = .loewenzahn } else if inventory.moehre > 0 { kind = .moehre }
+        else if inventory.zweige > 0 { kind = .zweige } else { return false }
+        inventory[kind] -= 1
+        save.rabbits[i].hunger = min(100, save.rabbits[i].hunger + kind.nourishment * 0.5)
+        save.rabbits[i].mood = min(100, save.rabbits[i].mood + kind.joy)
+        if kind == .zweige { save.rabbits[i].teeth = max(0, save.rabbits[i].teethValue - 15) }
+        track(.futtern(kind))
         hudTick &+= 1
         return true
     }

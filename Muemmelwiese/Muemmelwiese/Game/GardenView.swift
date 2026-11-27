@@ -492,7 +492,7 @@ private struct RabbitCard: View {
         Button { showsCare = true } label: {
             HStack(spacing: 6) {
                 Image(systemName: "cross.case.fill")
-                Text("Pflege: Krallen, Zähne, Ohren").lineLimit(1)
+                Text("Pflegeraum: bürsten, Krallen, Check").lineLimit(1)
                 Spacer(minLength: 0)
                 if !rabbit.isHealthy || rabbit.illnessFound == true {
                     Text(careHint).font(.caption.weight(.bold)).foregroundStyle(MTheme.carrot).lineLimit(1)
@@ -505,7 +505,7 @@ private struct RabbitCard: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .capsule)
-        .sheet(isPresented: $showsCare) { CareSheet(game: game, rabbitID: rabbit.id).presentationSizing(.form) }
+        .fullScreenCover(isPresented: $showsCare) { CareRoomView(game: game, rabbitID: rabbit.id) }
     }
 
     private var careHint: String {
