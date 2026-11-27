@@ -446,6 +446,45 @@ enum VisitorWish: Codable, Hashable {
     }
 }
 
+// MARK: - Gesundheit
+
+enum Illness: String, Codable, CaseIterable {
+    case ohrmilben, schnupfen, zahnspitzen
+
+    var title: String {
+        switch self {
+        case .ohrmilben: "Ohrmilben"
+        case .schnupfen: "Schnupfen"
+        case .zahnspitzen: "Zahnspitzen"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .ohrmilben: "Kratzt sich ständig am Ohr – Krusten im Gehörgang."
+        case .schnupfen: "Niest und hat eine feuchte Nase."
+        case .zahnspitzen: "Die Backenzähne sind zu lang und spitz – es frisst kaum noch."
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .ohrmilben: "ear.trianglebadge.exclamationmark"
+        case .schnupfen: "nose.fill"
+        case .zahnspitzen: "mouth.fill"
+        }
+    }
+
+    /// Behandlung bei der Tierärztin (Sterne)
+    var cost: Int {
+        switch self {
+        case .ohrmilben: 20
+        case .schnupfen: 25
+        case .zahnspitzen: 30
+        }
+    }
+}
+
 // MARK: - Deko & Zuhause
 
 enum DecorKind: String, Codable, CaseIterable, Identifiable {
@@ -602,13 +641,28 @@ struct GardenRabbit: Codable, Identifiable, Hashable {
     /// Fellzustand 0…100 (100 = frisch gebürstet, glänzt)
     var coat: Double?
     var coatValue: Double { coat ?? 80 }
+    /// Krallenlänge 0…100 (über 60 zu lang)
+    var claws: Double?
+    var clawValue: Double { claws ?? 20 }
+    /// Zahnlänge 0…100 (über 60 zu lang, über 85 Tierarzt)
+    var teeth: Double?
+    var teethValue: Double { teeth ?? 25 }
+    /// Erkrankung, die nur die Tierärztin behandeln kann
+    var illness: Illness?
+    /// Beim Gesundheitscheck schon entdeckt?
+    var illnessFound: Bool?
+    /// Zuletzt gründlich durchgecheckt
+    var lastCheckup: Date?
+
+    /// Gesund genug für ein neues Zuhause
+    var isHealthy: Bool { clawValue < 60 && teethValue < 60 && illness == nil }
     /// Unzertrennlicher Partner – wird nur gemeinsam vermittelt.
     var partner: UUID?
     var isKept: Bool { kept == true }
 
     /// Aufgepäppelt und bereit für ein neues Zuhause.
     var isReady: Bool {
-        !isVisitor && !isKept && hunger >= 55 && mood >= 60 && friendship >= 45 && coatValue >= 50
+        !isVisitor && !isKept && hunger >= 55 && mood >= 60 && friendship >= 45 && coatValue >= 50 && isHealthy
             && Date.now.timeIntervalSince(joined) > 8 * 60
     }
 

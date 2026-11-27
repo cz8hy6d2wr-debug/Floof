@@ -485,6 +485,35 @@ private struct RabbitCard: View {
     var compact = false
     var onRename: () -> Void
     @State private var confirmKeep = false
+    @State private var showsCare = false
+
+    /// Pflege: Krallen, Zähne, Ohren und Augen – mit Hinweis, wenn etwas fällig ist.
+    private var careButton: some View {
+        Button { showsCare = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "cross.case.fill")
+                Text("Pflege: Krallen, Zähne, Ohren").lineLimit(1)
+                Spacer(minLength: 0)
+                if !rabbit.isHealthy || rabbit.illnessFound == true {
+                    Text(careHint).font(.caption.weight(.bold)).foregroundStyle(MTheme.carrot).lineLimit(1)
+                }
+                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.secondary)
+            }
+            .font(.footnote.weight(.semibold))
+            .padding(.horizontal, 12).frame(height: 34)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .sheet(isPresented: $showsCare) { CareSheet(game: game, rabbitID: rabbit.id).presentationSizing(.form) }
+    }
+
+    private var careHint: String {
+        if rabbit.illnessFound == true, let ill = rabbit.illness { return ill.title }
+        if rabbit.clawValue >= 60 { return "Krallen lang" }
+        if rabbit.teethValue >= 60 { return "Zähne prüfen" }
+        return "Check fällig"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -546,6 +575,7 @@ private struct RabbitCard: View {
                     Text(visitorHint)
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                careButton
             } else {
                 HStack(spacing: 10) {
                     StatBar(title: "Satt", symbol: "fork.knife", value: rabbit.hunger, tint: Color(hex: 0xE2722B))
@@ -595,6 +625,7 @@ private struct RabbitCard: View {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.tint(MTheme.carrot.opacity(0.35)).interactive(), in: .capsule)
                 }
+                careButton
             }
 
             HStack(spacing: 8) {

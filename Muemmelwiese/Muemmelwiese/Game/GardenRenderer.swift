@@ -14,6 +14,8 @@ struct RabbitPose {
     var groom: CGFloat = -1
     /// Fellzustand 0…100 (verfilzt … glänzend)
     var coat: CGFloat = 80
+    /// Krallenlänge 0…100
+    var claws: CGFloat = 20
     var flop = false
     var breath: CGFloat = 1
     var nose: CGFloat = 0
@@ -1039,6 +1041,7 @@ enum GardenRenderer {
     static func pose(for r: GardenRabbit, actor a: RabbitActor, clock: Double) -> RabbitPose {
         var pose = RabbitPose()
         pose.coat = CGFloat(r.coatValue)
+        pose.claws = CGFloat(r.clawValue)
         if a.isHopping {
             let t = a.hopT
             pose.lift = CGFloat(sin(.pi * t)) * CGFloat(a.hopHeight)
@@ -1302,6 +1305,18 @@ enum GardenRenderer {
                            cornerRadius: 2.3)
             ctx.fill(paw, with: .color(pawColor))
             ctx.stroke(paw, with: .color(pal.shade.opacity(0.35)), lineWidth: 0.5)
+            // Zu lange Krallen sieht man vorn an den Pfoten
+            if pose.claws > 55 {
+                let len = 1 + (pose.claws - 55) / 45 * 3.5
+                var claw = Path()
+                let tipX = pawX + CGFloat(k) * 5.5 + 8.5
+                for c in 0..<2 {
+                    let y = pawY + 1.2 + CGFloat(c) * 1.8
+                    claw.move(to: CGPoint(x: tipX - 0.5, y: y))
+                    claw.addQuadCurve(to: CGPoint(x: tipX + len, y: y + 1.6), control: CGPoint(x: tipX + len * 0.7, y: y - 0.4))
+                }
+                ctx.stroke(claw, with: .color(Color(hex: 0xE9E1CF)), style: StrokeStyle(lineWidth: 0.8, lineCap: .round))
+            }
         }
 
         // Kopf

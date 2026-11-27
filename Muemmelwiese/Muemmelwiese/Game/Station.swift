@@ -198,6 +198,7 @@ extension GardenGame {
         if save.decor.contains(where: { hypot($0.x - r.x, $0.y - r.y) < 0.16 }) { score += 8; notes.append("Schöne Deko im Bild") }
         if r.coatValue >= 85 { score += 8; notes.append("Glänzendes Fell") }
         else if r.coatValue < 35 { score -= 10; notes.append("Fell verfilzt – vorher bürsten") }
+        if r.illness == .schnupfen { score -= 8; notes.append("Schniefnase – erst gesund werden") }
         score += r.mood / 10
         score += Double(r.rarity.rawValue) * 3
         if r.isVisitor { score -= 15; notes.append("Noch scheu – erst Vertrauen gewinnen") }
@@ -367,8 +368,79 @@ extension GardenGame {
         if r.mood < 60 { missing.append("gute Laune") }
         if r.friendship < 45 { missing.append("Zuneigung") }
         if r.coatValue < 50 { missing.append("Fellpflege") }
+        if r.clawValue >= 60 { missing.append("Krallen schneiden") }
+        if r.teethValue >= 60 { missing.append("Zähne") }
+        if r.illness != nil { missing.append(r.illnessFound == true ? "Tierärztin" : "Gesundheitscheck") }
         if Date.now.timeIntervalSince(r.joined) <= 8 * 60 { missing.append("Zeit zum Eingewöhnen") }
         return "Braucht noch: " + missing.joined(separator: ", ")
+    }
+
+    // MARK: - Pflegestation: Krallen, Zähne, Ohren & Augen
+
+    static let vetName = "Dr. Albers"
+
+    /// Eine Pfote: Krallen schneiden. Zutrauliche Kaninchen halten still, scheue zappeln manchmal.
+    /// Gibt zurück, ob es geklappt hat.
+    func clipClaws(_ id: UUID) -> Bool {
+        guard let i = index(of: id) else { return false }
+        var r = save.rabbits[i]
+        let calm = r.isVisitor ? r.trust : r.friendship
+        if calm < 35, Double.random(in: 0...1) < 0.35 {
+            r.mood = max(0, r.mood - 2)
+            save.rabbits[i] = r
+            light.impactOccurred()
+            hudTick &+= 1
+            return false
+        }
+        r.claws = max(0, r.clawValue - 26)
+        save.rabbits[i] = r
+        soft.impactOccurred(intensity: 0.7)
+        gainXPFraction(0.8)
+        hudTick &+= 1
+        return true
+    }
+
+    /// Gründlicher Check: Zähne, Ohren, Augen, Nase. Findet versteckte Erkrankungen.
+    func checkup(_ id: UUID) {
+        guard let i = index(of: id) else { return }
+        var r = save.rabbits[i]
+        let fresh = r.lastCheckup.map { Date.now.timeIntervalSince($0) > 3600 } ?? true
+        r.lastCheckup = .now
+        if r.illness != nil, r.illnessFound != true {
+            r.illnessFound = true
+            showBanner("Beim Check entdeckt: \(r.illness!.title) – ab zur Tierärztin", symbol: "stethoscope", duration: 4)
+        }
+        if r.isVisitor { r.trust = min(r.hasOpenWish ? 60 : 100, r.trust + 3) } else { r.friendship = min(100, r.friendship + 1) }
+        save.rabbits[i] = r
+        if fresh {
+            track(.pflege)
+            gainXP(4)
+        }
+        hudTick &+= 1
+    }
+
+    /// Behandlung bei der Tierärztin (kostet Sterne).
+    func treat(_ id: UUID) -> Bool {
+        guard let i = index(of: id) else { return false }
+        var r = save.rabbits[i]
+        let cost = r.illness?.cost ?? (r.teethValue >= 60 ? 15 : 0)
+        guard cost > 0, inventory.sterne >= cost else {
+            if cost > 0 { showBanner("Für die Behandlung fehlen Sterne (\(cost) ★)", symbol: "star.fill", duration: 3) }
+            return false
+        }
+        inventory.sterne -= cost
+        if r.illness == .zahnspitzen || r.teethValue >= 60 { r.teeth = 15 }
+        r.illness = nil
+        r.illnessFound = nil
+        r.mood = min(100, r.mood + 10)
+        save.rabbits[i] = r
+        notify.notificationOccurred(.success)
+        showBanner("\(Self.vetName) hat \(r.isVisitor ? "den Neuankömmling" : r.name) behandelt – wieder gesund 💚",
+                   symbol: "cross.case.fill", duration: 4)
+        gainXP(10)
+        hudTick &+= 1
+        persist()
+        return true
     }
 
     // MARK: - Takt (aus dem Spieltakt alle paar Sekunden)

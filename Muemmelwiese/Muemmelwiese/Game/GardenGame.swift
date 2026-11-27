@@ -523,6 +523,12 @@ final class GardenGame {
             let molt = season == .fruehling || season == .herbst ? 1.8 : 1
             r.coat = max(0, r.coatValue - 0.004 * r.look.breed.coatCare * molt * dt)
             if r.coatValue < 30 { moodRate *= 1.5 }
+            // Krallen und Zähne wachsen ständig nach.
+            r.claws = min(100, r.clawValue + 0.0006 * dt)
+            r.teeth = min(100, r.teethValue + 0.0005 * dt)
+            if r.clawValue > 70 { moodRate *= 1.3 }
+            if r.teethValue > 70 || r.illness != nil { moodRate *= 1.4 }
+            if r.teethValue >= 92, r.illness == nil { r.illness = .zahnspitzen; r.illnessFound = false }
             r.hunger = max(0, r.hunger - hungerRate * dt)
             if a.mode == .sleep {
                 r.energy = min(100, r.energy + 0.3 * dt)
@@ -640,6 +646,7 @@ final class GardenGame {
             guard let cell = a.cell else { a.mode = .idle; return }
             save.grass[cell] = max(0.12, save.grass[cell] - 0.05 * dt)
             r.hunger = min(100, r.hunger + 3.2 * dt)
+            r.teeth = max(0, r.teethValue - 0.25 * dt)   // Gras kauen nutzt die Zähne etwas ab
             r.mood = min(100, r.mood + 0.15 * dt)
             a.timer -= dt
             if save.grass[cell] <= 0.18 || r.hunger >= 98 || a.timer <= 0 {
@@ -659,8 +666,15 @@ final class GardenGame {
             let kind = save.foods[f].kind
             let bite = min(save.foods[f].amount, 0.14 * dt)
             save.foods[f].amount -= bite
-            r.hunger = min(100, r.hunger + kind.nourishment * bite)
+            // Mit zu langen Zähnen frisst es schlechter. Heu und Zweige nutzen die Zähne ab.
+            let chew = r.teethValue > 70 || r.illness == .zahnspitzen ? 0.6 : 1
+            r.hunger = min(100, r.hunger + kind.nourishment * bite * chew)
             r.mood = min(100, r.mood + kind.joy * bite)
+            switch kind {
+            case .heu: r.teeth = max(0, r.teethValue - 22 * bite)
+            case .zweige: r.teeth = max(0, r.teethValue - 40 * bite)
+            default: break
+            }
             if r.isVisitor {
                 if case .futter(let wanted)? = r.wish, wanted == kind, r.wishFulfilled != true {
                     fulfillWish(&r, &a)
@@ -1012,6 +1026,13 @@ final class GardenGame {
         r.leaveAt = nil   // Fundtiere bleiben, bis sie Vertrauen gefasst haben
         r.trust = 0
         r.coat = .random(in: 40...85)
+        // Fundtiere aus schlechter Haltung: oft lange Krallen, manchmal krank
+        r.claws = .random(in: 35...95)
+        r.teeth = .random(in: 15...65)
+        if Double.random(in: 0...1) < 0.18 {
+            r.illness = [Illness.ohrmilben, .schnupfen].randomElement()!
+            r.illnessFound = false
+        }
         if save.tutorialStep > 0, Double.random(in: 0...1) < rarity.wishChance {
             r.wish = VisitorWish.random(for: rarity)
             r.wishFulfilled = false
@@ -1714,6 +1735,9 @@ final class GardenGame {
             let floor = lawn > 0.35 ? 60.0 : 20.0
             r.hunger = max(min(r.hunger, floor), r.hunger - t * 0.02) + share
             r.coat = max(min(r.coatValue, 25), r.coatValue - t * 0.004 * r.look.breed.coatCare)
+            r.claws = min(95, r.clawValue + t * 0.0006)
+            // offline: Heu aus der Raufe und Gras halten die Zähne ungefähr in Schach
+            r.teeth = min(80, r.teethValue + t * 0.0002)
             r.hunger = min(100, r.hunger)
             r.mood = max(min(r.mood, 40), r.mood - t * 0.012)
             r.energy = t > 1800 ? max(r.energy, 85) : r.energy

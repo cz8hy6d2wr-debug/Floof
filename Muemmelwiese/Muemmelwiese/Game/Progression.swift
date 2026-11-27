@@ -112,6 +112,7 @@ enum QuestEvent {
     case foto(Int)
     case posten
     case buersten
+    case pflege
 }
 
 enum QuestGoal: Codable, Hashable {
@@ -129,6 +130,7 @@ enum QuestGoal: Codable, Hashable {
     case foto(Int)
     case posten
     case buersten
+    case pflege
 
     func matches(_ e: QuestEvent) -> Bool {
         switch (self, e) {
@@ -137,7 +139,7 @@ enum QuestGoal: Codable, Hashable {
              (.pfluecken, .pfluecken), (.wunsch, .wunsch), (.deko, .deko), (.vermitteln, .vermitteln): return true
         case (.zaehmen(let min), .zaehmen(let got)): return got >= min
         case (.foto(let min), .foto(let got)): return got >= min
-        case (.posten, .posten), (.buersten, .buersten): return true
+        case (.posten, .posten), (.buersten, .buersten), (.pflege, .pflege): return true
         default: return false
         }
     }
@@ -159,6 +161,7 @@ enum QuestGoal: Codable, Hashable {
         case .foto(let stars): n == 1 ? "Mache ein Foto mit \(stars) Sternen oder mehr" : "Mache \(n) Fotos mit \(stars)+ Sternen"
         case .posten: n == 1 ? "Poste ein Foto auf Hoppelgram" : "Poste \(n) Fotos auf Hoppelgram"
         case .buersten: "Bürste \(n)× ein Kaninchen"
+        case .pflege: n == 1 ? "Mache einen Gesundheitscheck" : "Mache \(n) Gesundheitschecks"
         }
     }
 
@@ -177,6 +180,7 @@ enum QuestGoal: Codable, Hashable {
         case .foto: "camera.fill"
         case .posten: "photo.on.rectangle.angled"
         case .buersten: "comb.fill"
+        case .pflege: "stethoscope"
         }
     }
 }
@@ -203,6 +207,7 @@ struct GardenQuest: Codable, Identifiable, Hashable {
             (.futtern(nil), n(4), 12),
             (.streicheln, n(10), 12),
             (.buersten, n(8), 12),
+            (.pflege, max(1, n(1.5)), 14),
             (.maehen, n(20), 10),
             (.giessen, n(15), 8),
             (.zaehmen(.gewoehnlich), 1, 25),
